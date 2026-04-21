@@ -1,0 +1,42 @@
+faetures to add
+
+OPTIONAL: LIVE TRACKING (VERY POWERFUL)
+
+Ask user:
+
+“Share live location with police?”
+
+If YES:
+
+Track using:
+Firebase Realtime Database
+
+✔ Useful for:
+
+Kidnapping
+पीछing suspects
+Moving incidents
+
+
+=================================
+
+FALSE REPORT PREVENTION (STRICT FOR PNP)
+Add penalties:
+1 false report → Warning
+2 false reports → Temporary ban
+3 false reports → Permanent ban
+
+=======================================
+
+Add warning message:
+
+“False reporting is punishable under law.”
+
+Based on:
+
+The Revised Penal Code of the Philippines (Act No. 3815),
+
+👉 This is VERY effective psychologically
+
+====================================
+
