@@ -1,0 +1,10 @@
+Supabase
+
+dbPass: werdiiewr@fsd
+name:LigtasCalbayog
+
+
+Expo dev
+
+email:sintosroberto3@gmail.com
+pass:Streamfj231Fesdf
