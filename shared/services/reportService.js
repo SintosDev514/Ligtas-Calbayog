@@ -11,8 +11,9 @@ export const submitCrimeReport = async ({
   longitude,
   locationAddress,
   shareLiveLocation = false,
+  photoUrl = null,
 }) => {
-  const { data, error } = await supabase.from("crime_reports").insert({
+  const payload = {
     resident_id: userId,
     crime_type: crimeType,
     description: description || "",
@@ -22,7 +23,10 @@ export const submitCrimeReport = async ({
     share_live_location: shareLiveLocation,
     status: "pending",
     created_at: new Date().toISOString(),
-  }).select().single();
+    ...(photoUrl ? { photo_url: photoUrl } : {}),
+  };
+
+  const { data, error } = await supabase.from("crime_reports").insert(payload).select().single();
 
   if (error) throw new Error(error.message);
   return data;
