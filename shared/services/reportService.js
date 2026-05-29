@@ -26,7 +26,11 @@ export const submitCrimeReport = async ({
     ...(photoUrl ? { photo_url: photoUrl } : {}),
   };
 
-  const { data, error } = await supabase.from("crime_reports").insert(payload).select().single();
+  const { data, error } = await supabase
+    .from("crime_reports")
+    .insert(payload)
+    .select()
+    .single();
 
   if (error) throw new Error(error.message);
   return data;
@@ -71,4 +75,77 @@ export const fetchResidentProfile = async (userId) => {
 
   if (error) throw new Error(error.message);
   return data;
+};
+
+/**
+ * Fetch police feedback/response for a specific report
+ */
+export const fetchReportFeedback = async (reportId) => {
+  const { data, error } = await supabase
+    .from("report_feedback")
+    .select("*")
+    .eq("report_id", reportId)
+    .order("created_at", { ascending: false })
+    .single();
+
+  if (error && error.code !== "PGRST116") {
+    // PGRST116 = no rows found (not an error)
+    throw new Error(error.message);
+  }
+  return data ?? null;
+};
+
+/**
+ * Fetch ongoing action updates for a specific report
+ */
+export const fetchActionUpdates = async (reportId) => {
+  const { data, error } = await supabase
+    .from("action_updates")
+    .select("*")
+    .eq("report_id", reportId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  return data ?? [];
+};
+
+/**
+ * Subscribe to real-time updates for a specific report
+ */
+export const subscribeToReportUpdates = (reportId, callback) => {
+  const subscription = supabase
+    .channel(`report:${reportId}`)
+    .on(
+      "postgres_changes",
+      {
+        event: "UPDATE",
+        schema: "public",
+        table: "crime_reports",
+        filter: `id=eq.${reportId}`,
+      },
+      (payload) => callback(payload.new),
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "report_feedback",
+        filter: `report_id=eq.${reportId}`,
+      },
+      (payload) => callback({ type: "feedback", data: payload.new }),
+    )
+    .on(
+      "postgres_changes",
+      {
+        event: "INSERT",
+        schema: "public",
+        table: "action_updates",
+        filter: `report_id=eq.${reportId}`,
+      },
+      (payload) => callback({ type: "action_update", data: payload.new }),
+    )
+    .subscribe();
+
+  return subscription;
 };
