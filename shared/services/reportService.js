@@ -20,7 +20,6 @@ export const submitCrimeReport = async ({
     latitude: latitude ?? null,
     longitude: longitude ?? null,
     location_address: locationAddress ?? null,
-    share_live_location: shareLiveLocation,
     status: "pending",
     created_at: new Date().toISOString(),
     ...(photoUrl ? { photo_url: photoUrl } : {}),
@@ -148,4 +147,22 @@ export const subscribeToReportUpdates = (reportId, callback) => {
     .subscribe();
 
   return subscription;
+};
+
+/**
+ * Fetch emergency contact by label (e.g., 'police')
+ */
+export const fetchEmergencyContact = async (label = "police") => {
+  const { data, error } = await supabase
+    .from("emergency_contacts")
+    .select("*")
+    .eq("label", label)
+    .limit(1)
+    .single();
+
+  if (error && error.code !== "PGRST116") {
+    throw new Error(error.message);
+  }
+
+  return data ?? null;
 };
