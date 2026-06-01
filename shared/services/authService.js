@@ -1,38 +1,7 @@
 import { supabase } from "../supabase/supabaseClient";
 
-// Upload liveness photo to Supabase Storage and return the public URL
-const uploadLivenessPhoto = async (uid, uri) => {
-  try {
-    const response = await fetch(uri);
-    const blob = await response.blob();
-
-    const filePath = `residents/${uid}.jpg`;
-
-    const { error: uploadError } = await supabase.storage
-      .from("liveness-photos")
-      .upload(filePath, blob, {
-        contentType: "image/jpeg",
-        upsert: true,
-      });
-
-    if (uploadError) {
-      console.warn("Liveness photo upload failed:", uploadError.message);
-      return null;
-    }
-
-    const { data } = supabase.storage
-      .from("liveness-photos")
-      .getPublicUrl(filePath);
-
-    return data?.publicUrl ?? null;
-  } catch (err) {
-    console.warn("Liveness photo upload error:", err);
-    return null;
-  }
-};
-
 export const registerResident = async (data) => {
-  const { email, password, selfieUri, ...profile } = data;
+  const { email, password, idPhotoUri, ...profile } = data;
 
   // 1. Create the auth user
   const { data: authData, error: signUpError } = await supabase.auth.signUp({
@@ -45,10 +14,24 @@ export const registerResident = async (data) => {
   const uid = authData.user?.id;
   if (!uid) throw new Error("Failed to create user account.");
 
-  // 2. Upload liveness photo if provided
-  const livenessPhotoURL = selfieUri
-    ? await uploadLivenessPhoto(uid, selfieUri)
-    : null;
+  // 2. Upload ID photo if provided
+  let idPhotoURL = null;
+  if (idPhotoUri) {
+    try {
+      const response = await fetch(idPhotoUri);
+      const blob = await response.blob();
+      const filePath = `ids/${uid}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from("profile-photos")
+        .upload(filePath, blob, { contentType: "image/jpeg", upsert: true });
+      if (!uploadError) {
+        const { data: urlData } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
+        idPhotoURL = urlData?.publicUrl ?? null;
+      }
+    } catch (err) {
+      console.warn("ID photo upload failed:", err);
+    }
+  }
 
   // 3. Insert into users table
   const { error: userInsertError } = await supabase.from("users").insert({
@@ -70,10 +53,15 @@ export const registerResident = async (data) => {
       address: profile.address,
       phone_number: profile.phoneNumber,
       emergency_contact: profile.emergencyContact,
-      father_name: profile.fatherName,
-      mother_name: profile.motherName,
-      liveness_photo_url: livenessPhotoURL,
-      liveness_verified: !!livenessPhotoURL,
+      guardian_name: profile.guardianName || null,
+      guardian_phone: profile.guardianPhone || null,
+      father_name: profile.fatherName || null,
+      father_phone: profile.fatherPhone || null,
+      mother_name: profile.motherName || null,
+      mother_phone: profile.motherPhone || null,
+      latitude: profile.latitude || null,
+      longitude: profile.longitude || null,
+      id_photo_url: idPhotoURL,
     });
 
   if (profileInsertError) throw new Error(profileInsertError.message);
