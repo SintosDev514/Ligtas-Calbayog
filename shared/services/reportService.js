@@ -112,39 +112,25 @@ export const fetchActionUpdates = async (reportId) => {
  * Subscribe to real-time updates for a specific report
  */
 export const subscribeToReportUpdates = (reportId, callback) => {
-  const subscription = supabase
-    .channel(`report:${reportId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "crime_reports",
-        filter: `id=eq.${reportId}`,
-      },
-      (payload) => callback(payload.new),
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "report_feedback",
-        filter: `report_id=eq.${reportId}`,
-      },
-      (payload) => callback({ type: "feedback", data: payload.new }),
-    )
-    .on(
-      "postgres_changes",
-      {
-        event: "INSERT",
-        schema: "public",
-        table: "action_updates",
-        filter: `report_id=eq.${reportId}`,
-      },
-      (payload) => callback({ type: "action_update", data: payload.new }),
-    )
-    .subscribe();
+  const channelName = `report:${reportId}:${Date.now()}`;
+  const subscription = supabase.channel(channelName);
+
+  subscription.on(
+    "postgres_changes",
+    {
+      event: "UPDATE",
+      schema: "public",
+      table: "crime_reports",
+      filter: `id=eq.${reportId}`,
+    },
+    (payload) => callback(payload.new),
+  );
+
+  subscription.subscribe((status, err) => {
+    if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+      console.warn(`Realtime subscription for ${reportId} failed:`, err?.message);
+    }
+  });
 
   return subscription;
 };
@@ -165,4 +151,119 @@ export const fetchEmergencyContact = async (label = "police") => {
   }
 
   return data ?? null;
+};
+
+/**
+ * Cancel a report and apply progressive penalty
+ * Returns { penalty: 'warning' | 'restriction' | 'ban' | null, cancel_count: number }
+ */
+export const cancelReport = async (reportId, userId) => {
+  // Update report status to cancelled
+  const { error: reportError } = await supabase
+    .from("crime_reports")
+    .update({ status: "cancelled" })
+    .eq("id", reportId)
+    .eq("resident_id", userId);
+
+  if (reportError) throw new Error(reportError.message);
+
+  // Get current cancel count
+  const { data: profile, error: profileError } = await supabase
+    .from("resident_profiles")
+    .select("cancel_count")
+    .eq("id", userId)
+    .single();
+
+  if (profileError) throw new Error(profileError.message);
+
+  const currentCount = (profile?.cancel_count || 0) + 1;
+
+  // Increment cancel count
+  const { error: updateError } = await supabase
+    .from("resident_profiles")
+    .update({ cancel_count: currentCount })
+    .eq("id", userId);
+
+  if (updateError) throw new Error(updateError.message);
+
+  let penaltyType = null;
+
+  if (currentCount === 1) {
+    penaltyType = "warning";
+  } else if (currentCount === 2) {
+    penaltyType = "restriction";
+  } else if (currentCount >= 3) {
+    penaltyType = "ban";
+  }
+
+  // Record penalty
+  if (penaltyType) {
+    const { error: penaltyError } = await supabase
+      .from("penalties")
+      .insert({
+        user_id: userId,
+        type: penaltyType,
+        reason: `Cancelled report #${reportId} (cancel #${currentCount})`,
+      });
+
+    if (penaltyError) console.warn("Failed to record penalty:", penaltyError.message);
+  }
+
+  return { penalty: penaltyType, cancel_count: currentCount };
+};
+
+/**
+ * Get active penalty for a user (restriction or ban)
+ */
+export const getActivePenalty = async (userId) => {
+  const { data, error } = await supabase
+    .from("penalties")
+    .select("*")
+    .eq("user_id", userId)
+    .eq("is_active", true)
+    .in("type", ["restriction", "ban"])
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error && error.code !== "PGRST116") {
+    throw new Error(error.message);
+  }
+
+  return data ?? null;
+};
+
+/**
+ * Get the user's cancel count
+ */
+export const getCancelCount = async (userId) => {
+  const { data, error } = await supabase
+    .from("resident_profiles")
+    .select("cancel_count")
+    .eq("id", userId)
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data?.cancel_count || 0;
+};
+
+/**
+ * Submit an appeal for a penalty
+ */
+export const appealPenalty = async (penaltyId, userId, message) => {
+  const { data, error } = await supabase
+    .from("penalties")
+    .update({
+      appeal_message: message,
+      appeal_status: "pending",
+      appealed_at: new Date().toISOString(),
+    })
+    .eq("id", penaltyId)
+    .eq("user_id", userId)
+    .eq("appeal_status", "none")
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+  return data;
 };

@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Ligtas Calbayog - Police",
+    "slug": "police-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.ligtas.police"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#17202b"
+      },
+      "package": "com.ligtas.police"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-location"
+    ],
+    "scheme": "ligtas-police"
+  }
+}
