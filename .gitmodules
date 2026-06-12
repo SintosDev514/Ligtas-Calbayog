@@ -1,0 +1,4 @@
+[submodule "apps/resident-app"]
+	path = apps/resident-app
+	url = https://github.com/SintosDev514/resident-app.git
+	branch = master

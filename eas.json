@@ -1,0 +1,25 @@
+{
+  "cli": {
+    "version": ">= 16.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "workingDirectory": "apps/resident-app",
+      "ios": {
+        "simulator": false
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "workingDirectory": "apps/resident-app"
+    },
+    "production": {
+      "workingDirectory": "apps/resident-app"
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
