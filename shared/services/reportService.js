@@ -267,3 +267,71 @@ export const appealPenalty = async (penaltyId, userId, message) => {
   if (error) throw new Error(error.message);
   return data;
 };
+
+/**
+ * Upsert police officer's location for a specific report
+ */
+export const upsertPoliceLocation = async (officerId, reportId, latitude, longitude) => {
+  const { data: existing } = await supabase
+    .from("police_locations")
+    .select("id")
+    .eq("officer_id", officerId)
+    .eq("report_id", reportId)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from("police_locations")
+      .update({ latitude, longitude, updated_at: new Date().toISOString() })
+      .eq("id", existing.id);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase
+      .from("police_locations")
+      .insert({ officer_id: officerId, report_id: reportId, latitude, longitude });
+    if (error) throw new Error(error.message);
+  }
+};
+
+/**
+ * Subscribe to police location updates for a specific report
+ */
+export const subscribeToPoliceLocation = (reportId, callback) => {
+  const channelName = `police-location:${reportId}:${Date.now()}`;
+  const subscription = supabase.channel(channelName);
+
+  subscription.on(
+    "postgres_changes",
+    {
+      event: "*",
+      schema: "public",
+      table: "police_locations",
+      filter: `report_id=eq.${reportId}`,
+    },
+    (payload) => callback(payload.new),
+  );
+
+  subscription.subscribe((status, err) => {
+    if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+      console.warn(`Police location subscription for ${reportId} failed:`, err?.message);
+    }
+  });
+
+  return subscription;
+};
+
+/**
+ * Get the latest police location for a report
+ */
+export const fetchPoliceLocation = async (reportId) => {
+  const { data, error } = await supabase
+    .from("police_locations")
+    .select("*, police_profiles(full_name, badge_id, rank)")
+    .eq("report_id", reportId)
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error && error.code !== "PGRST116") throw new Error(error.message);
+  return data ?? null;
+};
