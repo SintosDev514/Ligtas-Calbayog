@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -7,27 +7,90 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
-  Linking,
-  Platform,
   Modal,
   ScrollView,
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import * as Location from "expo-location";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { statusColors, crimeIcons, colors } from "../../constants/theme";
 import { reportsStyles as s } from "../styles/Reports.styles";
 import MapView, { Marker } from "../../components/MapView";
+import { upsertPoliceLocation } from "../../../../shared/services/reportService";
 
 export default function ReportsScreen() {
   const { profile } = useAuth();
+  const router = useRouter();
   const [reports, setReports] = useState<any[]>([]);
   const [residents, setResidents] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("pending");
   const [selectedReport, setSelectedReport] = useState<any | null>(null);
+  const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  const [policeLocation, setPoliceLocation] = useState<{latitude: number; longitude: number} | null>(null);
+  const locationWatchRef = useRef<any>(null);
+  const locationIntervalRef = useRef<number | null>(null);
+
+  // Start/stop location tracking based on active report
+  useEffect(() => {
+    if (!activeReportId) {
+      if (locationWatchRef.current) { locationWatchRef.current.remove?.(); locationWatchRef.current = null; }
+      if (locationIntervalRef.current) { clearInterval(locationIntervalRef.current); locationIntervalRef.current = null; }
+      setPoliceLocation(null);
+      return;
+    }
+
+    const startTracking = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") return;
+
+        locationWatchRef.current = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 0 },
+          (pos) => {
+            const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+            setPoliceLocation(loc);
+          },
+        );
+      } catch (err) {
+        console.warn("Location watch failed:", err);
+        if (!navigator.geolocation) return;
+        const watchId = navigator.geolocation.watchPosition(
+          (pos) => setPoliceLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+          (err) => console.warn("Geolocation error:", err.message),
+          { enableHighAccuracy: true },
+        );
+        locationWatchRef.current = { remove: () => navigator.geolocation.clearWatch(watchId) };
+      }
+    };
+
+    startTracking();
+
+    return () => {
+      if (locationWatchRef.current) { locationWatchRef.current.remove?.(); locationWatchRef.current = null; }
+      if (locationIntervalRef.current) { clearInterval(locationIntervalRef.current); locationIntervalRef.current = null; }
+    };
+  }, [activeReportId]);
+
+  // Upsert police location to DB every 5 seconds when active
+  useEffect(() => {
+    if (!activeReportId || !policeLocation || !profile) return;
+
+    const upsert = () => {
+      upsertPoliceLocation(profile.id, activeReportId, policeLocation.latitude, policeLocation.longitude)
+        .catch((err) => console.warn("Failed to upsert police location:", err.message));
+    };
+
+    upsert();
+    const id = setInterval(upsert, 5000);
+    locationIntervalRef.current = id;
+
+    return () => clearInterval(id);
+  }, [activeReportId, policeLocation, profile]);
 
   useEffect(() => {
     loadReports();
@@ -106,24 +169,38 @@ export default function ReportsScreen() {
         .eq("id", reportId);
       if (error) throw error;
       setReports((prev) =>
-        prev.map((r) => (r.id === reportId ? { ...r, status } : r)),
+        prev.map((r) => r.id === reportId ? { ...r, status } : r),
       );
       if (selectedReport?.id === reportId) {
         setSelectedReport((prev: any) => prev ? { ...prev, status } : null);
       }
+
+      if (status === "in-progress") {
+        setActiveReportId(reportId);
+      } else {
+        if (activeReportId === reportId) setActiveReportId(null);
+      }
+
       Alert.alert("Updated", `Report marked as "${status.replace("-", " ")}".`);
     } catch (err: any) {
       Alert.alert("Error", err.message);
     }
   };
 
-  const openNavigation = (lat: number, lng: number) => {
-    const url = Platform.OS === "ios"
-      ? `maps://app?daddr=${lat},${lng}`
-      : `geo:${lat},${lng}?q=${lat},${lng}`;
-    Linking.openURL(url).catch(() =>
-      Alert.alert("Error", "Could not open navigation app."),
-    );
+  const navigateToRoute = async (destLat: number, destLng: number, residentId: string) => {
+    try {
+      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const params = new URLSearchParams({
+        sourceLat: pos.coords.latitude.toString(),
+        sourceLng: pos.coords.longitude.toString(),
+        destLat: destLat.toString(),
+        destLng: destLng.toString(),
+        name: residents[residentId]?.full_name || "Resident",
+      });
+      router.push(`/navigate/${residentId}?${params.toString()}` as any);
+    } catch (err) {
+      Alert.alert("Error", "Could not get your current location.");
+    }
   };
 
   const filteredReports = reports.filter((r) => {
@@ -222,7 +299,7 @@ export default function ReportsScreen() {
             <TouchableOpacity
               style={s.locateBtn}
               onPress={() =>
-                item.latitude && openNavigation(item.latitude, item.longitude)
+                item.latitude && navigateToRoute(item.latitude, item.longitude, item.resident_id)
               }
             >
               <Ionicons name="navigate" size={16} color="#2563EB" />
@@ -363,7 +440,7 @@ export default function ReportsScreen() {
                       </Text>
                       {selectedReport.latitude && (
                         <TouchableOpacity
-                          onPress={() => openNavigation(selectedReport.latitude, selectedReport.longitude)}
+                          onPress={() => navigateToRoute(selectedReport.latitude, selectedReport.longitude, selectedReport.resident_id)}
                           style={{ backgroundColor: "#DBEAFE", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 }}
                         >
                           <Text style={{ fontSize: 11, fontWeight: "700", color: "#2563EB" }}>Navigate</Text>
@@ -435,7 +512,7 @@ export default function ReportsScreen() {
                     <>
                       <TouchableOpacity
                         style={[s.modalActionBtn, { backgroundColor: "#DBEAFE" }]}
-                        onPress={() => openNavigation(selectedReport.latitude, selectedReport.longitude)}
+                        onPress={() => navigateToRoute(selectedReport.latitude, selectedReport.longitude, selectedReport.resident_id)}
                       >
                         <Ionicons name="navigate" size={16} color="#2563EB" />
                         <Text style={{ color: "#2563EB", fontWeight: "700", fontSize: 13 }}>Navigate</Text>

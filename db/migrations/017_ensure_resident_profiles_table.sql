@@ -1,6 +1,6 @@
 -- Migration: Ensure resident_profiles table exists with proper schema and RLS
 -- Fixes the naming mismatch: migration 001 created 'resident_profile' (singular)
--- but the app code queries 'resident_profiles' (plural)
+-- but the app code queries 'resident_profiles' (plural)r
 
 -- 1. Create resident_profiles if it doesn't exist (with id PK matching auth.users)
 CREATE TABLE IF NOT EXISTS public.resident_profiles (

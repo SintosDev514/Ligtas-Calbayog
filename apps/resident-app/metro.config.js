@@ -17,6 +17,7 @@ config.resolver.nodeModulesPaths = [
 
 config.resolver.alias = {
   ...config.resolver.alias,
+  "@": ".",
   "@shared": path.resolve(__dirname, "../../shared"),
 };
 

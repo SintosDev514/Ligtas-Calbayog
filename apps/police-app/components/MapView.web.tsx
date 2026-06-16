@@ -1,14 +1,38 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-const TILE_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const TILES: Record<string, string> = {
+  light: "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
+  dark: "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+  street: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+};
+
+const TILE_ATTR: Record<string, string> = {
+  light: "© CARTO",
+  dark: "© CARTO",
+  street: "© OpenStreetMap contributors",
+};
+
+const MAP_STYLE_NAMES = Object.keys(TILES);
+
+const MAPILLARY_TOKEN = "MLY|27240407492254490|a5c94f86b7fb9a1e9728f1eddcb49110";
+const MAPILLARY_TILE_URL = `https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${encodeURIComponent(MAPILLARY_TOKEN)}`;
+
+type MapStyle = "light" | "dark" | "satellite";
 
 interface Region {
   latitude: number;
   longitude: number;
   latitudeDelta: number;
   longitudeDelta: number;
+}
+
+interface RouteData {
+  geometry: {
+    type: "LineString";
+    coordinates: [number, number][];
+  };
 }
 
 interface MapViewProps {
@@ -19,6 +43,9 @@ interface MapViewProps {
   scrollEnabled?: boolean;
   zoomEnabled?: boolean;
   showsUserLocation?: boolean;
+  mapStyle?: MapStyle;
+  routeData?: RouteData | null;
+  pitch?: number;
   onPress?: (e: any) => void;
   onMarkerPress?: (markerData: MarkerProps) => void;
   onRegionChangeComplete?: (region: Region) => void;
@@ -29,6 +56,7 @@ interface MarkerProps {
   title?: string;
   pinColor?: string;
   popupHtml?: string;
+  animate?: boolean;
   children?: React.ReactNode;
 }
 
@@ -42,6 +70,22 @@ const toMapStyle = (s: any): React.CSSProperties => {
   return result;
 };
 
+const makeBaseStyle = (active: MapStyle): maplibregl.StyleSpecification => ({
+  version: 8,
+  sources: Object.fromEntries(
+    MAP_STYLE_NAMES.map((k) => [
+      `tiles-${k}`,
+      { type: "raster", tiles: [TILES[k]], tileSize: 256, attribution: TILE_ATTR[k] } as maplibregl.RasterTileSource,
+    ]),
+  ) as any,
+  layers: MAP_STYLE_NAMES.map((k) => ({
+    id: `tiles-${k}`,
+    type: "raster" as const,
+    source: `tiles-${k}`,
+    layout: { visibility: k === active ? "visible" as const : "none" as const },
+  })),
+});
+
 const MapView: React.FC<MapViewProps> = ({
   style,
   region,
@@ -49,6 +93,9 @@ const MapView: React.FC<MapViewProps> = ({
   children,
   scrollEnabled = true,
   showsUserLocation,
+  mapStyle = "light",
+  routeData,
+  pitch,
   onPress,
   onMarkerPress,
   onRegionChangeComplete,
@@ -81,41 +128,80 @@ const MapView: React.FC<MapViewProps> = ({
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: {
-        version: 8,
-        sources: {
-          tiles: {
-            type: "raster",
-            tiles: [TILE_URL],
-            tileSize: 256,
-            maxzoom: 20,
-            attribution: "© OpenStreetMap contributors",
-          },
-        },
-        layers: [
-          {
-            id: "tiles",
-            type: "raster",
-            source: "tiles",
-            paint: { "raster-fade-duration": 0 },
-          },
-        ],
-      } as maplibregl.StyleSpecification,
+      style: makeBaseStyle(mapStyle),
       center: [activeRegion.longitude, activeRegion.latitude],
       zoom: Math.round(
         Math.log2(360 / Math.max(activeRegion.latitudeDelta, 0.001)),
       ),
       minZoom: 1,
       maxZoom: 19,
+      pitch: pitch ?? 0,
+      maxPitch: 85,
       scrollZoom: scrollEnabled,
       dragPan: scrollEnabled,
       dragRotate: false,
       touchZoomRotate: scrollEnabled,
       doubleClickZoom: scrollEnabled,
       keyboard: scrollEnabled,
-      attributionControl: true,
+      attributionControl: {},
       fadeDuration: 0,
       renderWorldCopies: false,
+    });
+
+    const addMapillary = () => {
+      if (map.getSource("mapillary")) return;
+      map.addSource("mapillary", {
+        type: "vector",
+        tiles: [MAPILLARY_TILE_URL],
+        minzoom: 0,
+        maxzoom: 14,
+      });
+      map.addLayer({
+        id: "mly-overview",
+        type: "circle",
+        source: "mapillary",
+        "source-layer": "overview",
+        minzoom: 0,
+        maxzoom: 6,
+        paint: {
+          "circle-color": "#05CB63",
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 1.5, 5, 4],
+          "circle-opacity": 0.75,
+        },
+      });
+      map.addLayer({
+        id: "mly-sequences",
+        type: "line",
+        source: "mapillary",
+        "source-layer": "sequence",
+        minzoom: 6,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: {
+          "line-color": "#05CB63",
+          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1.5, 12, 3, 14, 2, 18, 3],
+          "line-opacity": 0.8,
+        },
+      });
+      map.addLayer({
+        id: "mly-images",
+        type: "circle",
+        source: "mapillary",
+        "source-layer": "image",
+        minzoom: 14,
+        paint: {
+          "circle-color": "#05CB63",
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 4, 18, 9],
+          "circle-opacity": 0.95,
+          "circle-stroke-color": "#fff",
+          "circle-stroke-width": 1.5,
+          "circle-stroke-opacity": 0.7,
+        },
+      });
+    };
+
+    map.on("load", () => {
+      map.resize();
+      addMapillary();
     });
 
     if (onPress) {
@@ -163,8 +249,35 @@ const MapView: React.FC<MapViewProps> = ({
 
   useEffect(() => {
     if (!mapRef.current) return;
+    MAP_STYLE_NAMES.forEach((k) => {
+      mapRef.current!.setLayoutProperty(
+        `tiles-${k}`,
+        "visibility",
+        k === mapStyle ? "visible" : "none",
+      );
+    });
+  }, [mapStyle]);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
+
+    const style = document.createElement("style");
+    if (!document.getElementById("marker-anim")) {
+      style.id = "marker-anim";
+      style.textContent = `
+@keyframes marker-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.7); }
+  70% { box-shadow: 0 0 0 18px rgba(239,68,68,0); }
+  100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+}
+.marker-animate {
+  animation: marker-pulse 2s infinite;
+}
+`;
+      document.head.appendChild(style);
+    }
 
     markerData.forEach((m) => {
       const el = document.createElement("div");
@@ -172,12 +285,13 @@ const MapView: React.FC<MapViewProps> = ({
       el.style.height = "28px";
       el.style.borderRadius = "50%";
       el.style.background = m.pinColor || "#3B82F6";
-      el.style.border = "3px solid #fff";
+      el.style.border = `3px solid ${m.animate ? '#EF4444' : '#22C55E'}`;
       el.style.boxShadow = "0 2px 6px rgba(0,0,0,0.3)";
       el.style.cursor = "pointer";
       el.style.display = "flex";
       el.style.alignItems = "center";
       el.style.justifyContent = "center";
+      if (m.animate) el.classList.add("marker-animate");
 
       if (m.children) {
         if (React.isValidElement(m.children)) {
@@ -254,6 +368,53 @@ const MapView: React.FC<MapViewProps> = ({
       }
     };
   }, [showsUserLocation]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const clearRoute = () => {
+      try {
+        if (map.getSource("route")) {
+          map.removeLayer("route-line");
+          map.removeSource("route");
+        }
+      } catch (e) {}
+    };
+    if (!routeData || !routeData.geometry) {
+      clearRoute();
+      return;
+    }
+    clearRoute();
+    map.addSource("route", {
+      type: "geojson",
+      data: { type: "Feature", properties: {}, geometry: routeData.geometry },
+    });
+    map.addLayer({
+      id: "route-line",
+      type: "line",
+      source: "route",
+      layout: { "line-join": "round", "line-cap": "round" },
+      paint: {
+        "line-color": "#EF4444",
+        "line-width": 5,
+        "line-opacity": 0.85,
+      },
+    });
+    const coords = routeData.geometry.coordinates;
+    if (coords && coords.length > 0) {
+      const bounds = coords.reduce(
+        (b, c) => b.extend(c),
+        new maplibregl.LngLatBounds(coords[0], coords[0]),
+      );
+      map.fitBounds(bounds, { padding: 80, maxZoom: 16, duration: 1000 });
+    }
+  }, [routeData]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.resize();
+  }, [routeData]);
 
   return (
     <div

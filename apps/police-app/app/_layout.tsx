@@ -12,6 +12,7 @@ export default function RootLayout() {
         <Stack.Screen name="signup" />
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="resident/[id]" />
+        <Stack.Screen name="navigate/[id]" />
       </Stack>
     </AuthProvider>
   );

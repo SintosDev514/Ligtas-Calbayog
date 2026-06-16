@@ -6,6 +6,15 @@ import { useAuth } from "../../context/AuthContext";
 import { ActivityIndicator, View, StyleSheet } from "react-native";
 import { colors, fontSize, fontWeight } from "../../constants/theme";
 
+function TabIcon({ name, color, focused }: { name: keyof typeof Ionicons.glyphMap; color: string; focused: boolean }) {
+  return (
+    <View style={localStyles.tabIconWrapper}>
+      {focused && <View style={localStyles.activeDot} />}
+      <Ionicons name={name} size={22} color={color} />
+    </View>
+  );
+}
+
 export default function TabsLayout() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
@@ -40,8 +49,8 @@ export default function TabsLayout() {
         name="dashboard"
         options={{
           title: "Dashboard",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="map" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="map" color={color} focused={focused} />
           ),
         }}
       />
@@ -49,8 +58,8 @@ export default function TabsLayout() {
         name="reports"
         options={{
           title: "Reports",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="document-text" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="document-text" color={color} focused={focused} />
           ),
         }}
       />
@@ -58,8 +67,8 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name="person" color={color} focused={focused} />
           ),
         }}
       />
@@ -75,20 +84,37 @@ const localStyles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   tabBar: {
-    backgroundColor: colors.tabBarBg,
-    borderTopColor: "rgba(255,255,255,0.08)",
-    borderTopWidth: 1,
+    backgroundColor: "#0a0f14",
+    borderTopWidth: 0,
     paddingBottom: 6,
     paddingTop: 6,
-    height: 58,
-    elevation: 8,
+    height: 60,
+    elevation: 20,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.15,
-    shadowRadius: 10,
+    shadowOffset: { width: 0, height: -6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
   },
   tabLabel: {
-    fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
+    fontSize: 10,
+    fontWeight: fontWeight.semibold,
+    marginTop: 1,
+    letterSpacing: 0.3,
+  },
+  tabIconWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    width: 40,
+    height: 28,
+    borderRadius: 14,
+  },
+  activeDot: {
+    position: "absolute",
+    bottom: -2,
+    width: 16,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: colors.accent,
   },
 });

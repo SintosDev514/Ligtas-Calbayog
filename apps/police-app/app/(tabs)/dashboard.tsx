@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -9,15 +9,19 @@ import {
   Modal,
   ScrollView,
   Linking,
+  Vibration,
 } from "react-native";
+import { Audio } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as Location from "expo-location";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
-import { statusColors } from "../../constants/theme";
+import { statusColors, colors } from "../../constants/theme";
 import { dashboardStyles as s } from "../styles/Dashboard.styles";
 import MapView, { Marker } from "../../components/MapView";
+import { openBestStreetView } from "../../../../shared/utils/streetView";
 
 export default function DashboardScreen() {
   const { profile } = useAuth();
@@ -27,7 +31,14 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterMap, setFilterMap] = useState<"all" | "emergency">("all");
+  const [mapStyle, setMapStyle] = useState<any>("light");
+  const [showStylePicker, setShowStylePicker] = useState(false);
   const [selectedResident, setSelectedResident] = useState<any | null>(null);
+  const [alertBanner, setAlertBanner] = useState<string | null>(null);
+  const [userLocation, setUserLocation] = useState<{latitude: number; longitude: number} | null>(null);
+  const alertTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastAlertIdRef = useRef<string | null>(null);
+  const locationWatchRef = useRef<any>(null);
 
   useEffect(() => {
     loadData();
@@ -36,15 +47,94 @@ export default function DashboardScreen() {
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "crime_reports" },
-        () => loadData(),
+        (payload) => {
+          const report = payload.new as any;
+          if (report.id === lastAlertIdRef.current) return;
+          lastAlertIdRef.current = report.id;
+          playEmergencyAlert(report);
+          refreshData();
+        },
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "crime_reports" },
-        () => loadData(),
+        () => refreshData(),
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    const poll = setInterval(refreshData, 15_000);
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(poll);
+    };
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          console.log("Location permission denied");
+          return;
+        }
+        locationWatchRef.current = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 0 },
+          (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+        );
+      } catch (err) {
+        console.warn("expo-location failed, fallback to navigator.geolocation:", err);
+        if (!navigator.geolocation) return;
+        const watchId = navigator.geolocation.watchPosition(
+          (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+          (err) => console.warn("Geolocation error:", err.message),
+          { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
+        );
+        locationWatchRef.current = { remove: () => navigator.geolocation.clearWatch(watchId) };
+      }
+    })();
+    return () => { locationWatchRef.current?.remove?.(); };
+  }, []);
+
+  const playEmergencyAlert = async (report: any) => {
+    Vibration.vibrate([0, 200, 100, 200, 100, 400]);
+    try {
+      const { sound } = await Audio.Sound.createAsync(
+        require("../../assets/emergency_alert.wav"),
+        { shouldPlay: true, volume: 1.0 },
+      );
+      sound.setOnPlaybackStatusUpdate((s) => {
+        if ((s as any).didJustFinish) sound.unloadAsync();
+      });
+    } catch (e) {
+      console.log("Could not play alert sound:", e);
+    }
+    const label =
+      report.crime_type?.replace(/-/g, " ") || "New report";
+    setAlertBanner(`\u26A0\uFE0F Emergency: ${label}`);
+    if (alertTimerRef.current) clearTimeout(alertTimerRef.current);
+    alertTimerRef.current = setTimeout(() => setAlertBanner(null), 5000);
+  };
+
+  const openStreetView = useCallback(() => {
+    if (!selectedResident?.latitude || !selectedResident?.longitude) return;
+    const { latitude, longitude } = selectedResident;
+    openBestStreetView(latitude, longitude, Linking);
+  }, [selectedResident]);
+
+  const navigateToResident = useCallback(() => {
+    if (!selectedResident?.latitude || !selectedResident?.longitude || !userLocation) return;
+    const params = new URLSearchParams({
+      sourceLat: userLocation.latitude.toString(),
+      sourceLng: userLocation.longitude.toString(),
+      destLat: selectedResident.latitude.toString(),
+      destLng: selectedResident.longitude.toString(),
+      name: selectedResident.full_name || "Resident",
+    });
+    setSelectedResident(null);
+    router.push(`/navigate/${selectedResident.id}?${params.toString()}` as any);
+  }, [selectedResident, userLocation]);
+
+  const closeModal = useCallback(() => {
+    setSelectedResident(null);
   }, []);
 
   const loadData = async () => {
@@ -60,7 +150,6 @@ export default function DashboardScreen() {
       ]);
       if (residentData.error) throw residentData.error;
       if (reportsData.error) throw reportsData.error;
-      console.log("Residents loaded:", residentData.data?.length, "Reports loaded:", reportsData.data?.length);
       setResidents(residentData.data || []);
       setReports(reportsData.data || []);
     } catch (err: any) {
@@ -71,12 +160,28 @@ export default function DashboardScreen() {
     }
   };
 
+  const refreshData = async () => {
+    try {
+      const [residentData, reportsData] = await Promise.all([
+        supabase.from("resident_profiles").select("*"),
+        supabase
+          .from("crime_reports")
+          .select("*")
+          .order("created_at", { ascending: false }),
+      ]);
+      if (residentData.data) setResidents(residentData.data);
+      if (reportsData.data) setReports(reportsData.data);
+    } catch (err) {
+      console.error("Realtime refresh failed:", err);
+    }
+  };
+
   const pendingReports = reports.filter((r) => r.status === "pending").length;
   const totalResidents = residents.length;
   const residentsWithLocation = residents.filter((r) => r.latitude).length;
 
-  const residentReportIds = useMemo(
-    () => new Set(reports.map((r) => r.resident_id)),
+  const emergencyReportIds = useMemo(
+    () => new Set(reports.filter((r) => r.status !== "resolved" && r.status !== "dismissed" && r.status !== "cancelled").map((r) => r.resident_id)),
     [reports],
   );
 
@@ -84,7 +189,7 @@ export default function DashboardScreen() {
     (r) => r.latitude && r.longitude,
   );
   const emergencyResidents = allResidentsWithLocation.filter((r) =>
-    residentReportIds.has(r.id),
+    emergencyReportIds.has(r.id),
   );
 
   const visibleResidents =
@@ -145,8 +250,9 @@ export default function DashboardScreen() {
         latitude: resident.latitude,
         longitude: resident.longitude,
       }}
-      pinColor="#22C55E"
+      pinColor={emergencyReportIds.has(resident.id) ? "#EF4444" : "#22C55E"}
       popupHtml={getResidentPopupHtml(resident)}
+      animate={emergencyReportIds.has(resident.id)}
     >
       {(resident.avatar_url || resident.photo_url) ? (
         <Image
@@ -174,122 +280,200 @@ export default function DashboardScreen() {
   return (
     <View style={s.container}>
       <StatusBar barStyle="light-content" />
-      <SafeAreaView edges={["top"]} style={s.header}>
-        <View style={s.headerContent}>
-          <Text style={s.headerTitle}>Dashboard</Text>
-          <View style={s.headerBadge}>
-            <Ionicons name="shield-checkmark" size={14} color="#F4B51A" />
-            <Text style={s.headerBadgeText}>
-              {profile?.badge_id || "ON DUTY"}
-            </Text>
-          </View>
-        </View>
-      </SafeAreaView>
 
-      <View style={s.statsRow}>
-        <View style={s.statCard}>
-          <Text style={[s.statValue, { color: "#3B82F6" }]}>
-            {totalResidents}
+      {alertBanner && (
+        <View style={{
+          backgroundColor: "#DC2626",
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}>
+          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14, flex: 1 }}>
+            {alertBanner}
           </Text>
-          <Text style={s.statLabel}>Total Residents</Text>
+          <TouchableOpacity onPress={() => setAlertBanner(null)}>
+            <Ionicons name="close" size={20} color="#fff" />
+          </TouchableOpacity>
         </View>
-        <View style={s.statCard}>
-          <Text style={[s.statValue, { color: "#F59E0B" }]}>
-            {pendingReports}
-          </Text>
-          <Text style={s.statLabel}>Pending Reports</Text>
-        </View>
-        <View style={s.statCard}>
-          <Text style={[s.statValue, { color: "#10B981" }]}>
-            {reports.length}
-          </Text>
-          <Text style={s.statLabel}>Total Reports</Text>
-        </View>
-      </View>
+      )}
 
       {loading ? (
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <ActivityIndicator size="large" color="#17202b" />
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0f141a" }}>
+          <ActivityIndicator size="large" color="#F4B51A" />
         </View>
       ) : error ? (
-        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 24 }}>
-          <Ionicons name="cloud-offline" size={48} color="#94A3B8" />
-          <Text style={{ fontSize: 16, color: "#64748B", textAlign: "center", marginTop: 12, marginBottom: 20 }}>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center", paddingHorizontal: 24, backgroundColor: "#0f141a" }}>
+          <Ionicons name="cloud-offline" size={48} color="#64748B" />
+          <Text style={{ fontSize: 16, color: "#94A3B8", textAlign: "center", marginTop: 12, marginBottom: 20 }}>
             {error}
           </Text>
           <TouchableOpacity
             onPress={loadData}
             style={{
-              backgroundColor: "#17202b",
+              backgroundColor: "rgba(244,181,26,0.15)",
               paddingHorizontal: 24,
               paddingVertical: 12,
               borderRadius: 10,
+              borderWidth: 1,
+              borderColor: "rgba(244,181,26,0.3)",
             }}
           >
-            <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14 }}>Retry</Text>
+            <Text style={{ color: "#F4B51A", fontWeight: "700", fontSize: 14 }}>Retry</Text>
           </TouchableOpacity>
         </View>
       ) : (
         <View style={s.mapContainer}>
-          <View style={s.mapFilterRow}>
-            <TouchableOpacity
-              style={[
-                s.mapFilterBtn,
-                filterMap === "all" && s.mapFilterBtnActive,
-              ]}
-              onPress={() => setFilterMap("all")}
-            >
-              <Ionicons
-                name="people"
-                size={14}
-                color={filterMap === "all" ? "#fff" : "#64748B"}
-              />
-              <Text
-                style={[
-                  s.mapFilterText,
-                  filterMap === "all" && s.mapFilterTextActive,
-                ]}
-              >
-                All ({allResidentsWithLocation.length})
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                s.mapFilterBtn,
-                filterMap === "emergency" && s.mapFilterBtnActive,
-              ]}
-              onPress={() => setFilterMap("emergency")}
-            >
-              <Ionicons
-                name="alert-circle"
-                size={14}
-                color={filterMap === "emergency" ? "#fff" : "#EF4444"}
-              />
-              <Text
-                style={[
-                  s.mapFilterText,
-                  filterMap === "emergency" && s.mapFilterTextActive,
-                ]}
-              >
-                Emergency ({emergencyResidents.length})
-              </Text>
-            </TouchableOpacity>
+          <View style={s.mapOverlayRight}>
+            <View style={s.compactStatsRow}>
+              <View style={s.compactStat}>
+                <Ionicons name="people" size={9} color="#60A5FA" />
+                <Text style={s.compactStatValue}>{totalResidents}</Text>
+                <Text style={s.compactStatLabel}>Residents</Text>
+              </View>
+              <View style={s.compactStat}>
+                <Ionicons name="time" size={9} color="#FBBF24" />
+                <Text style={s.compactStatValue}>{pendingReports}</Text>
+                <Text style={s.compactStatLabel}>Pending</Text>
+              </View>
+              <View style={s.compactStat}>
+                <Ionicons name="document-text" size={9} color="#34D399" />
+                <Text style={s.compactStatValue}>{reports.length}</Text>
+                <Text style={s.compactStatLabel}>Reports</Text>
+              </View>
+            </View>
           </View>
+          <View style={s.mapOverlayTop}>
+            <View style={s.filterRow}>
+              <TouchableOpacity
+                style={s.styleBtn}
+                onPress={() => setShowStylePicker(true)}
+              >
+                <Ionicons name="layers" size={13} color="rgba(255,255,255,0.7)" />
+              </TouchableOpacity>
+              <View style={{ flexDirection: "row", gap: 4 }}>
+                <TouchableOpacity
+                  style={[
+                    s.filterBtn,
+                    filterMap === "all" && s.filterBtnActive,
+                  ]}
+                  onPress={() => setFilterMap("all")}
+                >
+                  <Ionicons
+                    name="people"
+                    size={11}
+                    color={filterMap === "all" ? colors.accent : "rgba(255,255,255,0.45)"}
+                  />
+                  <Text
+                    style={[
+                      s.filterBtnText,
+                      filterMap === "all" && s.filterBtnTextActive,
+                    ]}
+                  >
+                    All ({allResidentsWithLocation.length})
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    s.filterBtn,
+                    filterMap === "emergency" && s.filterBtnActive,
+                    filterMap !== "emergency" && { backgroundColor: "rgba(239,68,68,0.12)", borderColor: "rgba(239,68,68,0.25)" },
+                  ]}
+                  onPress={() => setFilterMap("emergency")}
+                >
+                  <Ionicons
+                    name="alert-circle"
+                    size={11}
+                    color={filterMap === "emergency" ? colors.accent : "#EF4444"}
+                  />
+                  <Text
+                    style={[
+                      s.filterBtnText,
+                      filterMap === "emergency" && s.filterBtnTextActive,
+                      filterMap !== "emergency" && { color: "#EF4444" },
+                    ]}
+                  >
+                    {emergencyResidents.length}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
+          {showStylePicker && (
+            <View style={s.stylePickerOverlay}>
+              <TouchableOpacity
+                style={{ flex: 1 }}
+                activeOpacity={1}
+                onPress={() => setShowStylePicker(false)}
+              />
+              <View style={s.stylePickerPanel}>
+                <View style={s.stylePickerHandle} />
+                <Text style={s.stylePickerTitle}>Map Style</Text>
+                {[
+                  { key: "light", label: "Light", icon: "sunny-outline" },
+                  { key: "dark", label: "Dark", icon: "moon-outline" },
+                  { key: "street", label: "Street", icon: "map-outline" },
+                ].map((style) => (
+                  <TouchableOpacity
+                    key={style.key}
+                    style={[
+                      s.stylePickerItem,
+                      mapStyle === style.key && s.stylePickerItemActive,
+                    ]}
+                    onPress={() => {
+                      setMapStyle(style.key);
+                      setShowStylePicker(false);
+                    }}
+                  >
+                    <Ionicons
+                      name={style.icon as any}
+                      size={18}
+                      color={mapStyle === style.key ? "#F4B51A" : "rgba(255,255,255,0.6)"}
+                    />
+                    <Text
+                      style={[
+                        s.stylePickerItemText,
+                        mapStyle === style.key && s.stylePickerItemTextActive,
+                      ]}
+                    >
+                      {style.label}
+                    </Text>
+                    {mapStyle === style.key && (
+                      <Ionicons name="checkmark" size={18} color="#F4B51A" />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
           <MapView
-            style={{ flex: 1, borderRadius: 16 }}
+            style={{ flex: 1 }}
             initialRegion={{
               latitude: centerLat,
               longitude: centerLng,
               latitudeDelta: 0.05,
               longitudeDelta: 0.05,
             }}
-            showsUserLocation
+            mapStyle={mapStyle}
             scrollEnabled
             zoomEnabled
             onMarkerPress={handleMarkerPress}
           >
             {visibleResidents.map(renderResidentMarker)}
-            {reportsWithLocation.map(renderReportMarker)}
+            {userLocation && (
+              <Marker
+                coordinate={userLocation}
+                pinColor="#3B82F6"
+              >
+                <Image
+                  source={Image.resolveAssetSource(require("../../assets/logo-black.png"))}
+                  style={{ width: 28, height: 28, borderRadius: 14 }}
+                />
+              </Marker>
+            )}
           </MapView>
         </View>
       )}
@@ -298,12 +482,12 @@ export default function DashboardScreen() {
         visible={!!selectedResident}
         transparent
         animationType="fade"
-        onRequestClose={() => setSelectedResident(null)}
+        onRequestClose={closeModal}
       >
         <TouchableOpacity
           style={s.modalOverlay}
           activeOpacity={1}
-          onPress={() => setSelectedResident(null)}
+          onPress={closeModal}
         >
           <TouchableOpacity
             style={s.modalContent}
@@ -360,6 +544,27 @@ export default function DashboardScreen() {
                   </View>
                 )}
 
+                {selectedResident.latitude && (
+                  <View style={s.modalActionsRow}>
+                    {userLocation && (
+                      <TouchableOpacity
+                        style={s.modalActionBtnNav}
+                        onPress={navigateToResident}
+                      >
+                        <Ionicons name="navigate" size={16} color="#FFFFFF" />
+                        <Text style={s.modalActionBtnTextWhite}>Navigate</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={[s.modalActionBtnStreet, !userLocation && { flex: 1 }]}
+                      onPress={openStreetView}
+                    >
+                      <Ionicons name="eye" size={16} color="#2563EB" />
+                      <Text style={s.modalActionBtnTextBlue}>Street View</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 <View style={s.modalDivider} />
 
                 <Text style={s.modalSectionTitle}>Recent Reports</Text>
@@ -410,7 +615,7 @@ export default function DashboardScreen() {
                 <TouchableOpacity
                   style={s.modalProfileBtn}
                   onPress={() => {
-                    setSelectedResident(null);
+                    closeModal();
                     router.push(
                       `/resident/${selectedResident.id}` as any,
                     );
