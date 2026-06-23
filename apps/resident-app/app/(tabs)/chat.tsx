@@ -196,27 +196,41 @@ export default function ChatScreen() {
               <Text style={[styles.locationLabel, isMine ? { color: "#fff" } : { color: "#17202b" }]}>Shared Location</Text>
             </View>
             {item.latitude && item.longitude && (
-              <MapView
-                style={styles.miniMap}
-                scrollEnabled={false}
-                zoomEnabled={false}
-                mapType="none"
-                mapStyle={mapStyle}
-                initialRegion={{
-                  latitude: item.latitude,
-                  longitude: item.longitude,
-                  latitudeDelta: 0.01,
-                  longitudeDelta: 0.01,
-                }}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() =>
+                  router.push({
+                    pathname: "/fullscreen-map",
+                    params: {
+                      latitude: item.latitude.toString(),
+                      longitude: item.longitude.toString(),
+                      title: "Shared Location",
+                    },
+                  })
+                }
               >
-                <UrlTile urlTemplate={tileUrl} />
-                <Marker
-                  coordinate={{
+                <MapView
+                  style={styles.miniMap}
+                  scrollEnabled={false}
+                  zoomEnabled={false}
+                  mapType="none"
+                  mapStyle={mapStyle}
+                  initialRegion={{
                     latitude: item.latitude,
                     longitude: item.longitude,
+                    latitudeDelta: 0.01,
+                    longitudeDelta: 0.01,
                   }}
-                />
-              </MapView>
+                >
+                  <UrlTile urlTemplate={tileUrl} />
+                  <Marker
+                    coordinate={{
+                      latitude: item.latitude,
+                      longitude: item.longitude,
+                    }}
+                  />
+                </MapView>
+              </TouchableOpacity>
             )}
             <Text style={[styles.locationCoords, isMine ? { color: "rgba(255,255,255,0.6)" } : { color: "#94A3B8" }]}>
               {item.latitude?.toFixed(6)}, {item.longitude?.toFixed(6)}
@@ -381,7 +395,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   locationLabel: { fontSize: 13, fontWeight: "600", marginLeft: 6 },
-  miniMap: { width: 200, height: 120, borderRadius: 8 },
+  miniMap: { width: 200, height: 60, borderRadius: 8, flex: 0 },
   locationCoords: {
     fontSize: 11,
     marginTop: 4,

@@ -13,7 +13,6 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
-  StyleSheet,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,7 +28,7 @@ import {
 import { useLocation } from "../../context/LocationContext";
 import { useMapStyle } from "../../context/MapStyleContext";
 import { styles } from "./styles/HomeScreen.styles";
-import { getUnreadCount } from "../../../../shared/services/messageService";
+import { getUnreadCount, fetchContactLocations } from "../../../../shared/services/messageService";
 
 const { width } = Dimensions.get("window");
 
@@ -76,10 +75,12 @@ export default function HomeScreen() {
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [contactLocations, setContactLocations] = useState<any[]>([]);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const liveBadgeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -99,12 +100,14 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
+    let channels: any[] = [];
+
     const setupRealtime = async () => {
       const { data: session } = await supabase.auth.getSession();
       const userId = session?.session?.user?.id;
       if (!userId) return;
 
-      const channel = supabase
+      const mainChannel = supabase
         .channel("resident-home-stats")
         .on(
           "postgres_changes",
@@ -112,12 +115,59 @@ export default function HomeScreen() {
           () => loadData(),
         )
         .subscribe();
+      channels.push(mainChannel);
 
-      return () => { supabase.removeChannel(channel); };
+      const msgChannel = supabase
+        .channel("resident-messages")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
+          (payload) => {
+            const msg = payload.new as any;
+            loadData();
+            if (msg?.content) {
+              Alert.alert("New Message", msg.content);
+            }
+          },
+        )
+        .subscribe();
+      channels.push(msgChannel);
+
+      const notifChannel = supabase
+        .channel("resident-notifications")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
+          () => {
+            getUnreadCount(userId).then(setUnreadCount).catch(() => {});
+          },
+        )
+        .subscribe();
+      channels.push(notifChannel);
+
+      const annChannel = supabase
+        .channel("resident-announcements")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "announcements" },
+          (payload) => {
+            const ann = payload.new as any;
+            loadData();
+            if (ann?.title) {
+              Alert.alert("New Announcement", ann.title);
+            }
+          },
+        )
+        .subscribe();
+      channels.push(annChannel);
     };
 
     const cleanup = setupRealtime();
-    return () => { cleanup.then((fn) => fn?.()); };
+    return () => {
+      cleanup.then(() => {
+        channels.forEach((ch) => supabase.removeChannel(ch));
+      });
+    };
   }, []);
 
   useEffect(() => {
@@ -142,6 +192,29 @@ export default function HomeScreen() {
     loop.start();
     return () => loop.stop();
   }, [isLiveLocationActive, pulseAnim]);
+
+  useEffect(() => {
+    if (!isLiveLocationActive) {
+      liveBadgeAnim.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(liveBadgeAnim, {
+          toValue: 0.3,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(liveBadgeAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [isLiveLocationActive, liveBadgeAnim]);
 
   useEffect(() => {
     const fetchWeather = async () => {
@@ -175,8 +248,9 @@ export default function HomeScreen() {
       ]);
 
       setProfile(profileData);
-      if (profileData?.avatar_url) {
-        const av = profileData.avatar_url;
+      const photoField = profileData?.avatar_url || profileData?.id_photo_url;
+      if (photoField) {
+        const av = photoField;
         if (av.startsWith("http")) {
           setProfilePhoto(av);
         } else {
@@ -202,6 +276,9 @@ export default function HomeScreen() {
 
     const count = await getUnreadCount(userId);
     setUnreadCount(count);
+
+    const locations = await fetchContactLocations(userId);
+    setContactLocations(locations);
   } catch (error) {
     console.log(error);
   }
@@ -233,7 +310,7 @@ export default function HomeScreen() {
 
   const handleProfile = () => router.push("/(tabs)/profile" as any);
   const handleMessages = () => router.push("/(tabs)/messages" as any);
-  const handleNotifications = () => router.push("/(tabs)/messages" as any);
+  const handleNotifications = () => router.push("/(tabs)/notifications" as any);
   const handleCallPolice = async () => {
     const url = `tel:${policeNumber ?? "23131"}`;
     const supported = await Linking.canOpenURL(url);
@@ -416,10 +493,11 @@ export default function HomeScreen() {
               </Text>
             </View>
 
-            <View
+            <Animated.View
               style={[
                 styles.statusBadge,
                 isLiveLocationActive && styles.statusBadgeActive,
+                isLiveLocationActive && { opacity: liveBadgeAnim },
               ]}
             >
               <Text
@@ -430,7 +508,7 @@ export default function HomeScreen() {
               >
                 {isLiveLocationActive ? "LIVE" : "OFF"}
               </Text>
-            </View>
+            </Animated.View>
           </View>
 
           <View style={styles.mapContainer}>
@@ -452,36 +530,9 @@ export default function HomeScreen() {
                     latitude: location.latitude,
                     longitude: location.longitude,
                   }}
+                  animated={isLiveLocationActive}
                 >
                   <View style={styles.markerWrapper}>
-                    <Animated.View
-                      style={[
-                        StyleSheet.absoluteFill,
-                        {
-                          borderRadius: 24,
-                          borderWidth: 3,
-                          borderColor: "#22C55E",
-                          backgroundColor: "rgba(34, 197, 94, 0.2)",
-                          opacity: isLiveLocationActive
-                            ? pulseAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [0.8, 0],
-                              })
-                            : 0,
-                          transform: [
-                            {
-                              scale: isLiveLocationActive
-                                ? pulseAnim.interpolate({
-                                    inputRange: [0, 1],
-                                    outputRange: [1.35, 1],
-                                  })
-                                : 1,
-                            },
-                          ],
-                        },
-                      ]}
-                      pointerEvents="none"
-                    />
                     <View style={styles.customMarker}>
                       {profilePhoto ? (
                         <Image
@@ -495,6 +546,19 @@ export default function HomeScreen() {
                   </View>
                 </Marker>
               ) : null}
+              {contactLocations.map((c) => (
+                <Marker
+                  key={c.id}
+                  coordinate={{
+                    latitude: c.latitude,
+                    longitude: c.longitude,
+                  }}
+                >
+                  <View style={styles.contactMarker}>
+                    <Ionicons name="people" size={14} color="#fff" />
+                  </View>
+                </Marker>
+              ))}
             </MapView>
             <View style={styles.mapBtnsRow}>
               <TouchableOpacity
@@ -685,36 +749,9 @@ export default function HomeScreen() {
                   latitude: location.latitude,
                   longitude: location.longitude,
                 }}
+                animated={isLiveLocationActive}
               >
                 <View style={styles.markerWrapper}>
-                  <Animated.View
-                    style={[
-                      StyleSheet.absoluteFill,
-                      {
-                          borderRadius: 24,
-                          borderWidth: 3,
-                          borderColor: "#22C55E",
-                          backgroundColor: "rgba(34, 197, 94, 0.2)",
-                          opacity: isLiveLocationActive
-                          ? pulseAnim.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.8, 0],
-                            })
-                          : 0,
-                        transform: [
-                          {
-                            scale: isLiveLocationActive
-                              ? pulseAnim.interpolate({
-                                  inputRange: [0, 1],
-                                  outputRange: [1.35, 1],
-                                })
-                              : 1,
-                          },
-                        ],
-                      },
-                    ]}
-                    pointerEvents="none"
-                  />
                   <View style={styles.customMarker}>
                     {profilePhoto ? (
                       <Image
@@ -728,6 +765,19 @@ export default function HomeScreen() {
                 </View>
               </Marker>
             )}
+              {contactLocations.map((c) => (
+                <Marker
+                  key={c.id}
+                  coordinate={{
+                    latitude: c.latitude,
+                    longitude: c.longitude,
+                  }}
+                >
+                  <View style={styles.contactMarker}>
+                    <Ionicons name="people" size={14} color="#fff" />
+                  </View>
+                </Marker>
+              ))}
           </MapView>
 
           <View style={styles.modalBtnsRow}>

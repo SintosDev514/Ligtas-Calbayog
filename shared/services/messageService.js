@@ -131,6 +131,47 @@ export const fetchLatestMessagePerContact = async (userId) => {
   return Object.values(latest);
 };
 
+export const fetchContactLocations = async (userId) => {
+  const { data: contacts, error: contactsError } = await supabase
+    .from("family_contacts")
+    .select("id, name, contact_user_id, relationship")
+    .eq("user_id", userId);
+
+  if (contactsError || !contacts || contacts.length === 0) return [];
+
+  const contactUserIds = contacts
+    .filter((c) => c.contact_user_id)
+    .map((c) => c.contact_user_id);
+
+  if (contactUserIds.length === 0) return [];
+
+  const { data: messages } = await supabase
+    .from("messages")
+    .select("*")
+    .in("sender_id", contactUserIds)
+    .eq("receiver_id", userId)
+    .eq("message_type", "location")
+    .order("created_at", { ascending: false });
+
+  const latestPerContact = {};
+  for (const msg of messages ?? []) {
+    if (!latestPerContact[msg.sender_id]) {
+      latestPerContact[msg.sender_id] = msg;
+    }
+  }
+
+  return contacts
+    .filter((c) => c.contact_user_id && latestPerContact[c.contact_user_id])
+    .map((c) => ({
+      id: c.id,
+      name: c.name,
+      relationship: c.relationship,
+      latitude: latestPerContact[c.contact_user_id].latitude,
+      longitude: latestPerContact[c.contact_user_id].longitude,
+      updated_at: latestPerContact[c.contact_user_id].created_at,
+    }));
+};
+
 export const searchUsers = async (query) => {
   if (!query || query.trim().length < 2) return [];
   try {

@@ -13,7 +13,6 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { loginUser } from "../../../../shared/services/authService";
-import { Typography } from "../../components/ui/Typography";
 import { InputField } from "../../components/ui/InputField";
 import { Button } from "../../components/ui/Button";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -103,116 +102,138 @@ export default function Login() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+    <View style={{ flex: 1, backgroundColor: "#151515" }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <SafeAreaView style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#151515" }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
         >
           <ScrollView
-            contentContainerStyle={{
-              flexGrow: 1,
-              justifyContent: "center",
-              paddingHorizontal: 28,
-              paddingVertical: 40,
-            }}
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            <Animated.View
-              style={{
-                alignItems: "center",
-                marginBottom: 36,
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              }}
-            >
+            {/* White header section with curved bottom */}
+            <View style={{
+              backgroundColor: "#FFFFFF",
+              justifyContent: "center",
+              alignItems: "center",
+              paddingTop: 24,
+              paddingBottom: 24,
+              borderBottomLeftRadius: 40,
+              borderBottomRightRadius: 40,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 12,
+              elevation: 8,
+              zIndex: 1,
+            }}>
               <Image
                 source={require("../../assets/images/logo-black.png")}
-                style={{ width: 100, height: 100 }}
+                style={{ width: 60, height: 60 }}
                 resizeMode="contain"
               />
-              <Text
-                style={{
-                  fontSize: 28,
-                  fontWeight: "800",
-                  color: "#17202b",
-                  marginTop: 12,
-                  letterSpacing: 0.5,
-                }}
-              >
+              <Text style={{ fontSize: 18, fontWeight: "800", color: "#151515", marginTop: 4, letterSpacing: 0.5 }}>
                 Ligtas Calbayog
               </Text>
-              <Text
-                style={{
-                  fontSize: 13,
-                  color: "#94A3B8",
-                  marginTop: 4,
-                  fontWeight: "500",
-                  letterSpacing: 2,
-                  textTransform: "uppercase",
-                }}
-              >
-                Community Safety Platform
+              <Text style={{ fontSize: 11, color: "#888", marginTop: 1, letterSpacing: 0.3 }}>
+                Your Safety, Our Priority
               </Text>
-            </Animated.View>
+            </View>
 
+            {/* Floating dark card overlapping white and dark sections */}
             <Animated.View
               style={{
-                backgroundColor: "#F8FAFC",
-                borderRadius: 20,
-                padding: 24,
-                borderWidth: 1,
-                borderColor: "#E8EEF5",
+                backgroundColor: "#1E1E1E",
+                borderRadius: 24,
+                padding: 28,
+                marginTop: 20,
+                marginHorizontal: 16,
                 opacity: fadeAnim,
                 transform: [{ translateY: slideAnim }],
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 10 },
+                shadowOpacity: 0.5,
+                shadowRadius: 24,
+                elevation: 16,
               }}
             >
-              <Text
-                style={{
-                  fontSize: 22,
-                  fontWeight: "700",
-                  color: "#17202b",
-                  marginBottom: 4,
-                }}
-              >
-                Welcome Back
-              </Text>
-              <Text
-                style={{
-                  fontSize: 14,
-                  color: "#64748B",
-                  marginBottom: 24,
-                }}
-              >
-                Sign in to your resident account
-              </Text>
+              {/* Pill toggle */}
+              <View style={{
+                flexDirection: "row",
+                backgroundColor: "#303030",
+                borderRadius: 999,
+                padding: 4,
+                marginBottom: 32,
+              }}>
+                <View style={{
+                  flex: 1,
+                  backgroundColor: "#FFFFFF",
+                  borderRadius: 999,
+                  paddingVertical: 10,
+                  alignItems: "center",
+                }}>
+                  <Text style={{ fontSize: 14, fontWeight: "700", color: "#151515" }}>Login</Text>
+                </View>
+                <TouchableOpacity
+                  style={{ flex: 1, paddingVertical: 10, alignItems: "center" }}
+                  onPress={() => router.push("/register")}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: "600", color: "#888" }}>Sign Up</Text>
+                </TouchableOpacity>
+              </View>
 
+              {/* Inputs */}
               <InputField
                 label="Email Address"
                 placeholder="name@example.com"
+                placeholderTextColor="#666"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 value={email}
                 onChangeText={handleEmailChange}
                 error={emailError}
+                labelStyle={{ color: "#888" }}
+                style={{
+                  backgroundColor: "transparent",
+                  borderWidth: 0,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#303030",
+                  borderRadius: 0,
+                  color: "#FFFFFF",
+                  paddingHorizontal: 0,
+                  paddingVertical: 12,
+                }}
               />
 
               <InputField
                 label="Password"
                 placeholder="Enter your password"
+                placeholderTextColor="#666"
                 secureTextEntry
                 value={password}
                 onChangeText={handlePasswordChange}
                 error={passwordError}
+                labelStyle={{ color: "#888" }}
+                style={{
+                  backgroundColor: "transparent",
+                  borderWidth: 0,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#303030",
+                  borderRadius: 0,
+                  color: "#FFFFFF",
+                  paddingHorizontal: 0,
+                  paddingVertical: 12,
+                }}
               />
 
               <TouchableOpacity
                 onPress={() => router.push("/forgot-password")}
-                style={{ alignSelf: "flex-end", marginBottom: 24, marginTop: -4 }}
+                style={{ alignSelf: "flex-end", marginBottom: 32, marginTop: 4 }}
               >
-                <Text style={{ fontSize: 13, fontWeight: "600", color: "#1565C0" }}>
+                <Text style={{ fontSize: 13, fontWeight: "500", color: "#888" }}>
                   Forgot Password?
                 </Text>
               </TouchableOpacity>
@@ -221,44 +242,13 @@ export default function Login() {
                 title="Sign In"
                 onPress={handleLogin}
                 loading={isLoading}
+                textStyle={{ color: "#151515" }}
                 style={{
-                  borderRadius: 12,
+                  borderRadius: 999,
                   height: 52,
-                  backgroundColor: "#17202b",
+                  backgroundColor: "#FFFFFF",
                 }}
               />
-            </Animated.View>
-
-            <Animated.View
-              style={{
-                marginTop: 28,
-                alignItems: "center",
-                opacity: fadeAnim,
-              }}
-            >
-              <Text style={{ fontSize: 14, color: "#94A3B8" }}>
-                Don't have an account?
-              </Text>
-              <TouchableOpacity
-                onPress={() => router.push("/register")}
-                style={{ flexDirection: "row", alignItems: "center", marginTop: 8 }}
-              >
-                <Text
-                  style={{
-                    fontSize: 15,
-                    fontWeight: "700",
-                    color: "#F4B51A",
-                  }}
-                >
-                  Create an Account
-                </Text>
-                <Ionicons
-                  name="arrow-forward"
-                  size={16}
-                  color="#F4B51A"
-                  style={{ marginLeft: 4 }}
-                />
-              </TouchableOpacity>
             </Animated.View>
           </ScrollView>
         </KeyboardAvoidingView>

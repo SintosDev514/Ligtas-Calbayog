@@ -29,6 +29,10 @@ export default function RootLayout() {
               options={{ presentation: "modal", title: "Modal" }}
             />
             <Stack.Screen
+              name="fullscreen-map"
+              options={{ headerShown: false, animation: "slide_from_bottom" }}
+            />
+            <Stack.Screen
               name="forgot-password"
               options={{ headerShown: false }}
             />

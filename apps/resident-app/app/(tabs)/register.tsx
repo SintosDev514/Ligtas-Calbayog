@@ -9,18 +9,20 @@ import {
   Text,
   StatusBar,
   Image,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import * as ImagePicker from "expo-image-picker";
 import MapView, { Marker, UrlTile } from "@/components/MapView";
-import { registerResident } from "../../../../shared/services/authService";
-import { ScreenWrapper } from "../../components/ui/ScreenWrapper";
 import { InputField } from "../../components/ui/InputField";
 import { Button } from "../../components/ui/Button";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useMapStyle } from "../../context/MapStyleContext";
+import { supabase } from "../../../../shared/supabase/supabaseClient";
 
 const TOTAL_STEPS = 5;
 
@@ -70,7 +72,6 @@ export default function Register() {
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
-  const [storedOtp, setStoredOtp] = useState("");
 
   useEffect(() => {
     if (step === 2 && locationStatus === "idle") {
@@ -116,24 +117,10 @@ export default function Register() {
     }
     setIsLoading(true);
     try {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      setStoredOtp(code);
-
-      let sent = false;
-      try {
-        const { error } = await supabase.functions.invoke("send-otp", {
-          body: { email },
-        });
-        if (error) throw error;
-        sent = true;
-      } catch {
-        Alert.alert("OTP Code", `Your verification code is: ${code}\n\n(In production, this will be sent to ${email})`);
-        sent = true;
-      }
-
-      if (sent) {
-        setOtpSent(true);
-      }
+      const { error } = await supabase.auth.signInWithOtp({ email });
+      if (error) throw error;
+      setOtpSent(true);
+      Alert.alert("OTP Sent", `A verification code has been sent to ${email}`);
     } catch (err: any) {
       Alert.alert("Error", err.message || "Failed to send OTP");
     } finally {
@@ -141,12 +128,21 @@ export default function Register() {
     }
   };
 
-  const verifyOtp = () => {
-    if (otpCode === storedOtp) {
+  const verifyOtp = async () => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        email,
+        token: otpCode,
+        type: "email",
+      });
+      if (error) throw error;
       setOtpVerified(true);
       Alert.alert("Verified", "Email verified successfully!");
-    } else {
+    } catch (err: any) {
       Alert.alert("Invalid Code", "The code you entered is incorrect. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -189,23 +185,61 @@ export default function Register() {
     try {
       const formattedAddress = `${street}, Brgy. ${barangay}, Calbayog City, Samar`;
 
-      await registerResident({
+      const { error: pwdError } = await supabase.auth.updateUser({ password });
+      if (pwdError) throw pwdError;
+
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id;
+      if (!uid) throw new Error("Failed to get user session");
+
+      let idPhotoURL: string | null = null;
+      if (idPhotoUri) {
+        try {
+          const response = await fetch(idPhotoUri);
+          const blob = await response.blob();
+          const filePath = `ids/${uid}.jpg`;
+          const { error: uploadError } = await supabase.storage
+            .from("profile-photos")
+            .upload(filePath, blob, { contentType: "image/jpeg", upsert: true });
+          if (!uploadError) {
+            const { data: urlData } = supabase.storage.from("profile-photos").getPublicUrl(filePath);
+            idPhotoURL = urlData?.publicUrl ?? null;
+          }
+        } catch (err) {
+          console.warn("ID photo upload failed:", err);
+        }
+      }
+
+      const { error: userError } = await supabase.from("users").insert({
+        id: uid,
         email,
-        password,
-        fullName,
+        role: "resident",
+        status: "approved",
+        created_at: new Date().toISOString(),
+      });
+      if (userError) throw userError;
+
+      const { error: profileError } = await supabase.from("resident_profiles").insert({
+        id: uid,
+        full_name: fullName,
         address: formattedAddress,
-        phoneNumber,
-        emergencyContact,
-        guardianName,
-        guardianPhone,
-        fatherName: fatherName || null,
-        fatherPhone: fatherPhone || null,
-        motherName: motherName || null,
-        motherPhone: motherPhone || null,
+        phone_number: phoneNumber,
+        emergency_contact: emergencyContact,
+        guardian_name: guardianName || null,
+        guardian_phone: guardianPhone || null,
+        father_name: fatherName || null,
+        father_phone: fatherPhone || null,
+        mother_name: motherName || null,
+        mother_phone: motherPhone || null,
         latitude: location?.latitude ?? null,
         longitude: location?.longitude ?? null,
-        idPhotoUri,
+        id_photo_url: idPhotoURL,
+        avatar_url: idPhotoURL,
       });
+      if (profileError) throw profileError;
+
+      await supabase.auth.signOut();
+
       Alert.alert("Success", "Registration complete! Welcome to Ligtas Calbayog.");
       router.replace("/(tabs)/login" as any);
     } catch (err: any) {
@@ -230,388 +264,494 @@ export default function Register() {
     "Enter the OTP sent to your email",
   ];
 
+  const inputCommon = {
+    placeholderTextColor: "#666" as string,
+    labelStyle: { color: "#888" } as object,
+  };
+  const inputStyle = {
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: "#303030",
+    borderRadius: 0,
+    color: "#FFFFFF",
+    paddingHorizontal: 0,
+    paddingVertical: 12,
+  };
+
   return (
-    <View style={{ flex: 1, backgroundColor: "#FFFFFF" }}>
+    <View style={{ flex: 1, backgroundColor: "#151515" }}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <SafeAreaView style={{ flex: 1 }}>
-        <ScreenWrapper scrollable>
-          <View style={{ flex: 1, paddingVertical: 10 }}>
-            <View style={{ alignItems: "center", marginBottom: 16 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#151515" }}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <ScrollView
+            contentContainerStyle={{ flexGrow: 1, paddingBottom: 40 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* White header section with curved bottom */}
+            <View style={{
+              backgroundColor: "#FFFFFF",
+              justifyContent: "center",
+              alignItems: "center",
+              paddingTop: 24,
+              paddingBottom: 20,
+              borderBottomLeftRadius: 40,
+              borderBottomRightRadius: 40,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 12,
+              elevation: 8,
+              zIndex: 1,
+            }}>
               <Image
                 source={require("../../assets/images/logo-black.png")}
                 style={{ width: 56, height: 56 }}
                 resizeMode="contain"
               />
-              <Text style={{ fontSize: 20, fontWeight: "700", color: "#17202b", marginTop: 8 }}>
-                Create Account
+              <Text style={{ fontSize: 16, fontWeight: "800", color: "#151515", marginTop: 4, letterSpacing: 0.5 }}>
+                Ligtas Calbayog
               </Text>
-              <Text style={{ fontSize: 13, color: "#94A3B8", marginTop: 2 }}>
-                Step {step} of {TOTAL_STEPS}
+              <Text style={{ fontSize: 11, color: "#888", marginTop: 1, letterSpacing: 0.3 }}>
+                Your Safety, Our Priority
               </Text>
             </View>
 
-            <View style={styles.stepRow}>
-              {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
-                <View
-                  key={i}
-                  style={[
-                    styles.stepDot,
-                    i + 1 <= step && styles.stepDotActive,
-                    i + 1 === step && styles.stepDotCurrent,
-                  ]}
+            {/* Floating dark card */}
+            <View style={{
+              backgroundColor: "#1E1E1E",
+              borderRadius: 24,
+              padding: 28,
+              marginTop: 20,
+              marginHorizontal: 16,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.5,
+              shadowRadius: 24,
+              elevation: 16,
+            }}>
+              {/* Logo inside card */}
+              <View style={{ alignItems: "center", marginBottom: 16 }}>
+                <Image
+                  source={require("../../assets/images/logo-white.png")}
+                  style={{ width: 48, height: 48 }}
+                  resizeMode="contain"
                 />
-              ))}
-            </View>
+              </View>
 
-            <View style={{ marginBottom: 20 }}>
-              <Text style={{ fontSize: 18, fontWeight: "700", color: "#17202b" }}>
-                {stepTitles[step - 1]}
-              </Text>
-              <Text style={{ fontSize: 13, color: "#94A3B8", marginTop: 2 }}>
-                {stepSubtitles[step - 1]}
-              </Text>
-            </View>
-
-            <View style={{ marginBottom: 24 }}>
-              {step === 1 && (
-                <>
-                  <InputField
-                    label="Email Address"
-                    placeholder="Enter your email"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={email}
-                    onChangeText={setEmail}
-                  />
-                  <InputField
-                    label="Password"
-                    placeholder="Create a password (min 6 characters)"
-                    secureTextEntry
-                    value={password}
-                    onChangeText={setPassword}
-                  />
-                </>
-              )}
-
-              {step === 2 && (
-                <>
-                  <InputField
-                    label="Full Name"
-                    placeholder="Juan Dela Cruz"
-                    value={fullName}
-                    onChangeText={setFullName}
-                  />
-                  <InputField
-                    label="Phone Number"
-                    placeholder="09123456789"
-                    keyboardType="phone-pad"
-                    value={phoneNumber}
-                    onChangeText={setPhoneNumber}
-                  />
-                  <InputField
-                    label="Emergency Contact"
-                    placeholder="Emergency contact phone number"
-                    keyboardType="phone-pad"
-                    value={emergencyContact}
-                    onChangeText={setEmergencyContact}
-                  />
-                  <InputField
-                    label="Street / House No."
-                    placeholder="123 Mabini St."
-                    value={street}
-                    onChangeText={setStreet}
-                  />
-
-                  <Text style={styles.inputLabel}>Barangay</Text>
-                  <TouchableOpacity
-                    style={styles.pickerButton}
-                    onPress={() => setShowBarangayPicker(true)}
-                  >
-                    <Text style={[styles.pickerText, !barangay && { color: "#94A3B8" }]}>
-                      {barangay ? `Brgy. ${barangay}` : "Select your barangay"}
-                    </Text>
-                    <Ionicons name="chevron-down" size={20} color="#94A3B8" />
-                  </TouchableOpacity>
-
-                  <InputField
-                    label="City / Province"
-                    value="Calbayog City, Samar"
-                    editable={false}
-                    style={{ backgroundColor: "#F1F5F9", color: "#64748B" }}
-                  />
-
-                  <View style={{ marginTop: 12 }}>
-                    <Text style={styles.inputLabel}>Current Location</Text>
-                    {locationStatus === "loading" && (
-                      <View style={styles.locationBox}>
-                        <Ionicons name="locate" size={20} color="#1565C0" />
-                        <Text style={{ marginLeft: 8, color: "#64748B" }}>Getting your location...</Text>
-                      </View>
+              {/* Step indicator */}
+              <View style={styles.stepRow}>
+                {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+                  <React.Fragment key={i}>
+                    {i > 0 && (
+                      <View style={[
+                        styles.stepLine,
+                        i < step && styles.stepLineActive,
+                      ]} />
                     )}
-                    {locationStatus === "got" && location && (
-                      <View style={[styles.locationBox, { backgroundColor: "#F0FDF4", borderColor: "#BBF7D0" }]}>
-                        <Ionicons name="checkmark-circle" size={20} color="#16A34A" />
-                        <Text style={{ marginLeft: 8, color: "#16A34A" }}>
-                          Location captured ({location.latitude.toFixed(4)}, {location.longitude.toFixed(4)})
-                        </Text>
-                      </View>
-                    )}
-                    {locationStatus === "denied" && (
-                      <View style={[styles.locationBox, { backgroundColor: "#FEF2F2", borderColor: "#FECACA" }]}>
-                        <Ionicons name="alert-circle" size={20} color="#DC2626" />
-                        <Text style={{ marginLeft: 8, color: "#DC2626", flex: 1 }}>
-                          Location permission denied. Enable it in settings.
-                        </Text>
-                      </View>
-                    )}
-                    {locationStatus === "idle" && (
-                      <TouchableOpacity style={styles.locationBox} onPress={getLocation}>
-                        <Ionicons name="locate-outline" size={20} color="#1565C0" />
-                        <Text style={{ marginLeft: 8, color: "#1565C0" }}>Tap to get current location</Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-
-                  <Modal visible={showBarangayPicker} animationType="slide" transparent>
-                    <View style={styles.modalOverlay}>
-                      <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                          <Text style={{ fontSize: 17, fontWeight: "700", color: "#17202b" }}>
-                            Select Barangay
-                          </Text>
-                          <TouchableOpacity onPress={() => setShowBarangayPicker(false)}>
-                            <Ionicons name="close" size={24} color="#64748B" />
-                          </TouchableOpacity>
-                        </View>
-                        <FlatList
-                          data={CALBAYOG_BARANGAYS}
-                          keyExtractor={(item) => item}
-                          renderItem={({ item }) => (
-                            <TouchableOpacity
-                              style={styles.barangayItem}
-                              onPress={() => {
-                                setBarangay(item);
-                                setShowBarangayPicker(false);
-                              }}
-                            >
-                              <Text style={styles.barangayText}>{item}</Text>
-                              {barangay === item && (
-                                <Ionicons name="checkmark-circle" size={22} color="#17202b" />
-                              )}
-                            </TouchableOpacity>
-                          )}
-                        />
-                      </View>
+                    <View style={[
+                      styles.stepCircle,
+                      i + 1 < step && styles.stepCircleDone,
+                      i + 1 === step && styles.stepCircleCurrent,
+                    ]}>
+                      <Text style={[
+                        styles.stepNumber,
+                        (i + 1 < step || i + 1 === step) && styles.stepNumberActive,
+                      ]}>
+                        {i + 1}
+                      </Text>
                     </View>
-                  </Modal>
-                </>
-              )}
+                  </React.Fragment>
+                ))}
+              </View>
 
-              {step === 3 && (
-                <>
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionLabel}>GUARDIAN (REQUIRED)</Text>
-                  </View>
-                  <InputField
-                    label="Guardian's Full Name"
-                    placeholder="Juan Dela Cruz"
-                    value={guardianName}
-                    onChangeText={setGuardianName}
-                  />
-                  <InputField
-                    label="Guardian's Phone Number"
-                    placeholder="09123456789"
-                    keyboardType="phone-pad"
-                    value={guardianPhone}
-                    onChangeText={setGuardianPhone}
-                  />
+              <View style={{ marginBottom: 24 }}>
+                <Text style={{ fontSize: 18, fontWeight: "700", color: "#FFFFFF" }}>
+                  {stepTitles[step - 1]}
+                </Text>
+                <Text style={{ fontSize: 13, color: "#888", marginTop: 4 }}>
+                  {stepSubtitles[step - 1]}
+                </Text>
+              </View>
 
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionLabel}>FATHER (OPTIONAL)</Text>
-                  </View>
-                  <InputField
-                    label="Father's Name"
-                    placeholder="Pedro Dela Cruz"
-                    value={fatherName}
-                    onChangeText={setFatherName}
-                  />
-                  <InputField
-                    label="Father's Phone Number"
-                    placeholder="09123456789"
-                    keyboardType="phone-pad"
-                    value={fatherPhone}
-                    onChangeText={setFatherPhone}
-                  />
+              <View style={{ marginBottom: 24 }}>
+                {step === 1 && (
+                  <>
+                    <InputField
+                      label="Email Address"
+                      placeholder="Enter your email"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      value={email}
+                      onChangeText={setEmail}
+                      {...inputCommon}
+                      style={inputStyle}
+                    />
+                    <InputField
+                      label="Password"
+                      placeholder="Create a password (min 6 characters)"
+                      secureTextEntry
+                      value={password}
+                      onChangeText={setPassword}
+                      {...inputCommon}
+                      style={inputStyle}
+                    />
+                  </>
+                )}
 
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionLabel}>MOTHER (OPTIONAL)</Text>
-                  </View>
-                  <InputField
-                    label="Mother's Maiden Name"
-                    placeholder="Maria Santos"
-                    value={motherName}
-                    onChangeText={setMotherName}
-                  />
-                  <InputField
-                    label="Mother's Phone Number"
-                    placeholder="09123456789"
-                    keyboardType="phone-pad"
-                    value={motherPhone}
-                    onChangeText={setMotherPhone}
-                  />
+                {step === 2 && (
+                  <>
+                    <InputField
+                      label="Full Name"
+                      placeholder="Juan Dela Cruz"
+                      value={fullName}
+                      onChangeText={setFullName}
+                      {...inputCommon}
+                      style={inputStyle}
+                    />
+                    <InputField
+                      label="Phone Number"
+                      placeholder="09123456789"
+                      keyboardType="phone-pad"
+                      value={phoneNumber}
+                      onChangeText={setPhoneNumber}
+                      {...inputCommon}
+                      style={inputStyle}
+                    />
+                    <InputField
+                      label="Emergency Contact"
+                      placeholder="Emergency contact phone number"
+                      keyboardType="phone-pad"
+                      value={emergencyContact}
+                      onChangeText={setEmergencyContact}
+                      {...inputCommon}
+                      style={inputStyle}
+                    />
+                    <InputField
+                      label="Street / House No."
+                      placeholder="123 Mabini St."
+                      value={street}
+                      onChangeText={setStreet}
+                      {...inputCommon}
+                      style={inputStyle}
+                    />
 
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionLabel}>ID UPLOAD</Text>
-                  </View>
-                  {!idPhotoUploaded ? (
-                    <TouchableOpacity style={styles.uploadBox} onPress={pickIdPhoto}>
-                      <Ionicons name="camera-outline" size={36} color="#94A3B8" />
-                      <Text style={{ fontSize: 14, fontWeight: "600", color: "#17202b", marginTop: 8 }}>
-                        Upload ID Photo
+                    <Text style={styles.inputLabel}>Barangay</Text>
+                    <TouchableOpacity
+                      style={styles.pickerButton}
+                      onPress={() => setShowBarangayPicker(true)}
+                    >
+                      <Text style={[styles.pickerText, !barangay && { color: "#666" }]}>
+                        {barangay ? `Brgy. ${barangay}` : "Select your barangay"}
                       </Text>
-                      <Text style={{ fontSize: 12, color: "#94A3B8", textAlign: "center", marginTop: 4 }}>
-                        Take a photo of your valid ID
-                      </Text>
+                      <Ionicons name="chevron-down" size={20} color="#666" />
                     </TouchableOpacity>
-                  ) : (
-                    <View style={styles.uploadedBox}>
-                      <Ionicons name="checkmark-circle" size={28} color="#16A34A" />
-                      <Text style={{ fontSize: 14, fontWeight: "600", color: "#16A34A", marginLeft: 8 }}>
-                        ID Photo Uploaded
-                      </Text>
-                    </View>
-                  )}
-                </>
-              )}
 
-              {step === 4 && (
-                <>
-                  {location ? (
-                    <>
-                      <Text style={styles.inputLabel}>Your GPS Location</Text>
-                      <View style={styles.mapContainer}>
-                        <MapView
-                          style={{ width: "100%", height: 280, borderRadius: 14 }}
-                          mapType="none"
-                          mapStyle={mapStyle}
-                          initialRegion={{
-                            latitude: location.latitude,
-                            longitude: location.longitude,
-                            latitudeDelta: 0.005,
-                            longitudeDelta: 0.005,
-                          }}
-                        >
-                          <UrlTile urlTemplate={tileUrl} />
-                          <Marker
-                            coordinate={{
+                    <InputField
+                      label="City / Province"
+                      value="Calbayog City, Samar"
+                      editable={false}
+                      {...inputCommon}
+                      style={{ ...inputStyle, opacity: 0.5 }}
+                    />
+
+                    <View style={{ marginTop: 12 }}>
+                      <Text style={styles.inputLabel}>Current Location</Text>
+                      {locationStatus === "loading" && (
+                        <View style={styles.locationBox}>
+                          <Ionicons name="locate" size={20} color="#888" />
+                          <Text style={{ marginLeft: 8, color: "#888" }}>Getting your location...</Text>
+                        </View>
+                      )}
+                      {locationStatus === "got" && location && (
+                        <View style={[styles.locationBox, { backgroundColor: "#1a2e1a", borderColor: "#2ecc71" }]}>
+                          <Ionicons name="checkmark-circle" size={20} color="#2ecc71" />
+                          <Text style={{ marginLeft: 8, color: "#2ecc71" }}>
+                            Location captured ({location.latitude.toFixed(4)}, {location.longitude.toFixed(4)})
+                          </Text>
+                        </View>
+                      )}
+                      {locationStatus === "denied" && (
+                        <View style={[styles.locationBox, { backgroundColor: "#2e1a1a", borderColor: "#e74c3c" }]}>
+                          <Ionicons name="alert-circle" size={20} color="#e74c3c" />
+                          <Text style={{ marginLeft: 8, color: "#e74c3c", flex: 1 }}>
+                            Location permission denied. Enable it in settings.
+                          </Text>
+                        </View>
+                      )}
+                      {locationStatus === "idle" && (
+                        <TouchableOpacity style={styles.locationBox} onPress={getLocation}>
+                          <Ionicons name="locate-outline" size={20} color="#888" />
+                          <Text style={{ marginLeft: 8, color: "#888" }}>Tap to get current location</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    <Modal visible={showBarangayPicker} animationType="slide" transparent>
+                      <View style={styles.modalOverlay}>
+                        <View style={styles.modalContent}>
+                          <View style={styles.modalHeader}>
+                            <Text style={{ fontSize: 17, fontWeight: "700", color: "#FFFFFF" }}>
+                              Select Barangay
+                            </Text>
+                            <TouchableOpacity onPress={() => setShowBarangayPicker(false)}>
+                              <Ionicons name="close" size={24} color="#888" />
+                            </TouchableOpacity>
+                          </View>
+                          <FlatList
+                            data={CALBAYOG_BARANGAYS}
+                            keyExtractor={(item) => item}
+                            renderItem={({ item }) => (
+                              <TouchableOpacity
+                                style={styles.barangayItem}
+                                onPress={() => {
+                                  setBarangay(item);
+                                  setShowBarangayPicker(false);
+                                }}
+                              >
+                                <Text style={styles.barangayText}>{item}</Text>
+                                {barangay === item && (
+                                  <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />
+                                )}
+                              </TouchableOpacity>
+                            )}
+                          />
+                        </View>
+                      </View>
+                    </Modal>
+                  </>
+                )}
+
+                {step === 3 && (
+                  <>
+                    <View style={styles.sectionHeader}>
+                      <Text style={styles.sectionLabel}>GUARDIAN (REQUIRED)</Text>
+                    </View>
+                    <InputField
+                      label="Guardian's Full Name"
+                      placeholder="Juan Dela Cruz"
+                      value={guardianName}
+                      onChangeText={setGuardianName}
+                      {...inputCommon}
+                      style={inputStyle}
+                    />
+                    <InputField
+                      label="Guardian's Phone Number"
+                      placeholder="09123456789"
+                      keyboardType="phone-pad"
+                      value={guardianPhone}
+                      onChangeText={setGuardianPhone}
+                      {...inputCommon}
+                      style={inputStyle}
+                    />
+
+                    <View style={styles.sectionHeader}>
+                      <Text style={styles.sectionLabel}>FATHER (OPTIONAL)</Text>
+                    </View>
+                    <InputField
+                      label="Father's Name"
+                      placeholder="Pedro Dela Cruz"
+                      value={fatherName}
+                      onChangeText={setFatherName}
+                      {...inputCommon}
+                      style={inputStyle}
+                    />
+                    <InputField
+                      label="Father's Phone Number"
+                      placeholder="09123456789"
+                      keyboardType="phone-pad"
+                      value={fatherPhone}
+                      onChangeText={setFatherPhone}
+                      {...inputCommon}
+                      style={inputStyle}
+                    />
+
+                    <View style={styles.sectionHeader}>
+                      <Text style={styles.sectionLabel}>MOTHER (OPTIONAL)</Text>
+                    </View>
+                    <InputField
+                      label="Mother's Maiden Name"
+                      placeholder="Maria Santos"
+                      value={motherName}
+                      onChangeText={setMotherName}
+                      {...inputCommon}
+                      style={inputStyle}
+                    />
+                    <InputField
+                      label="Mother's Phone Number"
+                      placeholder="09123456789"
+                      keyboardType="phone-pad"
+                      value={motherPhone}
+                      onChangeText={setMotherPhone}
+                      {...inputCommon}
+                      style={inputStyle}
+                    />
+
+                    <View style={styles.sectionHeader}>
+                      <Text style={styles.sectionLabel}>ID UPLOAD</Text>
+                    </View>
+                    {!idPhotoUploaded ? (
+                      <TouchableOpacity style={styles.uploadBox} onPress={pickIdPhoto}>
+                        <Ionicons name="camera-outline" size={36} color="#666" />
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: "#FFFFFF", marginTop: 8 }}>
+                          Upload ID Photo
+                        </Text>
+                        <Text style={{ fontSize: 12, color: "#888", textAlign: "center", marginTop: 4 }}>
+                          Take a photo of your valid ID
+                        </Text>
+                      </TouchableOpacity>
+                    ) : (
+                      <View style={styles.uploadedBox}>
+                        <Ionicons name="checkmark-circle" size={28} color="#2ecc71" />
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: "#2ecc71", marginLeft: 8 }}>
+                          ID Photo Uploaded
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                )}
+
+                {step === 4 && (
+                  <>
+                    {location ? (
+                      <>
+                        <Text style={styles.inputLabel}>Your GPS Location</Text>
+                        <View style={styles.mapContainer}>
+                          <MapView
+                            style={{ width: "100%", height: 280, borderRadius: 14 }}
+                            mapType="none"
+                            mapStyle={mapStyle}
+                            initialRegion={{
                               latitude: location.latitude,
                               longitude: location.longitude,
+                              latitudeDelta: 0.005,
+                              longitudeDelta: 0.005,
                             }}
-                            title="Your Location"
-                            pinColor="#1565C0"
-                          />
-                        </MapView>
-                      </View>
-                      <Text style={[styles.inputLabel, { marginTop: 12 }]}>
-                        Registered Address
-                      </Text>
-                      <View style={styles.addressCard}>
-                        <Ionicons name="home-outline" size={20} color="#17202b" />
-                        <Text style={{ marginLeft: 10, color: "#17202b", flex: 1, fontSize: 14 }}>
-                          {street}, Brgy. {barangay}, Calbayog City, Samar
+                          >
+                            <UrlTile urlTemplate={tileUrl} />
+                            <Marker
+                              coordinate={{
+                                latitude: location.latitude,
+                                longitude: location.longitude,
+                              }}
+                              title="Your Location"
+                              pinColor="#1565C0"
+                            />
+                          </MapView>
+                        </View>
+                        <Text style={[styles.inputLabel, { marginTop: 12 }]}>
+                          Registered Address
                         </Text>
-                      </View>
-                      <View style={[styles.locationBox, { backgroundColor: "#EFF6FF", borderColor: "#BFDBFE", marginTop: 12 }]}>
-                        <Ionicons name="information-circle" size={20} color="#1565C0" />
-                        <Text style={{ marginLeft: 8, color: "#1565C0", flex: 1, fontSize: 13 }}>
-                          Verify that the map pin matches your address above.
-                        </Text>
-                      </View>
-                    </>
-                  ) : (
-                    <View style={{ alignItems: "center", padding: 40 }}>
-                      <Ionicons name="locate-outline" size={48} color="#94A3B8" />
-                      <Text style={{ marginTop: 16, color: "#64748B", textAlign: "center" }}>
-                        No location data available. Please go back to step 2 and allow location access.
-                      </Text>
-                    </View>
-                  )}
-                </>
-              )}
-
-              {step === 5 && (
-                <>
-                  <View style={{ alignItems: "center", marginBottom: 20 }}>
-                    <Ionicons name="mail-outline" size={48} color="#1565C0" />
-                    <Text style={{ fontSize: 15, color: "#64748B", textAlign: "center", marginTop: 12 }}>
-                      A verification code will be sent to{"\n"}
-                      <Text style={{ fontWeight: "700", color: "#17202b" }}>{email}</Text>
-                    </Text>
-                  </View>
-
-                  {!otpSent ? (
-                    <Button
-                      title="Send OTP Code"
-                      onPress={sendOtp}
-                      disabled={isLoading}
-                      style={{ borderRadius: 12, backgroundColor: "#17202b", height: 50 }}
-                    />
-                  ) : !otpVerified ? (
-                    <>
-                      <InputField
-                        label="Enter 6-Digit Code"
-                        placeholder="000000"
-                        keyboardType="number-pad"
-                        maxLength={6}
-                        value={otpCode}
-                        onChangeText={setOtpCode}
-                      />
-                      <View style={{ marginTop: 12, gap: 10 }}>
-                        <Button
-                          title="Verify Code"
-                          onPress={verifyOtp}
-                          disabled={otpCode.length !== 6}
-                          style={{ borderRadius: 12, backgroundColor: "#17202b", height: 50 }}
-                        />
-                        <TouchableOpacity onPress={sendOtp} disabled={isLoading}>
-                          <Text style={{ color: "#1565C0", textAlign: "center", fontSize: 14 }}>
-                            Resend Code
+                        <View style={styles.addressCard}>
+                          <Ionicons name="home-outline" size={20} color="#FFFFFF" />
+                          <Text style={{ marginLeft: 10, color: "#FFFFFF", flex: 1, fontSize: 14 }}>
+                            {street}, Brgy. {barangay}, Calbayog City, Samar
                           </Text>
-                        </TouchableOpacity>
+                        </View>
+                        <View style={[styles.locationBox, { backgroundColor: "#1a2e1a", borderColor: "#2ecc71", marginTop: 12 }]}>
+                          <Ionicons name="information-circle" size={20} color="#2ecc71" />
+                          <Text style={{ marginLeft: 8, color: "#2ecc71", flex: 1, fontSize: 13 }}>
+                            Verify that the map pin matches your address above.
+                          </Text>
+                        </View>
+                      </>
+                    ) : (
+                      <View style={{ alignItems: "center", padding: 40 }}>
+                        <Ionicons name="locate-outline" size={48} color="#666" />
+                        <Text style={{ marginTop: 16, color: "#888", textAlign: "center" }}>
+                          No location data available. Please go back to step 2 and allow location access.
+                        </Text>
                       </View>
-                    </>
-                  ) : (
-                    <View style={styles.verifiedContainer}>
-                      <Ionicons name="checkmark-circle" size={56} color="#16A34A" />
-                      <Text style={{ fontSize: 18, fontWeight: "700", color: "#16A34A", marginTop: 12 }}>
-                        Email Verified!
-                      </Text>
-                      <Text style={{ fontSize: 14, color: "#64748B", marginTop: 4, textAlign: "center" }}>
-                        Your email has been verified successfully.
+                    )}
+                  </>
+                )}
+
+                {step === 5 && (
+                  <>
+                    <View style={{ alignItems: "center", marginBottom: 20 }}>
+                      <Ionicons name="mail-outline" size={48} color="#888" />
+                      <Text style={{ fontSize: 15, color: "#888", textAlign: "center", marginTop: 12 }}>
+                        A verification code will be sent to{"\n"}
+                        <Text style={{ fontWeight: "700", color: "#FFFFFF" }}>{email}</Text>
                       </Text>
                     </View>
-                  )}
-                </>
-              )}
-            </View>
 
-            <View>
-              <Button
-                title={step < TOTAL_STEPS ? "Continue" : "Complete Registration"}
-                onPress={step < TOTAL_STEPS ? handleNext : handleRegister}
-                disabled={isLoading || (step === 5 && !otpVerified)}
-                style={{ borderRadius: 12, backgroundColor: "#17202b", height: 50 }}
-              />
-              <Button
-                title={step === 1 ? "Back to Login" : "Previous Step"}
-                variant="outline"
-                onPress={handleBack}
-                disabled={isLoading}
-                style={{ borderRadius: 12, height: 50, borderColor: "#E8EEF5", marginTop: 10 }}
-              />
+                    {!otpSent ? (
+                      <Button
+                        title="Send OTP Code"
+                        onPress={sendOtp}
+                        disabled={isLoading}
+                        textStyle={{ color: "#151515" }}
+                        style={{ borderRadius: 999, backgroundColor: "#FFFFFF", height: 50 }}
+                      />
+                    ) : !otpVerified ? (
+                      <>
+                        <InputField
+                          label="Enter 8-Digit Code"
+                          placeholder="00000000"
+                          placeholderTextColor="#666"
+                          keyboardType="number-pad"
+                          maxLength={8}
+                          value={otpCode}
+                          onChangeText={setOtpCode}
+                          labelStyle={{ color: "#888" }}
+                          style={inputStyle}
+                        />
+                        <View style={{ marginTop: 12, gap: 10 }}>
+                          <Button
+                            title="Verify Code"
+                            onPress={verifyOtp}
+                            disabled={otpCode.length !== 8}
+                            loading={isLoading}
+                            textStyle={{ color: "#151515" }}
+                            style={{ borderRadius: 999, backgroundColor: "#FFFFFF", height: 50 }}
+                          />
+                          <TouchableOpacity onPress={sendOtp} disabled={isLoading}>
+                            <Text style={{ color: "#888", textAlign: "center", fontSize: 14 }}>
+                              Resend Code
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    ) : (
+                      <View style={styles.verifiedContainer}>
+                        <Ionicons name="checkmark-circle" size={56} color="#2ecc71" />
+                        <Text style={{ fontSize: 18, fontWeight: "700", color: "#2ecc71", marginTop: 12 }}>
+                          Email Verified!
+                        </Text>
+                        <Text style={{ fontSize: 14, color: "#888", marginTop: 4, textAlign: "center" }}>
+                          Your email has been verified successfully.
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+
+              <View>
+                <Button
+                  title={step < TOTAL_STEPS ? "Continue" : "Complete Registration"}
+                  onPress={step < TOTAL_STEPS ? handleNext : handleRegister}
+                  disabled={isLoading || (step === 5 && !otpVerified)}
+                  textStyle={{ color: "#151515" }}
+                  style={{ borderRadius: 999, backgroundColor: "#FFFFFF", height: 50 }}
+                />
+                <Button
+                  title={step === 1 ? "Back to Login" : "Previous Step"}
+                  variant="outline"
+                  onPress={handleBack}
+                  disabled={isLoading}
+                  textStyle={{ color: "#FFFFFF" }}
+                  style={{ borderRadius: 999, height: 50, borderColor: "#303030", backgroundColor: "transparent", marginTop: 10 }}
+                />
+              </View>
             </View>
-          </View>
-        </ScreenWrapper>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </View>
   );
@@ -621,51 +761,74 @@ const styles = StyleSheet.create({
   stepRow: {
     flexDirection: "row",
     justifyContent: "center",
+    alignItems: "center",
     marginBottom: 24,
-    gap: 8,
   },
-  stepDot: {
-    height: 6,
+  stepCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#303030",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  stepCircleDone: {
+    backgroundColor: "#FFFFFF",
+  },
+  stepCircleCurrent: {
+    backgroundColor: "#FFFFFF",
+    shadowColor: "#FFFFFF",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  stepNumber: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#666",
+  },
+  stepNumberActive: {
+    color: "#151515",
+  },
+  stepLine: {
     width: 28,
-    borderRadius: 3,
-    backgroundColor: "#E2E8F0",
+    height: 2,
+    backgroundColor: "#303030",
+    marginHorizontal: 6,
   },
-  stepDotActive: {
-    backgroundColor: "#17202b",
-  },
-  stepDotCurrent: {
-    width: 40,
+  stepLineActive: {
+    backgroundColor: "#FFFFFF",
   },
   inputLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#64748B",
+    color: "#888",
     marginBottom: 6,
     marginTop: 4,
   },
   pickerButton: {
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    height: 48,
+    borderBottomWidth: 1,
+    borderBottomColor: "#303030",
+    paddingHorizontal: 0,
+    paddingVertical: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "transparent",
     marginBottom: 14,
   },
   pickerText: {
     fontSize: 15,
-    color: "#17202b",
+    color: "#FFFFFF",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.7)",
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#FFF",
+    backgroundColor: "#1E1E1E",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: "70%",
@@ -677,7 +840,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: "#303030",
   },
   barangayItem: {
     flexDirection: "row",
@@ -686,43 +849,43 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#F8FAFC",
+    borderBottomColor: "#303030",
   },
   barangayText: {
     fontSize: 15,
-    color: "#17202b",
+    color: "#FFFFFF",
   },
   locationBox: {
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#303030",
     borderRadius: 10,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
   },
   mapContainer: {
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#303030",
   },
   addressCard: {
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#303030",
   },
   uploadBox: {
     alignItems: "center",
     padding: 24,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: "transparent",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#303030",
     borderStyle: "dashed",
     marginTop: 4,
   },
@@ -730,10 +893,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    backgroundColor: "#F0FDF4",
+    backgroundColor: "#1a2e1a",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#BBF7D0",
+    borderColor: "#2ecc71",
     marginTop: 4,
   },
   verifiedContainer: {
@@ -744,13 +907,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 4,
     borderBottomWidth: 1,
-    borderBottomColor: "#E8EEF5",
+    borderBottomColor: "#303030",
     paddingBottom: 6,
   },
   sectionLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#94A3B8",
+    color: "#666",
     letterSpacing: 1,
   },
 });

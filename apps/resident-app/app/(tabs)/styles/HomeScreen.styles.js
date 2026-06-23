@@ -377,6 +377,22 @@ export const styles = StyleSheet.create({
     borderRadius: 15,
   },
 
+  contactMarker: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#1D4ED8",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+
   mapPlaceholderText: {
     marginTop: 10,
     color: "#64748B",

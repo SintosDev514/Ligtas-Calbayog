@@ -14,6 +14,8 @@ const MAP_HTML = `
 html,body{width:100%;height:100%;overflow:hidden;background:#F1F5F9}
 #map{width:100%;height:100%}
 .marker{width:36px;height:36px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:18px;color:#fff}
+.marker-pulse::after{content:'';position:absolute;width:100%;height:100%;border-radius:50%;border:3px solid #22C55E;top:0;left:0;animation:pulse-ring 1.5s ease-out infinite;pointer-events:none}
+@keyframes pulse-ring{0%{transform:scale(1);opacity:0.8}100%{transform:scale(1.8);opacity:0}}
 .marker-img{width:100%;height:100%;border-radius:50%;object-fit:cover}
 .marker-icon{font-size:16px;line-height:1}
 .maplibregl-popup-content{font-size:12px;padding:8px 10px;border-radius:8px;font-family:sans-serif;max-width:220px}
@@ -82,7 +84,7 @@ function doSetMarkers(list) {
   markers = [];
   list.forEach(function(m) {
     var el = document.createElement('div');
-    el.className = 'marker';
+    el.className = 'marker' + (m.animated ? ' marker-pulse' : '');
     el.style.background = m.color || '#3B82F6';
     if (m.imageUrl) {
       el.style.background = '#17202b';
@@ -166,7 +168,7 @@ function extractMarkers(children: any) {
   let idCounter = 0;
   React.Children.forEach(children, (child: any) => {
     if (child?.type?.displayName === "Marker") {
-      const { coordinate, pinColor, title, children: mc } = child.props;
+      const { coordinate, pinColor, title, animated, children: mc } = child.props;
       const imageUrl = mc ? findImageUri(mc) : null;
       markers.push({
         id: idCounter++,
@@ -175,6 +177,7 @@ function extractMarkers(children: any) {
         color: pinColor || "#3B82F6",
         title: title || null,
         imageUrl,
+        animated: !!animated,
       });
     }
   });
@@ -309,7 +312,7 @@ const MapView = forwardRef<any, any>(({ style, children, mapStyle, initialRegion
 
 MapView.displayName = "MapView";
 
-const Marker: React.FC<any> = () => null;
+const Marker: React.FC<{ animated?: boolean }> = () => null;
 Marker.displayName = "Marker";
 
 const Polyline: React.FC<any> = () => null;

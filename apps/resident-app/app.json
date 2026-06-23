@@ -4,7 +4,7 @@
     "slug": "resident-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/iconlogo.png",
     "scheme": "residentapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
