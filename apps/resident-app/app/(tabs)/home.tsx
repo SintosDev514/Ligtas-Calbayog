@@ -100,10 +100,12 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
-    let channels: any[] = [];
+    const channels: any[] = [];
+    let cancelled = false;
 
     const setupRealtime = async () => {
       const { data: session } = await supabase.auth.getSession();
+      if (cancelled) return;
       const userId = session?.session?.user?.id;
       if (!userId) return;
 
@@ -162,11 +164,11 @@ export default function HomeScreen() {
       channels.push(annChannel);
     };
 
-    const cleanup = setupRealtime();
+    setupRealtime();
+
     return () => {
-      cleanup.then(() => {
-        channels.forEach((ch) => supabase.removeChannel(ch));
-      });
+      cancelled = true;
+      channels.forEach((ch) => supabase.removeChannel(ch));
     };
   }, []);
 

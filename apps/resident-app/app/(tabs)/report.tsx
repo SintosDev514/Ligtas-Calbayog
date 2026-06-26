@@ -121,6 +121,7 @@ export default function ReportScreen() {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const successAnim = useRef(new Animated.Value(0)).current;
 
   const cameraRef = useRef<any>(null);
   const timerRef = useRef<any>(null);
@@ -168,6 +169,19 @@ export default function ReportScreen() {
     loop.start();
     return () => loop.stop();
   }, [isLiveLocationActive, pulseAnim]);
+
+  useEffect(() => {
+    if (showSuccess) {
+      Animated.spring(successAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      successAnim.setValue(0);
+    }
+  }, [showSuccess, successAnim]);
 
   // Function to refresh location from the dashboard's shared location
   const refreshLocation = () => {
@@ -730,81 +744,63 @@ export default function ReportScreen() {
       {/* SUCCESS CONFIRMATION MODAL */}
       <Modal visible={showSuccess} transparent animationType="fade">
         <View style={styles.successOverlay}>
-          <View style={styles.successModal}>
-            <View style={styles.successIconCircle}>
-              <Ionicons name="checkmark-circle" size={64} color="#1565C0" />
+          <Animated.View
+            style={[
+              styles.successModal,
+              {
+                opacity: successAnim,
+                transform: [{ scale: successAnim }],
+              },
+            ]}
+          >
+            {/* Success Icon */}
+            <View
+              style={[
+                styles.successIconCircle,
+                { backgroundColor: meta.color + "15" },
+              ]}
+            >
+              <Ionicons
+                name="checkmark-circle"
+                size={40}
+                color={meta.color}
+              />
             </View>
 
-            <Text style={styles.successTitle}>
-              Report Submitted Successfully!
-            </Text>
+            <Text style={styles.successTitle}>Report Filed</Text>
 
             <Text style={styles.successSubtitle}>
-              Your incident report has been securely filed and is being
-              processed by the Calbayog City Police Department.
+              Incident reported to Calbayog Police.
             </Text>
 
             {submittedReportId && (
               <View style={styles.referenceBox}>
-                <Text style={styles.refBoxLabel}>Your Reference ID</Text>
-                <View style={styles.refBoxContent}>
-                  <Ionicons name="key" size={14} color="#1565C0" />
-                  <Text style={styles.refBoxValue}>
-                    {submittedReportId.toUpperCase()}
-                  </Text>
+                <View style={styles.refBoxHeader}>
+                  <Ionicons name="finger-print" size={14} color="#64748B" />
+                  <Text style={styles.refLabel}>Reference ID</Text>
                 </View>
-                <Text style={styles.refBoxHint}>
-                  Save this ID to track your report status
+                <Text style={styles.refValue}>
+                  {submittedReportId.toUpperCase().slice(0, 8)}
                 </Text>
               </View>
             )}
 
-            <View style={styles.successInfoBox}>
-              <View style={styles.infoRow}>
-                <Ionicons name="time-outline" size={16} color="#1565C0" />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.infoLabel}>Response Time</Text>
-                  <Text style={styles.infoValue}>Typically 5-15 minutes</Text>
-                </View>
-              </View>
-
-              <View style={styles.infoDivider} />
-
-              <View style={styles.infoRow}>
-                <Ionicons
-                  name="notifications-outline"
-                  size={16}
-                  color="#1565C0"
-                />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.infoLabel}>Updates & Notifications</Text>
-                  <Text style={styles.infoValue}>
-                    You'll receive SMS & in-app alerts
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.infoDivider} />
-
-              <View style={styles.infoRow}>
-                <Ionicons name="eye-outline" size={16} color="#1565C0" />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.infoLabel}>Track Progress</Text>
-                  <Text style={styles.infoValue}>
-                    Go to "My Reports" to monitor status
-                  </Text>
-                </View>
-              </View>
-            </View>
-
             <TouchableOpacity
-              style={styles.successPrimaryBtn}
+              style={[styles.successPrimaryBtn]}
               onPress={() => {
                 setShowSuccess(false);
                 router.replace("/(tabs)/my-reports" as any);
               }}
             >
-              <Text style={styles.successPrimaryBtnText}>View My Reports</Text>
+              <Ionicons
+                name="list-outline"
+                size={18}
+                color="#fff"
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.successPrimaryBtnText}>
+                View My Reports
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -815,11 +811,17 @@ export default function ReportScreen() {
                 setCapturedMedia([]);
               }}
             >
+              <Ionicons
+                name="add-circle-outline"
+                size={18}
+                color="#17202b"
+                style={{ marginRight: 6 }}
+              />
               <Text style={styles.successSecondaryBtnText}>
                 File Another Report
               </Text>
             </TouchableOpacity>
-          </View>
+          </Animated.View>
         </View>
       </Modal>
 
@@ -1452,140 +1454,92 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0, 0, 0, 0.6)",
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
 
   successModal: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 28,
+    borderRadius: 24,
     padding: 24,
     width: "100%",
-    maxWidth: 340,
+    maxWidth: 320,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    elevation: 12,
   },
 
   successIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: "#EFF6FF",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
-    borderWidth: 2,
-    borderColor: "#BFDBFE",
+    marginBottom: 14,
   },
 
   successTitle: {
     fontSize: 20,
-    fontWeight: "700",
+    fontWeight: "800",
     color: "#17202b",
     textAlign: "center",
-    marginBottom: 10,
+    marginBottom: 6,
   },
 
   successSubtitle: {
     fontSize: 13,
     color: "#64748B",
     textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 20,
+    lineHeight: 18,
+    marginBottom: 18,
     fontWeight: "500",
   },
 
   referenceBox: {
     width: "100%",
-    backgroundColor: "#F0F4F8",
-    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 14,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E8EEF5",
+    borderColor: "#E2E8F0",
     marginBottom: 18,
   },
 
-  refBoxLabel: {
-    fontSize: 10,
-    fontWeight: "700",
-    color: "#1565C0",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-
-  refBoxContent: {
+  refBoxHeader: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: "#E8EEF5",
+    marginBottom: 6,
   },
 
-  refBoxValue: {
-    fontSize: 13,
+  refLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginLeft: 6,
+  },
+
+  refValue: {
+    fontSize: 18,
     fontWeight: "800",
     color: "#17202b",
-    marginLeft: 8,
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-  },
-
-  refBoxHint: {
-    fontSize: 11,
-    color: "#64748B",
-    fontWeight: "600",
-  },
-
-  successInfoBox: {
-    width: "100%",
-    backgroundColor: "#F0F4F8",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#E8EEF5",
-    marginBottom: 18,
-  },
-
-  infoRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
-
-  infoLabel: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#1565C0",
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-  },
-
-  infoValue: {
-    fontSize: 12,
-    color: "#17202b",
-    fontWeight: "500",
-  },
-
-  infoDivider: {
-    height: 1,
-    backgroundColor: "#E8EEF5",
-    marginVertical: 10,
+    letterSpacing: 1,
   },
 
   successPrimaryBtn: {
     width: "100%",
-    backgroundColor: "#1565C0",
-    borderRadius: 16,
+    backgroundColor: "#17202b",
+    borderRadius: 12,
     paddingVertical: 14,
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
-    shadowColor: "#1565C0",
+    justifyContent: "center",
+    marginBottom: 8,
+    shadowColor: "#17202b",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -1596,17 +1550,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
     color: "#FFFFFF",
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
 
   successSecondaryBtn: {
     width: "100%",
-    backgroundColor: "#F0F4F8",
-    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
     paddingVertical: 12,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#E8EEF5",
+    borderColor: "#E2E8F0",
   },
 
   successSecondaryBtnText: {

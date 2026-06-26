@@ -79,6 +79,13 @@ function addPolylines(list) {
   });
 }
 
+var ICON_SVGS = {
+  pin: '<svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>',
+  person: '<svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>',
+  shield: '<svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>',
+  warning: '<svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>',
+};
+
 function doSetMarkers(list) {
   markers.forEach(function(m) { m.remove(); });
   markers = [];
@@ -95,8 +102,7 @@ function doSetMarkers(list) {
       img.onerror = function() { this.parentElement.style.background = m.color || '#3B82F6'; this.remove(); };
       el.appendChild(img);
     } else {
-      el.textContent = '\u{1F464}';
-      el.style.fontSize = '16px';
+      el.innerHTML = ICON_SVGS[m.iconName] || ICON_SVGS.pin;
     }
     var marker = new maplibregl.Marker({ element: el }).setLngLat([m.longitude, m.latitude]).addTo(map);
     el.addEventListener('click', function() {
@@ -168,7 +174,7 @@ function extractMarkers(children: any) {
   let idCounter = 0;
   React.Children.forEach(children, (child: any) => {
     if (child?.type?.displayName === "Marker") {
-      const { coordinate, pinColor, title, animated, children: mc } = child.props;
+      const { coordinate, pinColor, title, animated, iconName, children: mc } = child.props;
       const imageUrl = mc ? findImageUri(mc) : null;
       markers.push({
         id: idCounter++,
@@ -178,6 +184,7 @@ function extractMarkers(children: any) {
         title: title || null,
         imageUrl,
         animated: !!animated,
+        iconName: iconName || "pin",
       });
     }
   });
@@ -312,7 +319,7 @@ const MapView = forwardRef<any, any>(({ style, children, mapStyle, initialRegion
 
 MapView.displayName = "MapView";
 
-const Marker: React.FC<{ animated?: boolean }> = () => null;
+const Marker: React.FC<{ animated?: boolean; iconName?: string; pinColor?: string; title?: string }> = () => null;
 Marker.displayName = "Marker";
 
 const Polyline: React.FC<any> = () => null;

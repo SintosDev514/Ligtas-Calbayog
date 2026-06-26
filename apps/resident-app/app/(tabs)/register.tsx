@@ -272,7 +272,7 @@ export default function Register() {
     backgroundColor: "transparent",
     borderWidth: 0,
     borderBottomWidth: 1,
-    borderBottomColor: "#303030",
+    borderBottomColor: "#475569",
     borderRadius: 0,
     color: "#FFFFFF",
     paddingHorizontal: 0,
@@ -280,9 +280,9 @@ export default function Register() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#151515" }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#151515" }}>
+    <View style={{ flex: 1, backgroundColor: "#17202b" }}>
+      <StatusBar barStyle="light-content" backgroundColor="#17202b" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#17202b" }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
@@ -313,7 +313,7 @@ export default function Register() {
                 style={{ width: 56, height: 56 }}
                 resizeMode="contain"
               />
-              <Text style={{ fontSize: 16, fontWeight: "800", color: "#151515", marginTop: 4, letterSpacing: 0.5 }}>
+              <Text style={{ fontSize: 16, fontWeight: "800", color: "#17202b", marginTop: 4, letterSpacing: 0.5 }}>
                 Ligtas Calbayog
               </Text>
               <Text style={{ fontSize: 11, color: "#888", marginTop: 1, letterSpacing: 0.3 }}>
@@ -323,7 +323,7 @@ export default function Register() {
 
             {/* Floating dark card */}
             <View style={{
-              backgroundColor: "#1E1E1E",
+              backgroundColor: "#1E293B",
               borderRadius: 24,
               padding: 28,
               marginTop: 20,
@@ -746,7 +746,7 @@ export default function Register() {
                   onPress={handleBack}
                   disabled={isLoading}
                   textStyle={{ color: "#FFFFFF" }}
-                  style={{ borderRadius: 999, height: 50, borderColor: "#303030", backgroundColor: "transparent", marginTop: 10 }}
+                  style={{ borderRadius: 999, height: 50, borderColor: "#334155", backgroundColor: "transparent", marginTop: 10 }}
                 />
               </View>
             </View>
@@ -768,7 +768,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#303030",
+    backgroundColor: "#334155",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -786,15 +786,15 @@ const styles = StyleSheet.create({
   stepNumber: {
     fontSize: 13,
     fontWeight: "700",
-    color: "#666",
+    color: "#94A3B8",
   },
   stepNumberActive: {
-    color: "#151515",
+    color: "#17202b",
   },
   stepLine: {
     width: 28,
     height: 2,
-    backgroundColor: "#303030",
+    backgroundColor: "#334155",
     marginHorizontal: 6,
   },
   stepLineActive: {
@@ -803,13 +803,13 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#888",
+    color: "#94A3B8",
     marginBottom: 6,
     marginTop: 4,
   },
   pickerButton: {
     borderBottomWidth: 1,
-    borderBottomColor: "#303030",
+    borderBottomColor: "#475569",
     paddingHorizontal: 0,
     paddingVertical: 12,
     flexDirection: "row",
@@ -828,7 +828,7 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#1E1E1E",
+    backgroundColor: "#1E293B",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: "70%",
@@ -840,7 +840,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#303030",
+    borderBottomColor: "#475569",
   },
   barangayItem: {
     flexDirection: "row",
@@ -849,7 +849,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#303030",
+    borderBottomColor: "#475569",
   },
   barangayText: {
     fontSize: 15,
@@ -860,7 +860,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 14,
     borderWidth: 1,
-    borderColor: "#303030",
+    borderColor: "#475569",
     borderRadius: 10,
     backgroundColor: "transparent",
   },
@@ -868,7 +868,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#303030",
+    borderColor: "#475569",
   },
   addressCard: {
     flexDirection: "row",
@@ -877,7 +877,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#303030",
+    borderColor: "#475569",
   },
   uploadBox: {
     alignItems: "center",
@@ -885,7 +885,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#303030",
+    borderColor: "#475569",
     borderStyle: "dashed",
     marginTop: 4,
   },
@@ -907,13 +907,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 4,
     borderBottomWidth: 1,
-    borderBottomColor: "#303030",
+    borderBottomColor: "#475569",
     paddingBottom: 6,
   },
   sectionLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#666",
+    color: "#94A3B8",
     letterSpacing: 1,
   },
 });

@@ -45,6 +45,7 @@ export default function FullscreenMapScreen() {
             latitude: lat,
             longitude: lng,
           }}
+          title={title || "Location"}
         />
       </MapView>
     </View>

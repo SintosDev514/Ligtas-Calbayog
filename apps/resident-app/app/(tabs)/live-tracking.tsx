@@ -225,6 +225,8 @@ export default function LiveTrackingScreen() {
           <Marker
             coordinate={{ latitude: report.latitude, longitude: report.longitude }}
             pinColor="#EF4444"
+            iconName="warning"
+            title="Incident Location"
           />
         )}
 
@@ -232,6 +234,8 @@ export default function LiveTrackingScreen() {
           <Marker
             coordinate={{ latitude: policeLocation.latitude, longitude: policeLocation.longitude }}
             pinColor="#3B82F6"
+            iconName="shield"
+            title={policeInfo?.full_name || "Police Officer"}
           />
         )}
 
@@ -239,6 +243,8 @@ export default function LiveTrackingScreen() {
           <Marker
             coordinate={{ latitude: residentLocation.latitude, longitude: residentLocation.longitude }}
             pinColor="#10B981"
+            iconName="person"
+            title="Your Location"
           />
         )}
       </MapView>

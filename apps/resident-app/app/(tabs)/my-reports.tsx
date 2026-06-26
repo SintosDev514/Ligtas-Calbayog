@@ -372,6 +372,7 @@ export default function MyReportsScreen() {
                         <Marker
                           coordinate={{ latitude: item.latitude, longitude: item.longitude }}
                           pinColor={crimeColor}
+                          title={item.crime_type ? item.crime_type.split("-").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : "Incident"}
                         />
                       </MapView>
                     </View>

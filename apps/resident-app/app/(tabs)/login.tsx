@@ -102,9 +102,9 @@ export default function Login() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#151515" }}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#151515" }}>
+    <View style={{ flex: 1, backgroundColor: "#17202b" }}>
+      <StatusBar barStyle="light-content" backgroundColor="#17202b" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#17202b" }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
@@ -135,7 +135,7 @@ export default function Login() {
                 style={{ width: 60, height: 60 }}
                 resizeMode="contain"
               />
-              <Text style={{ fontSize: 18, fontWeight: "800", color: "#151515", marginTop: 4, letterSpacing: 0.5 }}>
+              <Text style={{ fontSize: 18, fontWeight: "800", color: "#17202b", marginTop: 4, letterSpacing: 0.5 }}>
                 Ligtas Calbayog
               </Text>
               <Text style={{ fontSize: 11, color: "#888", marginTop: 1, letterSpacing: 0.3 }}>
@@ -146,7 +146,7 @@ export default function Login() {
             {/* Floating dark card overlapping white and dark sections */}
             <Animated.View
               style={{
-                backgroundColor: "#1E1E1E",
+                backgroundColor: "#1E293B",
                 borderRadius: 24,
                 padding: 28,
                 marginTop: 20,
@@ -163,7 +163,7 @@ export default function Login() {
               {/* Pill toggle */}
               <View style={{
                 flexDirection: "row",
-                backgroundColor: "#303030",
+                backgroundColor: "#334155",
                 borderRadius: 999,
                 padding: 4,
                 marginBottom: 32,
@@ -200,7 +200,7 @@ export default function Login() {
                   backgroundColor: "transparent",
                   borderWidth: 0,
                   borderBottomWidth: 1,
-                  borderBottomColor: "#303030",
+                  borderBottomColor: "#475569",
                   borderRadius: 0,
                   color: "#FFFFFF",
                   paddingHorizontal: 0,
@@ -221,7 +221,7 @@ export default function Login() {
                   backgroundColor: "transparent",
                   borderWidth: 0,
                   borderBottomWidth: 1,
-                  borderBottomColor: "#303030",
+                  borderBottomColor: "#475569",
                   borderRadius: 0,
                   color: "#FFFFFF",
                   paddingHorizontal: 0,
