@@ -10,7 +10,7 @@ export const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingTop: Platform.OS === "ios" ? 110 : 95,
+    paddingTop: Platform.OS === "ios" ? 105 : 90,
     paddingBottom: 40,
   },
 
@@ -25,10 +25,8 @@ export const styles = StyleSheet.create({
     right: 0,
     zIndex: 20,
     backgroundColor: "#17202b",
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(255,255,255,0.1)",
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 10,
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -52,52 +50,49 @@ export const styles = StyleSheet.create({
   },
 
   logoContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    // backgroundColor: "rgba(255,255,255,0.1)",
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.08)",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 12,
-    //borderWidth: 1,
-    // borderColor: "rgba(255,255,255,0.15)",
+    marginRight: 10,
   },
 
   logo: {
-    width: 39,
-    height: 39,
+    width: 22,
+    height: 22,
     resizeMode: "contain",
     tintColor: "#FFFFFF",
   },
 
   headerTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "800",
     color: "#FFFFFF",
+    letterSpacing: 0.3,
   },
 
   headerSubtitle: {
-    fontSize: 9,
-    color: "#B0BEC5",
-    marginTop: 2,
+    fontSize: 10,
+    color: "rgba(255,255,255,0.5)",
+    marginTop: 1,
     fontWeight: "500",
   },
 
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 6,
   },
 
   headerButton: {
-    width: 44,
-    height: 44,
+    width: 40,
+    height: 40,
     borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.08)",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.15)",
   },
 
   notifBadge: {

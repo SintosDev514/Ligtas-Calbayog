@@ -340,3 +340,11 @@ export const markAllNotificationsRead = async (userId) => {
     .eq("user_id", userId)
     .eq("read", false);
 };
+
+export const deleteNotification = async (notificationId) => {
+  const { error } = await supabase
+    .from("notifications")
+    .delete()
+    .eq("id", notificationId);
+  if (error) throw new Error(error.message);
+};

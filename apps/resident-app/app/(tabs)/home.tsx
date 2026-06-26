@@ -351,7 +351,7 @@ export default function HomeScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+      <StatusBar barStyle="light-content" backgroundColor="#17202b" />
 
       {/* Header */}
       <SafeAreaView edges={["top"]} style={styles.header}>
@@ -386,7 +386,7 @@ export default function HomeScreen() {
               style={styles.headerButton}
               onPress={handleNotifications}
             >
-              <Ionicons name="notifications-outline" size={20} color="#bab9b9" />
+              <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.7)" />
               {unreadCount > 0 && (
                 <View style={styles.notifBadge}>
                   <Text style={styles.notifBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
@@ -398,14 +398,14 @@ export default function HomeScreen() {
               style={styles.headerButton}
               onPress={handleMessages}
             >
-              <Ionicons name="mail-outline" size={20} color="#bab9b9" />
+              <Ionicons name="mail-outline" size={20} color="rgba(255,255,255,0.7)" />
             </TouchableOpacity>
 
             <TouchableOpacity
               style={styles.headerButton}
               onPress={handleProfile}
             >
-              <Ionicons name="person-outline" size={20} color="#bab9b9" />
+              <Ionicons name="person-outline" size={20} color="rgba(255,255,255,0.7)" />
             </TouchableOpacity>
           </View>
         </Animated.View>

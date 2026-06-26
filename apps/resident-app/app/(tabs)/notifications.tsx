@@ -12,11 +12,13 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Swipeable } from "react-native-gesture-handler";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import {
   fetchNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  deleteNotification,
 } from "../../../../shared/services/messageService";
 
 const TYPE_META: Record<string, { icon: string; color: string }> = {
@@ -81,6 +83,15 @@ export default function NotificationsScreen() {
     );
   };
 
+  const handleDelete = async (id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+    try {
+      await deleteNotification(id);
+    } catch {
+      loadNotifications();
+    }
+  };
+
   const handleMarkAllRead = async () => {
     const { data: session } = await supabase.auth.getSession();
     const userId = session?.session?.user?.id;
@@ -93,30 +104,47 @@ export default function NotificationsScreen() {
     const type = item.type?.toLowerCase() || "default";
     const meta = TYPE_META[type] ?? TYPE_META.default;
 
-    return (
+    const renderRightActions = () => (
       <TouchableOpacity
-        activeOpacity={0.7}
-        onPress={() => handleMarkRead(item.id)}
-        style={[styles.card, !item.read && styles.cardUnread]}
+        style={styles.deleteAction}
+        onPress={() => handleDelete(item.id)}
+        activeOpacity={0.8}
       >
-        <View style={[styles.iconWrap, { backgroundColor: meta.color + "18" }]}>
-          <Ionicons name={meta.icon as any} size={18} color={meta.color} />
-        </View>
-        <View style={styles.cardBody}>
-          <View style={styles.cardTop}>
-            <Text style={styles.cardTitle} numberOfLines={1}>
-              {item.title}
-            </Text>
-            <Text style={styles.timeAgo}>{timeAgo(item.created_at)}</Text>
-          </View>
-          {item.body ? (
-            <Text style={styles.cardBodyText} numberOfLines={2}>
-              {item.body}
-            </Text>
-          ) : null}
-        </View>
-        {!item.read && <View style={styles.unreadDot} />}
+        <Ionicons name="trash-outline" size={22} color="#fff" />
+        <Text style={styles.deleteActionText}>Delete</Text>
       </TouchableOpacity>
+    );
+
+    return (
+      <Swipeable
+        renderRightActions={renderRightActions}
+        overshootRight={false}
+        rightThreshold={40}
+      >
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => handleMarkRead(item.id)}
+          style={[styles.card, !item.read && styles.cardUnread]}
+        >
+          <View style={[styles.iconWrap, { backgroundColor: meta.color + "18" }]}>
+            <Ionicons name={meta.icon as any} size={18} color={meta.color} />
+          </View>
+          <View style={styles.cardBody}>
+            <View style={styles.cardTop}>
+              <Text style={styles.cardTitle} numberOfLines={1}>
+                {item.title}
+              </Text>
+              <Text style={styles.timeAgo}>{timeAgo(item.created_at)}</Text>
+            </View>
+            {item.body ? (
+              <Text style={styles.cardBodyText} numberOfLines={2}>
+                {item.body}
+              </Text>
+            ) : null}
+          </View>
+          {!item.read && <View style={styles.unreadDot} />}
+        </TouchableOpacity>
+      </Swipeable>
     );
   };
 
@@ -152,9 +180,9 @@ export default function NotificationsScreen() {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F8FAFC" }}>
-      <StatusBar barStyle="light-content" backgroundColor="#151515" />
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#151515" }}>
+    <View style={{ flex: 1, backgroundColor: "#F5F7FA" }}>
+      <StatusBar barStyle="light-content" backgroundColor="#17202b" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#17202b" }}>
         <View style={styles.header}>
           <View style={styles.headerRow}>
             <TouchableOpacity
@@ -218,8 +246,9 @@ export default function NotificationsScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    backgroundColor: "#151515",
-    paddingBottom: 8,
+    backgroundColor: "#17202b",
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255,255,255,0.08)",
   },
   headerRow: {
     flexDirection: "row",
@@ -381,6 +410,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 4,
+  },
+  deleteAction: {
+    backgroundColor: "#DC2626",
+    borderRadius: 14,
+    marginBottom: 10,
+    marginLeft: -14,
+    width: 80,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  deleteActionText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 4,
   },
   emptyTitle: {
     fontSize: 18,
