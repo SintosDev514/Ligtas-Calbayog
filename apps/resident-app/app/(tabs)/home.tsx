@@ -75,7 +75,7 @@ export default function HomeScreen() {
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [contactLocations, setContactLocations] = useState<any[]>([]);
+  const [contacts, setContacts] = useState<any[]>([]);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -100,17 +100,18 @@ export default function HomeScreen() {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
     const channels: any[] = [];
-    let cancelled = false;
+    const id = Date.now() + "_" + Math.random().toString(36).slice(2, 8);
 
     const setupRealtime = async () => {
       const { data: session } = await supabase.auth.getSession();
-      if (cancelled) return;
+      if (!mounted) return;
       const userId = session?.session?.user?.id;
       if (!userId) return;
 
       const mainChannel = supabase
-        .channel("resident-home-stats")
+        .channel("rhs-" + id)
         .on(
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "crime_reports", filter: `resident_id=eq.${userId}` },
@@ -120,7 +121,7 @@ export default function HomeScreen() {
       channels.push(mainChannel);
 
       const msgChannel = supabase
-        .channel("resident-messages")
+        .channel("rmsg-" + id)
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "messages", filter: `receiver_id=eq.${userId}` },
@@ -136,7 +137,7 @@ export default function HomeScreen() {
       channels.push(msgChannel);
 
       const notifChannel = supabase
-        .channel("resident-notifications")
+        .channel("rnotif-" + id)
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
@@ -148,7 +149,7 @@ export default function HomeScreen() {
       channels.push(notifChannel);
 
       const annChannel = supabase
-        .channel("resident-announcements")
+        .channel("rann-" + id)
         .on(
           "postgres_changes",
           { event: "INSERT", schema: "public", table: "announcements" },
@@ -167,7 +168,7 @@ export default function HomeScreen() {
     setupRealtime();
 
     return () => {
-      cancelled = true;
+      mounted = false;
       channels.forEach((ch) => supabase.removeChannel(ch));
     };
   }, []);
@@ -280,7 +281,38 @@ export default function HomeScreen() {
     setUnreadCount(count);
 
     const locations = await fetchContactLocations(userId);
-    setContactLocations(locations);
+
+    const { data: familyData } = await supabase
+      .from("family_contacts")
+      .select("id, name, relationship, contact_user_id")
+      .eq("user_id", userId);
+    const locatedIds = new Set(locations.map((l: any) => l.id));
+    const contactUserIds = (familyData || [])
+      .map((c: any) => c.contact_user_id)
+      .filter(Boolean);
+    let photoMap: Record<string, string> = {};
+    if (contactUserIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("resident_profiles")
+        .select("id, avatar_url, id_photo_url")
+        .in("id", contactUserIds);
+      for (const p of (profiles || [])) {
+        const photo = p.avatar_url || p.id_photo_url;
+        if (photo) {
+          const url = photo.startsWith("http")
+            ? photo
+            : supabase.storage.from("profile-photos").getPublicUrl(photo.replace(/^profile-photos\//, "")).data?.publicUrl || null;
+          if (url) photoMap[p.id] = url;
+        }
+      }
+    }
+    const allContacts = (familyData || []).map((c: any) => ({
+      ...c,
+      hasLocation: locatedIds.has(c.id),
+      location: locations.find((l: any) => l.id === c.id),
+      photoUrl: photoMap[c.contact_user_id] || null,
+    }));
+    setContacts(allContacts);
   } catch (error) {
     console.log(error);
   }
@@ -484,121 +516,168 @@ export default function HomeScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* Location Card */}
+        {/* Location Card - Map Integrated */}
         <View style={styles.sectionCard}>
-          <View style={styles.sectionHeaderRow}>
-            <View>
-              <Text style={styles.sectionLabel}>Location Status</Text>
+          <View style={styles.mapRow}>
+            <View style={styles.mapContainer}>
+              <MapView
+                style={styles.map}
+                mapType="none"
+                mapStyle={mapStyle}
+                region={{
+                  latitude: location?.latitude || 12.066,
+                  longitude: location?.longitude || 124.6,
+                  latitudeDelta: 0.01,
+                  longitudeDelta: 0.01,
+                }}
+              >
+                <UrlTile urlTemplate={tileUrl} />
+                {location?.latitude ? (
+                  <Marker
+                    coordinate={{
+                      latitude: location.latitude,
+                      longitude: location.longitude,
+                    }}
+                    animated={isLiveLocationActive}
+                  >
+                    <View style={styles.markerWrapper}>
+                      <View style={styles.customMarker}>
+                        {profilePhoto ? (
+                          <Image
+                            source={{ uri: profilePhoto }}
+                            style={styles.markerPhoto}
+                          />
+                        ) : (
+                          <Ionicons name="person" size={18} color="#F4B51A" />
+                        )}
+                      </View>
+                    </View>
+                  </Marker>
+                ) : null}
+                {contacts.filter((c: any) => c.hasLocation && c.location?.latitude).map((c: any) => {
+                  const isActive = c.location?.updated_at
+                    ? Date.now() - new Date(c.location.updated_at).getTime() < 3600000
+                    : false;
+                  const colors = ["#1D4ED8", "#DC2626", "#D97706", "#059669", "#7C3AED", "#DB2777", "#0891B2"];
+                  const colorIdx = c.id ? c.id.toString().length % colors.length : 0;
+                  return (
+                    <Marker
+                      key={c.id}
+                      coordinate={{
+                        latitude: c.location.latitude,
+                        longitude: c.location.longitude,
+                      }}
+                    >
+                      <View style={[styles.contactMapMarker, {
+                        borderColor: isActive ? "#22C55E" : "#CBD5E1",
+                      }]}>
+                        {c.photoUrl ? (
+                          <Image source={{ uri: c.photoUrl }} style={styles.contactMapMarkerPhoto} />
+                        ) : (
+                          <Text style={styles.contactMapMarkerText}>{c.name?.[0]?.toUpperCase() || "?"}</Text>
+                        )}
+                      </View>
+                    </Marker>
+                  );
+                })}
+              </MapView>
 
-              <Text style={styles.locationText} numberOfLines={1}>
-                {location?.address?.split(",")[0] ?? "Fetching location..."}
-              </Text>
-            </View>
+              {/* Location Status Overlay */}
+              <View style={styles.mapTopLeft}>
+                <Text style={styles.mapLocationLabel}>Location Status</Text>
+                <Text style={styles.mapLocationText} numberOfLines={1}>
+                  {location?.address?.split(",")[0] ?? "Fetching location..."}
+                </Text>
+              </View>
 
-            <Animated.View
-              style={[
-                styles.statusBadge,
-                isLiveLocationActive && styles.statusBadgeActive,
-                isLiveLocationActive && { opacity: liveBadgeAnim },
-              ]}
-            >
-              <Text
+              <Animated.View
                 style={[
-                  styles.statusBadgeText,
-                  isLiveLocationActive && styles.statusBadgeTextActive,
+                  styles.mapBadge,
+                  isLiveLocationActive && styles.statusBadgeActive,
+                  isLiveLocationActive && { opacity: liveBadgeAnim },
                 ]}
               >
-                {isLiveLocationActive ? "LIVE" : "OFF"}
-              </Text>
-            </Animated.View>
-          </View>
+                <Text
+                  style={[
+                    styles.statusBadgeText,
+                    isLiveLocationActive && styles.statusBadgeTextActive,
+                  ]}
+                >
+                  {isLiveLocationActive ? "LIVE" : "OFF"}
+                </Text>
+              </Animated.View>
 
-          <View style={styles.mapContainer}>
-            <MapView
-              style={styles.map}
-              mapType="none"
-              mapStyle={mapStyle}
-              region={{
-                latitude: location?.latitude || 12.066,
-                longitude: location?.longitude || 124.6,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
-              }}
-            >
-              <UrlTile urlTemplate={tileUrl} />
-              {location?.latitude ? (
-                <Marker
-                  coordinate={{
-                    latitude: location.latitude,
-                    longitude: location.longitude,
-                  }}
-                  animated={isLiveLocationActive}
+              <View style={styles.mapBtnsRow}>
+                <TouchableOpacity
+                  style={styles.mapStyleBtn}
+                  onPress={() => setMapStyle(mapStyle === "light" ? "dark" : "light")}
                 >
-                  <View style={styles.markerWrapper}>
-                    <View style={styles.customMarker}>
-                      {profilePhoto ? (
-                        <Image
-                          source={{ uri: profilePhoto }}
-                          style={styles.markerPhoto}
-                        />
-                      ) : (
-                        <Ionicons name="person" size={18} color="#F4B51A" />
-                      )}
-                    </View>
-                  </View>
-                </Marker>
-              ) : null}
-              {contactLocations.map((c) => (
-                <Marker
-                  key={c.id}
-                  coordinate={{
-                    latitude: c.latitude,
-                    longitude: c.longitude,
-                  }}
+                  <Ionicons
+                    name={mapStyle === "light" ? "moon-outline" : "sunny-outline"}
+                    size={18}
+                    color="#fff"
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.expandBtn}
+                  onPress={() => setMapExpanded(true)}
                 >
-                  <View style={styles.contactMarker}>
-                    <Ionicons name="people" size={14} color="#fff" />
-                  </View>
-                </Marker>
-              ))}
-            </MapView>
-            <View style={styles.mapBtnsRow}>
-              <TouchableOpacity
-                style={styles.mapStyleBtn}
-                onPress={() => setMapStyle(mapStyle === "light" ? "dark" : "light")}
-              >
-                <Ionicons
-                  name={mapStyle === "light" ? "moon-outline" : "sunny-outline"}
-                  size={18}
-                  color="#fff"
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.expandBtn}
-                onPress={() => setMapExpanded(true)}
-              >
-                <Ionicons name="expand-outline" size={20} color="#fff" />
-              </TouchableOpacity>
+                  <Ionicons name="expand-outline" size={20} color="#fff" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.locationIconBtn}
+                  onPress={toggleLiveLocation}
+                >
+                  <Ionicons
+                    name={isLiveLocationActive ? "radio-button-on" : "radio-button-off"}
+                    size={18}
+                    color={isLiveLocationActive ? "#4ADE80" : "#fff"}
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
 
-          <View style={styles.locationButtons}>
-            <TouchableOpacity
-              style={styles.locationBtn}
-              onPress={toggleLiveLocation}
-            >
-              <Ionicons
-                name={
-                  isLiveLocationActive ? "radio-button-on" : "radio-button-off"
-                }
-                size={20}
-                color="#2563EB"
-              />
-
-              <Text style={styles.locationBtnText}>
-                {isLiveLocationActive ? "Stop Sharing" : "Start Sharing"}
-              </Text>
-            </TouchableOpacity>
+            {/* Contacts Column */}
+            <View style={styles.contactsColumn}>
+              <Text style={styles.contactsTitle}>Active</Text>
+              {contacts.length > 0 ? (
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                  {contacts.map((c: any) => {
+                    const initials = c.name
+                      ?.split(" ")
+                      .map((n: string) => n[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2) || "?";
+                    const colors = ["#1D4ED8", "#DC2626", "#D97706", "#059669", "#7C3AED", "#DB2777", "#0891B2"];
+                    const colorIdx = c.id ? c.id.toString().length % colors.length : 0;
+                    const isActive = c.hasLocation && c.location?.updated_at
+                      ? Date.now() - new Date(c.location.updated_at).getTime() < 3600000
+                      : false;
+                    return (
+                      <TouchableOpacity key={c.id} activeOpacity={0.7}>
+                        <View style={[styles.contactAvatar, {
+                          backgroundColor: c.photoUrl ? "transparent" : colors[colorIdx],
+                          borderWidth: 3,
+                          borderColor: isActive ? "#22C55E" : "#CBD5E1",
+                          overflow: "hidden",
+                        }]}>
+                          {c.photoUrl ? (
+                            <Image source={{ uri: c.photoUrl }} style={{ width: 40, height: 40 }} />
+                          ) : (
+                            <Text style={styles.contactAvatarText}>{initials}</Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              ) : (
+                <View style={[styles.contactAvatar, { backgroundColor: "#E8EEF5" }]}>
+                  <Ionicons name="people-outline" size={18} color="#94A3B8" />
+                </View>
+              )}
+            </View>
           </View>
         </View>
 
@@ -767,19 +846,32 @@ export default function HomeScreen() {
                 </View>
               </Marker>
             )}
-              {contactLocations.map((c) => (
-                <Marker
-                  key={c.id}
-                  coordinate={{
-                    latitude: c.latitude,
-                    longitude: c.longitude,
-                  }}
-                >
-                  <View style={styles.contactMarker}>
-                    <Ionicons name="people" size={14} color="#fff" />
-                  </View>
-                </Marker>
-              ))}
+              {contacts.filter((c: any) => c.hasLocation && c.location?.latitude).map((c: any) => {
+                const isActive = c.location?.updated_at
+                  ? Date.now() - new Date(c.location.updated_at).getTime() < 3600000
+                  : false;
+                const colors = ["#1D4ED8", "#DC2626", "#D97706", "#059669", "#7C3AED", "#DB2777", "#0891B2"];
+                const colorIdx = c.id ? c.id.toString().length % colors.length : 0;
+                return (
+                  <Marker
+                    key={c.id}
+                    coordinate={{
+                      latitude: c.location.latitude,
+                      longitude: c.location.longitude,
+                    }}
+                  >
+                    <View style={[styles.contactMapMarker, {
+                      borderColor: isActive ? "#22C55E" : "#CBD5E1",
+                    }]}>
+                      {c.photoUrl ? (
+                        <Image source={{ uri: c.photoUrl }} style={styles.contactMapMarkerPhoto} />
+                      ) : (
+                        <Text style={styles.contactMapMarkerText}>{c.name?.[0]?.toUpperCase() || "?"}</Text>
+                      )}
+                    </View>
+                  </Marker>
+                );
+              })}
           </MapView>
 
           <View style={styles.modalBtnsRow}>

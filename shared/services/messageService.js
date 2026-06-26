@@ -348,3 +348,22 @@ export const deleteNotification = async (notificationId) => {
     .eq("id", notificationId);
   if (error) throw new Error(error.message);
 };
+
+export const updateMessage = async (messageId, updates) => {
+  const { data, error } = await supabase
+    .from("messages")
+    .update(updates)
+    .eq("id", messageId)
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+export const deleteMessage = async (messageId) => {
+  const { error } = await supabase
+    .from("messages")
+    .delete()
+    .eq("id", messageId);
+  if (error) throw new Error(error.message);
+};

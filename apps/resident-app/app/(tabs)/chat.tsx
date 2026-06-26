@@ -8,6 +8,7 @@ import {
   StatusBar,
   TextInput,
   Alert,
+  Modal,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -21,6 +22,8 @@ import {
   fetchMessages,
   fetchConversation,
   sendMessage,
+  updateMessage,
+  deleteMessage,
 } from "../../../../shared/services/messageService";
 import { useLocation } from "../../context/LocationContext";
 import { useMapStyle } from "../../context/MapStyleContext";
@@ -42,6 +45,11 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [contextMsg, setContextMsg] = useState<any | null>(null);
+  const [showContext, setShowContext] = useState(false);
+  const [editMsg, setEditMsg] = useState<any | null>(null);
+  const [editText, setEditText] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const subscriptionRef = useRef<any>(null);
 
@@ -131,6 +139,77 @@ export default function ChatScreen() {
     }
   };
 
+  const handleLongPress = (msg: any) => {
+    setContextMsg(msg);
+    setShowContext(true);
+  };
+
+  const handleReply = () => {
+    setInputText(`@${contactName || "Contact"} `);
+    setShowContext(false);
+    setContextMsg(null);
+  };
+
+  const handleEditMessage = () => {
+    setEditMsg(contextMsg);
+    setEditText(contextMsg?.content || "");
+    setShowContext(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editText.trim() || !editMsg) return;
+    try {
+      await updateMessage(editMsg.id, { content: editText.trim(), edited: true });
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === editMsg.id ? { ...m, content: editText.trim(), edited: true } : m
+        )
+      );
+      setEditMsg(null);
+      setEditText("");
+    } catch (e: any) {
+      Alert.alert("Error", e.message || "Failed to edit message");
+    }
+  };
+
+  const handleDeleteMessage = () => {
+    if (!contextMsg) return;
+    Alert.alert("Delete Message", "Are you sure?", [
+      { text: "Cancel", style: "cancel", onPress: () => setShowContext(false) },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await deleteMessage(contextMsg.id);
+            setMessages((prev) => prev.filter((m) => m.id !== contextMsg.id));
+            setShowContext(false);
+            setContextMsg(null);
+          } catch (e: any) {
+            Alert.alert("Error", e.message || "Failed to delete message");
+          }
+        },
+      },
+    ]);
+  };
+
+  const handleReact = (emoji: string) => {
+    if (!contextMsg) return;
+    const existing = contextMsg.reaction || "";
+    const newReaction = existing === emoji ? "" : emoji;
+    updateMessage(contextMsg.id, { reaction: newReaction }).catch(() => {});
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === contextMsg.id ? { ...m, reaction: newReaction } : m
+      )
+    );
+    setShowEmojiPicker(false);
+    setShowContext(false);
+    setContextMsg(null);
+  };
+
+  const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
+
   const handleShareLocation = async () => {
     try {
       setSending(true);
@@ -188,59 +267,71 @@ export default function ChatScreen() {
       : item.user_id === userId;
 
     return (
-      <View style={[styles.messageBubble, isMine ? styles.myMessage : styles.theirMessage]}>
-        {isLocation ? (
-          <View style={styles.locationCard}>
-            <View style={styles.locationHeader}>
-              <Ionicons name="location" size={16} color="#EF4444" />
-              <Text style={[styles.locationLabel, isMine ? { color: "#fff" } : { color: "#17202b" }]}>Shared Location</Text>
-            </View>
-            {item.latitude && item.longitude && (
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() =>
-                  router.push({
-                    pathname: "/fullscreen-map",
-                    params: {
-                      latitude: item.latitude.toString(),
-                      longitude: item.longitude.toString(),
-                      title: "Shared Location",
-                    },
-                  })
-                }
-              >
-                <MapView
-                  style={styles.miniMap}
-                  scrollEnabled={false}
-                  zoomEnabled={false}
-                  mapType="none"
-                  mapStyle={mapStyle}
-                  initialRegion={{
-                    latitude: item.latitude,
-                    longitude: item.longitude,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
-                  }}
+      <TouchableOpacity
+        activeOpacity={0.8}
+        onLongPress={() => handleLongPress(item)}
+        delayLongPress={400}
+      >
+        <View style={[styles.messageBubble, isMine ? styles.myMessage : styles.theirMessage]}>
+          {isLocation ? (
+            <View style={styles.locationCard}>
+              <View style={styles.locationHeader}>
+                <Ionicons name="location" size={16} color="#EF4444" />
+                <Text style={[styles.locationLabel, isMine ? { color: "#fff" } : { color: "#17202b" }]}>Shared Location</Text>
+              </View>
+              {item.latitude && item.longitude && (
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/fullscreen-map",
+                      params: {
+                        latitude: item.latitude.toString(),
+                        longitude: item.longitude.toString(),
+                        title: "Shared Location",
+                      },
+                    })
+                  }
                 >
-                  <UrlTile urlTemplate={tileUrl} />
-                  <Marker
-                    coordinate={{
+                  <MapView
+                    style={styles.miniMap}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                    mapType="none"
+                    mapStyle={mapStyle}
+                    initialRegion={{
                       latitude: item.latitude,
                       longitude: item.longitude,
+                      latitudeDelta: 0.01,
+                      longitudeDelta: 0.01,
                     }}
-                  />
-                </MapView>
-              </TouchableOpacity>
-            )}
-            <Text style={[styles.locationCoords, isMine ? { color: "rgba(255,255,255,0.6)" } : { color: "#94A3B8" }]}>
-              {item.latitude?.toFixed(6)}, {item.longitude?.toFixed(6)}
-            </Text>
-          </View>
-        ) : (
-          <Text style={[styles.messageText, isMine ? { color: "#fff" } : { color: "#17202b" }]}>{item.content}</Text>
-        )}
-        <Text style={[styles.messageTime, isMine ? { color: "rgba(255,255,255,0.5)" } : { color: "#94A3B8" }]}>{formatTime(item.created_at)}</Text>
-      </View>
+                  >
+                    <UrlTile urlTemplate={tileUrl} />
+                    <Marker
+                      coordinate={{
+                        latitude: item.latitude,
+                        longitude: item.longitude,
+                      }}
+                    />
+                  </MapView>
+                </TouchableOpacity>
+              )}
+              <Text style={[styles.locationCoords, isMine ? { color: "rgba(255,255,255,0.6)" } : { color: "#94A3B8" }]}>
+                {item.latitude?.toFixed(6)}, {item.longitude?.toFixed(6)}
+              </Text>
+            </View>
+          ) : (
+            <Text style={[styles.messageText, isMine ? { color: "#fff" } : { color: "#17202b" }]}>{item.content}</Text>
+          )}
+          {item.edited && (
+            <Text style={[styles.editedTag, isMine ? { color: "rgba(255,255,255,0.4)" } : { color: "#94A3B8" }]}>edited</Text>
+          )}
+          {item.reaction && (
+            <Text style={styles.reactionBadge}>{item.reaction}</Text>
+          )}
+          <Text style={[styles.messageTime, isMine ? { color: "rgba(255,255,255,0.5)" } : { color: "#94A3B8" }]}>{formatTime(item.created_at)}</Text>
+        </View>
+      </TouchableOpacity>
     );
   };
 
@@ -328,6 +419,100 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Context Menu Modal */}
+      <Modal
+        visible={showContext}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowContext(false)}
+      >
+        <TouchableOpacity
+          style={styles.contextOverlay}
+          activeOpacity={1}
+          onPress={() => setShowContext(false)}
+        >
+          <View style={styles.contextMenu}>
+            <TouchableOpacity style={styles.contextItem} onPress={handleReply}>
+              <Ionicons name="arrow-undo" size={20} color="#17202b" />
+              <Text style={styles.contextItemText}>Reply</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.contextItem} onPress={handleEditMessage}>
+              <Ionicons name="pencil" size={20} color="#17202b" />
+              <Text style={styles.contextItemText}>Edit</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.contextItem} onPress={() => { setShowEmojiPicker(true); }}>
+              <Ionicons name="happy-outline" size={20} color="#17202b" />
+              <Text style={styles.contextItemText}>React</Text>
+            </TouchableOpacity>
+            <View style={styles.contextDivider} />
+            <TouchableOpacity style={styles.contextItem} onPress={handleDeleteMessage}>
+              <Ionicons name="trash-outline" size={20} color="#DC2626" />
+              <Text style={[styles.contextItemText, { color: "#DC2626" }]}>Delete</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Emoji Picker Modal */}
+      <Modal
+        visible={showEmojiPicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEmojiPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.contextOverlay}
+          activeOpacity={1}
+          onPress={() => setShowEmojiPicker(false)}
+        >
+          <View style={styles.emojiPicker}>
+            <Text style={styles.emojiPickerTitle}>React with emoji</Text>
+            <View style={styles.emojiRow}>
+              {EMOJIS.map((emoji) => (
+                <TouchableOpacity key={emoji} style={styles.emojiBtn} onPress={() => handleReact(emoji)}>
+                  <Text style={styles.emojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Edit Message Modal */}
+      <Modal
+        visible={!!editMsg}
+        transparent
+        animationType="fade"
+        onRequestClose={() => { setEditMsg(null); setEditText(""); }}
+      >
+        <View style={styles.editOverlay}>
+          <View style={styles.editModal}>
+            <Text style={styles.editTitle}>Edit Message</Text>
+            <TextInput
+              style={styles.editInput}
+              value={editText}
+              onChangeText={setEditText}
+              multiline
+              autoFocus
+            />
+            <View style={styles.editActions}>
+              <TouchableOpacity
+                style={styles.editCancelBtn}
+                onPress={() => { setEditMsg(null); setEditText(""); }}
+              >
+                <Text style={styles.editCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.editSaveBtn}
+                onPress={handleSaveEdit}
+              >
+                <Text style={styles.editSaveText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -455,4 +640,134 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   sendBtnDisabled: { backgroundColor: "#CBD5E1" },
+
+  editedTag: {
+    fontSize: 10,
+    fontStyle: "italic",
+    marginTop: 2,
+  },
+  reactionBadge: {
+    fontSize: 20,
+    marginTop: 4,
+    alignSelf: "flex-start",
+  },
+
+  contextOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  contextMenu: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 8,
+    paddingBottom: 34,
+    paddingHorizontal: 20,
+  },
+  contextItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    gap: 12,
+  },
+  contextItemText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#17202b",
+  },
+  contextDivider: {
+    height: 1,
+    backgroundColor: "#E2E8F0",
+    marginVertical: 4,
+  },
+
+  emojiPicker: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingBottom: 34,
+    paddingHorizontal: 20,
+    alignItems: "center",
+  },
+  emojiPickerTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#17202b",
+    marginBottom: 16,
+  },
+  emojiRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  emojiBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F1F5F9",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emojiText: {
+    fontSize: 22,
+  },
+
+  editOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  editModal: {
+    width: "100%",
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+  },
+  editTitle: {
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#17202b",
+    marginBottom: 12,
+  },
+  editInput: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 12,
+    fontSize: 15,
+    color: "#17202b",
+    minHeight: 80,
+    textAlignVertical: "top",
+  },
+  editActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 10,
+    marginTop: 12,
+  },
+  editCancelBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#F1F5F9",
+  },
+  editCancelText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  editSaveBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#17202b",
+  },
+  editSaveText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#fff",
+  },
 });

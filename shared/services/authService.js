@@ -117,9 +117,10 @@ export const loginUser = async (email, password) => {
     .from("users")
     .select("*")
     .eq("id", uid)
-    .single();
+    .maybeSingle();
 
   if (fetchError) throw new Error(fetchError.message);
+  if (!userData) throw new Error("User account not found. Please contact support.");
 
   return userData;
 };

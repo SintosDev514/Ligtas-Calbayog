@@ -242,104 +242,142 @@ export const styles = StyleSheet.create({
 
   sectionCard: {
     marginHorizontal: 20,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "#E8EEF5",
     marginBottom: 16,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 4,
   },
 
-  sectionHeaderRow: {
+  mapRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 10,
+    borderRadius: 16,
+    overflow: "hidden",
+    height: 240,
   },
 
-  sectionLabel: {
+  mapContainer: {
+    flex: 1,
+    backgroundColor: "#F0F4F8",
+  },
+
+  contactsColumn: {
+    width: 72,
+    backgroundColor: "rgba(255,255,255,0.95)",
+    paddingVertical: 10,
+    alignItems: "center",
+    gap: 8,
+    justifyContent: "flex-start",
+    overflow: "hidden",
+  },
+
+  contactAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  contactAvatarText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#17202b",
+    color: "#FFFFFF",
   },
 
-  locationText: {
+  contactsTitle: {
+    fontSize: 9,
+    fontWeight: "700",
     color: "#64748B",
-    fontSize: 12,
-    marginTop: 2,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 4,
   },
 
-  statusBadge: {
-    backgroundColor: "#F0F4F8",
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
+
+  mapTopLeft: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    right: 12,
+  },
+
+  mapLocationLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    textShadowColor: "rgba(0,0,0,0.65)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+
+  mapLocationText: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.95)",
+    marginTop: 2,
+    textShadowColor: "rgba(0,0,0,0.65)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+
+  mapBadge: {
+    position: "absolute",
+    top: 56,
+    left: 12,
+    backgroundColor: "rgba(0,0,0,0.5)",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
   },
 
   statusBadgeActive: {
-    backgroundColor: "#E8F5E9",
+    backgroundColor: "rgba(46,125,50,0.8)",
   },
 
   statusBadgeText: {
     fontSize: 10,
     fontWeight: "700",
-    color: "#64748B",
+    color: "#FFFFFF",
   },
 
   statusBadgeTextActive: {
-    color: "#2E7D32",
-  },
-
-  mapContainer: {
-    height: 140,
-    borderRadius: 14,
-    overflow: "hidden",
-    backgroundColor: "#F0F4F8",
-    marginBottom: 10,
-  },
-
-  map: {
-    flex: 1,
+    color: "#FFFFFF",
   },
 
   mapPlaceholder: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     justifyContent: "center",
     alignItems: "center",
   },
 
   mapBtnsRow: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    flexDirection: "row",
-    gap: 6,
+    top: 90,
+    left: 12,
+    flexDirection: "column",
+    borderRadius: 10,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    overflow: "hidden",
   },
 
   mapStyleBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    width: 34,
+    height: 34,
     justifyContent: "center",
     alignItems: "center",
   },
 
   expandBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    width: 34,
+    height: 34,
     justifyContent: "center",
     alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.15)",
   },
 
   markerWrapper: {
@@ -388,27 +426,45 @@ export const styles = StyleSheet.create({
     elevation: 4,
   },
 
+  contactMapMarker: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#17202b",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+    overflow: "hidden",
+  },
+
+  contactMapMarkerPhoto: {
+    width: 36,
+    height: 36,
+  },
+
+  contactMapMarkerText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFFFFF",
+  },
+
   mapPlaceholderText: {
     marginTop: 10,
     color: "#64748B",
   },
 
-  locationButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
-  locationBtn: {
-    flex: 1,
-    height: 42,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E8EEF5",
-    backgroundColor: "#F5F7FA",
+  locationIconBtn: {
+    width: 34,
+    height: 34,
     justifyContent: "center",
     alignItems: "center",
-    flexDirection: "row",
-    marginHorizontal: 3,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.15)",
   },
 
   locationBtnText: {
