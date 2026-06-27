@@ -38,6 +38,7 @@ export default function MessagesScreen() {
     phoneNumber: "",
     relationship: "Friend",
   });
+  const [contactSearch, setContactSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
@@ -169,6 +170,13 @@ export default function MessagesScreen() {
     return msg.content || "No messages yet";
   };
 
+  const filteredContacts = contacts.filter((c) =>
+    !contactSearch.trim()
+      ? true
+      : c.name?.toLowerCase().includes(contactSearch.toLowerCase().trim()) ||
+        c.phone_number?.includes(contactSearch.trim())
+  );
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -183,7 +191,7 @@ export default function MessagesScreen() {
 
       <SafeAreaView edges={["top"]} style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => router.push("/(tabs)/home")} style={styles.backBtn}>
             <Ionicons name="arrow-back" size={22} color="#0F204B" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Messages</Text>
@@ -209,6 +217,22 @@ export default function MessagesScreen() {
         </View>
       </SafeAreaView>
 
+      <View style={styles.searchBar}>
+        <Ionicons name="search" size={18} color="#94A3B8" style={{ marginRight: 8 }} />
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Search contacts..."
+          placeholderTextColor="#94A3B8"
+          value={contactSearch}
+          onChangeText={setContactSearch}
+        />
+        {contactSearch ? (
+          <TouchableOpacity onPress={() => setContactSearch("")}>
+            <Ionicons name="close-circle" size={18} color="#94A3B8" />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+
       {contacts.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="chatbubbles-outline" size={64} color="#CBD5E1" />
@@ -224,12 +248,20 @@ export default function MessagesScreen() {
             <Text style={styles.emptyBtnText}>Add Contact</Text>
           </TouchableOpacity>
         </View>
+      ) : filteredContacts.length === 0 ? (
+        <View style={styles.emptyState}>
+          <Ionicons name="search-outline" size={48} color="#CBD5E1" />
+          <Text style={styles.emptyTitle}>No Results</Text>
+          <Text style={styles.emptySubtitle}>
+            No contacts match "{contactSearch}"
+          </Text>
+        </View>
       ) : (
         <ScrollView
           style={styles.list}
           contentContainerStyle={{ paddingBottom: 40 }}
         >
-          {contacts.map((contact) => (
+          {filteredContacts.map((contact) => (
             <TouchableOpacity
               key={contact.id}
               style={styles.contactItem}
@@ -546,6 +578,24 @@ const styles = StyleSheet.create({
     padding: 8,
   },
 
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 40,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: "#0F204B",
+    paddingVertical: 0,
+  },
   list: { flex: 1 },
   contactItem: {
     flexDirection: "row",

@@ -12,7 +12,7 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
-  Dimensions,
+  Vibration,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -30,32 +30,6 @@ import { useMapStyle } from "../../context/MapStyleContext";
 import { styles } from "./styles/HomeScreen.styles";
 import { getUnreadCount, fetchContactLocations } from "../../../../shared/services/messageService";
 
-const { width } = Dimensions.get("window");
-
-const CRIME_CATEGORIES = [
-  {
-    id: "hit-and-run",
-    label: "Hit & Run",
-    icon: "car-sport-outline",
-    color: "#EF4444",
-  },
-  { id: "robbery", label: "Robbery", icon: "shield-outline", color: "#F59E0B" },
-  { id: "theft", label: "Theft", icon: "bag-remove-outline", color: "#8B5CF6" },
-  {
-    id: "assault",
-    label: "Assault",
-    icon: "warning-outline",
-    color: "#EC4899",
-  },
-  {
-    id: "vandalism",
-    label: "Vandalism",
-    icon: "hammer-outline",
-    color: "#06B6D4",
-  },
-  { id: "burglary", label: "Burglary", icon: "home-outline", color: "#10B981" },
-];
-
 export default function HomeScreen() {
   const router = useRouter();
   const {
@@ -70,17 +44,24 @@ export default function HomeScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [policeNumber, setPoliceNumber] = useState<string | null>("23131");
-  const [weather, setWeather] = useState<any>(null);
   const [stats, setStats] = useState({ total: 0, pending: 0, resolved: 0 });
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [contacts, setContacts] = useState<any[]>([]);
+  const [sosIsHolding, setSosIsHolding] = useState(false);
+  const [sosHoldSeconds, setSosHoldSeconds] = useState(5);
+  const [weather, setWeather] = useState<any>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+  const bottomBarAnim = useRef(new Animated.Value(0)).current;
+  const lastScrollY = useRef(0);
+  const isBarVisible = useRef(true);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const liveBadgeAnim = useRef(new Animated.Value(1)).current;
+  const sosPulseAnim = useRef(new Animated.Value(1)).current;
+  const sosRingAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.parallel([
@@ -219,21 +200,113 @@ export default function HomeScreen() {
     return () => loop.stop();
   }, [isLiveLocationActive, liveBadgeAnim]);
 
+  const weatherCodes: Record<number, { label: string; icon: string }> = {
+    0: { label: "Clear", icon: "sunny-outline" },
+    1: { label: "Mainly Clear", icon: "sunny-outline" },
+    2: { label: "Partly Cloudy", icon: "partly-sunny-outline" },
+    3: { label: "Overcast", icon: "cloud-outline" },
+    45: { label: "Foggy", icon: "cloud-outline" },
+    48: { label: "Foggy", icon: "cloud-outline" },
+    51: { label: "Drizzle", icon: "rainy-outline" },
+    53: { label: "Drizzle", icon: "rainy-outline" },
+    55: { label: "Drizzle", icon: "rainy-outline" },
+    61: { label: "Rain", icon: "rainy-outline" },
+    63: { label: "Rain", icon: "rainy-outline" },
+    65: { label: "Rain", icon: "rainy-outline" },
+    71: { label: "Snow", icon: "snow-outline" },
+    73: { label: "Snow", icon: "snow-outline" },
+    75: { label: "Snow", icon: "snow-outline" },
+    80: { label: "Rain Showers", icon: "rainy-outline" },
+    81: { label: "Rain Showers", icon: "rainy-outline" },
+    82: { label: "Rain Showers", icon: "rainy-outline" },
+    95: { label: "Thunderstorm", icon: "thunderstorm-outline" },
+    96: { label: "Thunderstorm", icon: "thunderstorm-outline" },
+    99: { label: "Thunderstorm", icon: "thunderstorm-outline" },
+  };
+
   useEffect(() => {
-    const fetchWeather = async () => {
-      if (!location?.latitude) return;
-      try {
-        const res = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true&temperature_unit=celsius`,
-        );
-        const data = await res.json();
-        setWeather(data?.current_weather ?? null);
-      } catch (err) {
-        console.log("weather fetch error", err);
+    if (!location?.latitude) return;
+    fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}&current_weather=true&timezone=auto`
+    )
+      .then((r) => r.json())
+      .then((data) => setWeather(data.current_weather))
+      .catch(() => {});
+  }, [location?.latitude, location?.longitude]);
+
+  const getWeatherInfo = () => {
+    if (!weather) return { label: "", icon: "partly-sunny-outline" as any, temp: "" };
+    const info = weatherCodes[weather.weathercode] || { label: "Unknown", icon: "cloud-outline" };
+    return { ...info, temp: `${Math.round(weather.temperature)}°` };
+  };
+
+  const sosRingColor = sosRingAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["rgba(255,255,255,0.2)", "#EF4444"],
+  });
+  const sosRingScale = sosRingAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 1.12],
+  });
+
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sosPulseAnim, {
+          toValue: 1.08,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+        Animated.timing(sosPulseAnim, {
+          toValue: 1,
+          duration: 700,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, [sosPulseAnim]);
+
+  useEffect(() => {
+    const listener = sosRingAnim.addListener(({ value }) => {
+      const remaining = Math.ceil(5 - value * 5);
+      setSosHoldSeconds(Math.max(0, remaining));
+    });
+    return () => sosRingAnim.removeListener(listener);
+  }, []);
+
+  let sosHoldAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+
+  const handleSosPressIn = () => {
+    setSosIsHolding(true);
+    sosRingAnim.setValue(0);
+    sosHoldAnimRef.current = Animated.timing(sosRingAnim, {
+      toValue: 1,
+      duration: 5000,
+      useNativeDriver: false,
+    });
+    sosHoldAnimRef.current.start(({ finished }) => {
+      if (finished) {
+        Vibration.vibrate(200);
+        setSosIsHolding(false);
+        router.push("/emergency-report" as any);
       }
-    };
-    fetchWeather();
-  }, [location]);
+    });
+  };
+
+  const handleSosPressOut = () => {
+    if (!sosIsHolding) return;
+    setSosIsHolding(false);
+    if (sosHoldAnimRef.current) {
+      sosHoldAnimRef.current.stop();
+    }
+    Animated.timing(sosRingAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  };
 
   const loadData = async () => {
     try {
@@ -284,7 +357,7 @@ export default function HomeScreen() {
 
     const { data: familyData } = await supabase
       .from("family_contacts")
-      .select("id, name, relationship, contact_user_id")
+      .select("id, name, phone_number, relationship, contact_user_id")
       .eq("user_id", userId);
     const locatedIds = new Set(locations.map((l: any) => l.id));
     const contactUserIds = (familyData || [])
@@ -318,6 +391,18 @@ export default function HomeScreen() {
   }
   };
 
+  const cycleMapStyle = () => {
+    const order = ["light", "dark", "satellite"];
+    const idx = order.indexOf(mapStyle);
+    setMapStyle(order[(idx + 1) % order.length]);
+  };
+
+  const getMapStyleIcon = () => {
+    if (mapStyle === "light") return "sunny-outline";
+    if (mapStyle === "dark") return "moon-outline";
+    return "globe-outline";
+  };
+
   const handleLogout = () => {
     Alert.alert("Logout", "Sign out of your account?", [
       { text: "Cancel", style: "cancel" },
@@ -335,22 +420,37 @@ export default function HomeScreen() {
   const firstName = profile?.full_name?.split(" ")[0] ?? "Resident";
   const lastName = profile?.full_name?.split(" ").pop() ?? "";
 
-  const handleSOS = () => {
-    router.push({
-      pathname: "/(tabs)/report" as any,
-      params: { crimeType: "emergency", isEmergency: "true" },
-    });
-  };
-
   const handleProfile = () => router.push("/(tabs)/profile" as any);
   const handleMessages = () => router.push("/(tabs)/messages" as any);
   const handleNotifications = () => router.push("/(tabs)/notifications" as any);
+  const handleReport = () => router.push("/(tabs)/report-picker" as any);
+  const handleAnnouncements = () => router.push("/(tabs)/announcements" as any);
   const handleCallPolice = async () => {
     const url = `tel:${policeNumber ?? "23131"}`;
     const supported = await Linking.canOpenURL(url);
     if (supported) await Linking.openURL(url);
     else
       Alert.alert("Cannot place call", "Your device cannot make phone calls.");
+  };
+
+  const handleScroll = (event: any) => {
+    const currentY = event.nativeEvent.contentOffset.y;
+    if (currentY > lastScrollY.current && isBarVisible.current && currentY > 20) {
+      isBarVisible.current = false;
+      Animated.timing(bottomBarAnim, {
+        toValue: 1,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    } else if (currentY < lastScrollY.current && !isBarVisible.current) {
+      isBarVisible.current = true;
+      Animated.timing(bottomBarAnim, {
+        toValue: 0,
+        duration: 250,
+        useNativeDriver: true,
+      }).start();
+    }
+    lastScrollY.current = currentY;
   };
 
   const getTimeGreeting = () => {
@@ -361,41 +461,13 @@ export default function HomeScreen() {
     return "Hello";
   };
 
-  const getWeatherIcon = (code: number | undefined) => {
-    if (code === undefined) return "cloud-outline";
-    if (code === 0) return "sunny";
-    if (code <= 3) return "cloudy";
-    if (code <= 67) return "rainy";
-    if (code <= 77) return "snow";
-    if (code <= 82) return "rainy";
-    return "thunderstorm";
-  };
-
-  const getWeatherDesc = (code: number | undefined) => {
-    if (code === undefined) return "Loading";
-    if (code === 0) return "Clear";
-    if (code <= 3) return "Partly cloudy";
-    if (code <= 67) return "Rain";
-    if (code <= 77) return "Snow";
-    if (code <= 82) return "Showers";
-    return "Storm";
-  };
-
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#17202b" />
+      <StatusBar barStyle="light-content" backgroundColor="#1e293b" />
 
       {/* Header */}
       <SafeAreaView edges={["top"]} style={styles.header}>
-        <Animated.View
-          style={[
-            styles.headerContent,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
-          ]}
-        >
+        <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <View style={styles.logoContainer}>
               <Image
@@ -403,49 +475,24 @@ export default function HomeScreen() {
                 style={styles.logo}
               />
             </View>
-
-            <View>
-              <Text style={styles.headerTitle}>Ligtas Calbayog</Text>
-
-              <Text style={styles.headerSubtitle}>
-                Community Safety Platform
-              </Text>
-            </View>
+            <Text style={styles.headerTitle}>Ligtas Calbayog</Text>
           </View>
-
-          <View style={styles.headerRight}>
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={handleNotifications}
-            >
-              <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.7)" />
-              {unreadCount > 0 && (
-                <View style={styles.notifBadge}>
-                  <Text style={styles.notifBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={handleMessages}
-            >
-              <Ionicons name="mail-outline" size={20} color="rgba(255,255,255,0.7)" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.headerButton}
-              onPress={handleProfile}
-            >
-              <Ionicons name="person-outline" size={20} color="rgba(255,255,255,0.7)" />
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
+          <TouchableOpacity style={styles.headerNotifBtn} onPress={handleNotifications}>
+            <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.7)" />
+            {unreadCount > 0 && (
+              <View style={styles.headerNotifBadge}>
+                <Text style={styles.headerNotifBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
       >
         {/* Welcome Card */}
         <Animated.View
@@ -457,64 +504,111 @@ export default function HomeScreen() {
             },
           ]}
         >
-          <View style={styles.welcomeTopRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.greeting}>{getTimeGreeting()}</Text>
+          <LinearGradient
+            colors={["#1e293b", "#0f172a"]}
+            style={styles.welcomeTopRow}
+          >
+            <View style={styles.welcomeLeft}>
+              <View style={styles.avatarContainer}>
+                {profilePhoto ? (
+                  <Image source={{ uri: profilePhoto }} style={styles.avatarImage} />
+                ) : (
+                  <View style={styles.avatarPlaceholder}>
+                    <Ionicons name="person" size={22} color="#94A3B8" />
+                  </View>
+                )}
+              </View>
 
-              <Text style={styles.userName}>
-                {firstName} {lastName}
-              </Text>
+              <View>
+                <Text style={styles.greeting}>{getTimeGreeting()}</Text>
 
-              <View style={styles.badge}>
-                <Ionicons name="shield-checkmark" size={14} color="#1D4ED8" />
+                <Text style={styles.userName} numberOfLines={1}>
+                  {firstName} {lastName}
+                </Text>
 
-                <Text style={styles.badgeText}>Verified Resident</Text>
+                <View style={styles.badge}>
+                  <Ionicons name="shield-checkmark" size={10} color="#4ADE80" />
+                  <Text style={styles.badgeText}>Verified</Text>
+                </View>
               </View>
             </View>
 
-            <View style={styles.weatherCard}>
-              <Ionicons
-                name={getWeatherIcon(weather?.weathercode)}
-                size={24}
-                color="#2563EB"
-              />
-
-              <Text style={styles.weatherTemp}>
-                {weather ? `${Math.round(weather.temperature)}°` : "--°"}
-              </Text>
-
-              <Text style={styles.weatherLabel}>
-                {getWeatherDesc(weather?.weathercode)}
-              </Text>
+            <View style={styles.sosContainer}>
+              <View style={styles.sosRingWrapper}>
+                <Animated.View
+                  style={[
+                    styles.sosRing,
+                    {
+                      borderColor: sosRingColor,
+                      transform: [{ scale: sosRingScale }],
+                    },
+                    !sosIsHolding && styles.sosRingIdle,
+                  ]}
+                />
+                <TouchableOpacity
+                  activeOpacity={1}
+                  onPressIn={handleSosPressIn}
+                  onPressOut={handleSosPressOut}
+                >
+                  <Animated.View style={{ transform: [{ scale: sosPulseAnim }] }}>
+                    <LinearGradient
+                      colors={sosIsHolding ? ["#DC2626", "#991B1B"] : ["#DC2626", "#B91C1C"]}
+                      style={styles.sosCircle}
+                    >
+                      <Ionicons name="warning" size={24} color="#FFFFFF" />
+                      <Text style={styles.sosCircleText}>SOS</Text>
+                      {sosIsHolding && (
+                        <Text style={styles.sosHoldCounter}>{sosHoldSeconds}</Text>
+                      )}
+                    </LinearGradient>
+                  </Animated.View>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.sosHoldHint}>Hold 5s to report</Text>
             </View>
-          </View>
+          </LinearGradient>
         </Animated.View>
 
-        {/* Emergency SOS */}
-        <TouchableOpacity
-          activeOpacity={0.9}
-          onPress={handleSOS}
-          style={styles.sosContainer}
-        >
-          <LinearGradient
-            colors={["#DC2626", "#B91C1C"]}
-            style={styles.sosCard}
-          >
-            <View style={styles.sosIconContainer}>
-              <Ionicons name="warning" size={34} color="#FFFFFF" />
-            </View>
-
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sosTitle}>Emergency SOS</Text>
-
-              <Text style={styles.sosSubtitle}>
-                Immediate police assistance
+        {/* Report Stats */}
+        <View style={styles.statsSection}>
+          <View style={styles.statsRow}>
+            <LinearGradient
+              colors={["#1e293b", "#0f172a"]}
+              style={styles.weatherCard}
+            >
+              <Ionicons name={getWeatherInfo().icon} size={18} color="#FFFFFF" />
+              <Text style={styles.weatherTemp}>{getWeatherInfo().temp}</Text>
+              <Text style={styles.weatherLabel}>{getWeatherInfo().label}</Text>
+              <Text style={styles.weatherDate}>
+                {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </Text>
-            </View>
+            </LinearGradient>
 
-            <Ionicons name="chevron-forward" size={22} color="#FFFFFF" />
-          </LinearGradient>
-        </TouchableOpacity>
+            <TouchableOpacity style={styles.combinedStatsCard} activeOpacity={0.8}
+              onPress={() => router.push("/(tabs)/my-reports" as any)}
+            >
+              <View style={styles.combinedStatsHeader}>
+                <Text style={styles.combinedStatsHeaderText}>My Reports</Text>
+              </View>
+              <View style={styles.combinedStatsBody}>
+                <View style={styles.combinedStatItem}>
+                  <Text style={styles.combinedStatNumber}>{stats.total}</Text>
+                  <Text style={styles.combinedStatLabel}>Total</Text>
+                </View>
+                <View style={styles.combinedDivider} />
+                <View style={styles.combinedStatItem}>
+                  <Text style={[styles.combinedStatNumber, { color: "#D97706" }]}>{stats.pending}</Text>
+                  <Text style={styles.combinedStatLabel}>Pending</Text>
+                </View>
+                <View style={styles.combinedDivider} />
+                <View style={styles.combinedStatItem}>
+                  <Text style={[styles.combinedStatNumber, { color: "#16A34A" }]}>{stats.resolved}</Text>
+                  <Text style={styles.combinedStatLabel}>Resolved</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
 
         {/* Location Card - Map Integrated */}
         <View style={styles.sectionCard}>
@@ -610,10 +704,10 @@ export default function HomeScreen() {
               <View style={styles.mapBtnsRow}>
                 <TouchableOpacity
                   style={styles.mapStyleBtn}
-                  onPress={() => setMapStyle(mapStyle === "light" ? "dark" : "light")}
+                  onPress={cycleMapStyle}
                 >
                   <Ionicons
-                    name={mapStyle === "light" ? "moon-outline" : "sunny-outline"}
+                    name={getMapStyleIcon()}
                     size={18}
                     color="#fff"
                   />
@@ -642,7 +736,7 @@ export default function HomeScreen() {
               <Text style={styles.contactsTitle}>Active</Text>
               {contacts.length > 0 ? (
                 <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-                  {contacts.map((c: any) => {
+                  {contacts.slice(0, 5).map((c: any) => {
                     const initials = c.name
                       ?.split(" ")
                       .map((n: string) => n[0])
@@ -655,7 +749,22 @@ export default function HomeScreen() {
                       ? Date.now() - new Date(c.location.updated_at).getTime() < 3600000
                       : false;
                     return (
-                      <TouchableOpacity key={c.id} activeOpacity={0.7}>
+                      <TouchableOpacity
+                        key={c.id}
+                        activeOpacity={0.7}
+                        onPress={() =>
+                          router.push({
+                            pathname: "/(tabs)/chat",
+                            params: {
+                              id: c.id,
+                              name: c.name,
+                              phone: c.phone_number || "",
+                              relationship: c.relationship || "",
+                              contact_user_id: c.contact_user_id || "",
+                            },
+                          })
+                        }
+                      >
                         <View style={[styles.contactAvatar, {
                           backgroundColor: c.photoUrl ? "transparent" : colors[colorIdx],
                           borderWidth: 3,
@@ -678,90 +787,6 @@ export default function HomeScreen() {
                 </View>
               )}
             </View>
-          </View>
-        </View>
-
-        {/* Report Stats */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Your Reports</Text>
-
-          <View style={styles.statsRow}>
-            <TouchableOpacity
-              style={styles.statCard}
-              onPress={() => router.push("/(tabs)/my-reports" as any)}
-            >
-              <Text style={styles.statNumber}>{stats.total}</Text>
-
-              <Text style={styles.statLabel}>Total</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.statCard}
-              onPress={() =>
-                router.push({
-                  pathname: "/(tabs)/my-reports" as any,
-                  params: { filter: "pending" },
-                })
-              }
-            >
-              <Text style={[styles.statNumber, { color: "#D97706" }]}>
-                {stats.pending}
-              </Text>
-
-              <Text style={styles.statLabel}>Pending</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.statCard}
-              onPress={() =>
-                router.push({
-                  pathname: "/(tabs)/my-reports" as any,
-                  params: { filter: "resolved" },
-                })
-              }
-            >
-              <Text style={[styles.statNumber, { color: "#16A34A" }]}>
-                {stats.resolved}
-              </Text>
-
-              <Text style={styles.statLabel}>Resolved</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Report Categories */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Report Incident</Text>
-
-          <Text style={styles.sectionSubtitle}>Select an incident type</Text>
-
-          <View style={styles.categoriesGrid}>
-            {CRIME_CATEGORIES.map((category) => (
-              <TouchableOpacity
-                key={category.id}
-                style={styles.categoryCard}
-                activeOpacity={0.85}
-                onPress={() =>
-                  router.push({
-                    pathname: "/(tabs)/report" as any,
-                    params: {
-                      crimeType: category.id,
-                      crimeLabel: category.label,
-                    },
-                  })
-                }
-              >
-                <View style={styles.categoryIcon}>
-                  <Ionicons
-                    name={category.icon as any}
-                    size={24}
-                    color="#1D4ED8"
-                  />
-                </View>
-
-                <Text style={styles.categoryText}>{category.label}</Text>
-              </TouchableOpacity>
-            ))}
           </View>
         </View>
 
@@ -802,8 +827,40 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <View style={{ height: 40 }} />
+        <View style={{ height: 80 }} />
       </ScrollView>
+
+      {/* Bottom Bar */}
+      <Animated.View
+        style={[
+          styles.bottomBar,
+          {
+            transform: [{
+              translateY: bottomBarAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [0, 80],
+              }),
+            }],
+          },
+        ]}
+      >
+        <TouchableOpacity style={styles.bottomBarItem} onPress={handleReport}>
+          <Ionicons name="add-circle-outline" size={24} color="#DC2626" />
+          <Text style={styles.bottomBarLabel}>Report</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomBarItem} onPress={handleMessages}>
+          <Ionicons name="chatbubbles-outline" size={22} color="#64748B" />
+          <Text style={styles.bottomBarLabel}>Messages</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomBarItem} onPress={handleAnnouncements}>
+          <Ionicons name="megaphone-outline" size={22} color="#64748B" />
+          <Text style={styles.bottomBarLabel}>Announcements</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.bottomBarItem} onPress={handleProfile}>
+          <Ionicons name="person-outline" size={22} color="#64748B" />
+          <Text style={styles.bottomBarLabel}>Profile</Text>
+        </TouchableOpacity>
+      </Animated.View>
 
       {/* MAP MODAL */}
       <Modal
@@ -883,10 +940,10 @@ export default function HomeScreen() {
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.modalStyleBtn}
-              onPress={() => setMapStyle(mapStyle === "light" ? "dark" : "light")}
+              onPress={cycleMapStyle}
             >
               <Ionicons
-                name={mapStyle === "light" ? "moon-outline" : "sunny-outline"}
+                name={getMapStyleIcon()}
                 size={22}
                 color="#fff"
               />

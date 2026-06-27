@@ -38,6 +38,10 @@ export default function RootLayout() {
                 name="forgot-password"
                 options={{ headerShown: false }}
               />
+              <Stack.Screen
+                name="emergency-report"
+                options={{ headerShown: false, animation: "slide_from_bottom" }}
+              />
             </Stack>
             <StatusBar style="light" />
           </ThemeProvider>

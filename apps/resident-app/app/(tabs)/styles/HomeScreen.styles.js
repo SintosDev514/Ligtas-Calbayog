@@ -11,7 +11,7 @@ export const styles = StyleSheet.create({
 
   scrollContent: {
     paddingTop: Platform.OS === "ios" ? 105 : 90,
-    paddingBottom: 40,
+    paddingBottom: 110,
   },
 
   /* ==========================================
@@ -24,9 +24,10 @@ export const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 20,
-    backgroundColor: "#17202b",
+    backgroundColor: "#1e293b",
     paddingHorizontal: 16,
-    paddingBottom: 10,
+    paddingVertical: 10,
+    justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: {
       width: 0,
@@ -39,78 +40,119 @@ export const styles = StyleSheet.create({
 
   headerContent: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "space-between",
   },
 
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
-    flex: 1,
+    gap: 10,
   },
 
-  logoContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  headerNotifBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
     backgroundColor: "rgba(255,255,255,0.08)",
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 10,
+  },
+
+  headerNotifBadge: {
+    position: "absolute",
+    top: -3,
+    right: -3,
+    backgroundColor: "#DC2626",
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 3,
+  },
+
+  headerNotifBadgeText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "700",
+  },
+
+  logoContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   logo: {
-    width: 22,
-    height: 22,
+    width: 20,
+    height: 20,
     resizeMode: "contain",
     tintColor: "#FFFFFF",
   },
 
   headerTitle: {
-    fontSize: 15,
+    fontSize: 17,
     fontWeight: "800",
     color: "#FFFFFF",
     letterSpacing: 0.3,
   },
 
-  headerSubtitle: {
-    fontSize: 10,
-    color: "rgba(255,255,255,0.5)",
-    marginTop: 1,
-    fontWeight: "500",
-  },
+  /* ==========================================
+       BOTTOM BAR
+    ========================================== */
 
-  headerRight: {
+  bottomBar: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 70,
     flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#E2E8F0",
+    paddingBottom: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 8,
   },
 
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: "rgba(255,255,255,0.08)",
+  bottomBarItem: {
+    flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingTop: 8,
   },
 
-  notifBadge: {
+  bottomBarLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#64748B",
+    marginTop: 2,
+  },
+
+  bottomBarBadge: {
     position: "absolute",
-    top: -4,
-    right: -4,
+    top: 2,
+    right: "30%",
     backgroundColor: "#DC2626",
-    borderRadius: 10,
-    minWidth: 18,
-    height: 18,
+    borderRadius: 9,
+    minWidth: 16,
+    height: 16,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 4,
   },
 
-  notifBadgeText: {
+  bottomBarBadgeText: {
     color: "#fff",
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "700",
   },
 
@@ -120,81 +162,90 @@ export const styles = StyleSheet.create({
 
   welcomeCard: {
     marginHorizontal: 20,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#E8EEF5",
+    borderRadius: 20,
+    marginBottom: 16,
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
-    marginBottom: 12,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 14,
+    elevation: 6,
+    overflow: "hidden",
   },
 
   welcomeTopRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    padding: 16,
+  },
+
+  welcomeLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+
+  avatarContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    borderWidth: 2,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+
+  avatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+  },
+
+  avatarPlaceholder: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#334155",
+    justifyContent: "center",
+    alignItems: "center",
   },
 
   greeting: {
-    fontSize: 12,
-    color: "#64748B",
-    marginBottom: 3,
-    fontWeight: "500",
+    fontSize: 11,
+    color: "rgba(255,255,255,0.5)",
+    marginBottom: 2,
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
   },
 
   userName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
-    color: "#17202b",
-    marginBottom: 8,
+    color: "#FFFFFF",
+    marginBottom: 6,
   },
 
   badge: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
-    backgroundColor: "#EFF6FF",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    backgroundColor: "rgba(74,222,128,0.12)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 999,
+    borderWidth: 1,
+    borderColor: "rgba(74,222,128,0.25)",
   },
 
   badgeText: {
     marginLeft: 4,
-    color: "#1D4ED8",
+    color: "#4ADE80",
     fontWeight: "600",
-    fontSize: 10,
-  },
-
-  weatherCard: {
-    width: 80,
-    backgroundColor: "#F5F7FA",
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: "#E8EEF5",
-  },
-
-  weatherTemp: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#17202b",
-    marginTop: 4,
-  },
-
-  weatherLabel: {
-    fontSize: 10,
-    color: "#64748B",
-    marginTop: 2,
+    fontSize: 9,
   },
 
   /* ==========================================
@@ -202,38 +253,63 @@ export const styles = StyleSheet.create({
     ========================================== */
 
   sosContainer: {
-    marginHorizontal: 20,
-    marginBottom: 20,
-  },
-
-  sosCard: {
-    borderRadius: 20,
-    padding: 22,
-    flexDirection: "row",
     alignItems: "center",
-    minHeight: 92,
+    justifyContent: "center",
   },
 
-  sosIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.18)",
+  sosRingWrapper: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 100,
+    height: 100,
+  },
+
+  sosRing: {
+    position: "absolute",
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    borderWidth: 3,
+  },
+  sosRingIdle: {
+    borderColor: "rgba(255,255,255,0.12)",
+  },
+
+  sosCircle: {
+    width: 82,
+    height: 82,
+    borderRadius: 41,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 16,
+    elevation: 8,
+    shadowColor: "#DC2626",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 10,
   },
 
-  sosTitle: {
-    fontSize: 20,
-    fontWeight: "700",
+  sosCircleText: {
+    fontSize: 11,
+    fontWeight: "800",
     color: "#FFFFFF",
-    marginBottom: 4,
+    marginTop: 1,
+    letterSpacing: 1.5,
   },
 
-  sosSubtitle: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.85)",
+  sosHoldHint: {
+    fontSize: 8,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.4)",
+    marginTop: 6,
+    letterSpacing: 0.5,
+    textAlign: "center",
+  },
+
+  sosHoldCounter: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.6)",
+    marginTop: 1,
   },
 
   /* ==========================================
@@ -310,18 +386,18 @@ export const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     color: "#FFFFFF",
-    textShadowColor: "rgba(0,0,0,0.65)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowColor: "rgba(0,0,0,0.9)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
   },
 
   mapLocationText: {
     fontSize: 11,
-    color: "rgba(255,255,255,0.95)",
+    color: "#FFFFFF",
     marginTop: 2,
-    textShadowColor: "rgba(0,0,0,0.65)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowColor: "rgba(0,0,0,0.9)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
   },
 
   mapBadge: {
@@ -500,34 +576,110 @@ export const styles = StyleSheet.create({
        STATS
     ========================================== */
 
+  statsSection: {
+    marginHorizontal: 20,
+    marginBottom: 8,
+  },
+
   statsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    gap: 8,
   },
 
-  statCard: {
+  weatherCard: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    minWidth: 68,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+
+  weatherTemp: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginTop: 4,
+  },
+
+  weatherLabel: {
+    fontSize: 8,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.6)",
+    marginTop: 1,
+    textAlign: "center",
+  },
+
+  weatherDate: {
+    fontSize: 9,
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.4)",
+    marginTop: 3,
+  },
+
+  combinedStatsCard: {
     flex: 1,
     backgroundColor: "#FFFFFF",
-    borderRadius: 18,
-    paddingVertical: 20,
-    justifyContent: "center",
-    alignItems: "center",
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "#E8EEF5",
-    marginHorizontal: 4,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
 
-  statNumber: {
-    fontSize: 28,
+  combinedStatsHeader: {
+    backgroundColor: "#F8FAFC",
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E8EEF5",
+  },
+
+  combinedStatsHeaderText: {
+    fontSize: 11,
     fontWeight: "700",
-    color: "#1565C0",
-    marginBottom: 6,
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
 
-  statLabel: {
-    fontSize: 13,
+  combinedStatsBody: {
+    flexDirection: "row",
+  },
+
+  combinedStatItem: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 18,
+  },
+
+  combinedStatNumber: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#2563EB",
+  },
+
+  combinedStatLabel: {
+    fontSize: 10,
     color: "#64748B",
     fontWeight: "600",
+    marginTop: 3,
+  },
+
+  combinedDivider: {
+    width: 1,
+    backgroundColor: "#E8EEF5",
+    alignSelf: "stretch",
   },
 
   /* ==========================================

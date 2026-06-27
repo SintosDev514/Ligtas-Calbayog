@@ -1,10 +1,11 @@
 import React, { createContext, useContext, useState } from "react";
 
-type MapStyle = "light" | "dark";
+type MapStyle = "light" | "dark" | "satellite";
 
 const TILE_URLS: Record<MapStyle, string> = {
   light: "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
   dark: "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+  satellite: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
 };
 
 interface MapStyleContextType {

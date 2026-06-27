@@ -12,6 +12,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  Linking,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -30,7 +31,7 @@ import { useMapStyle } from "../../context/MapStyleContext";
 
 export default function ChatScreen() {
   const router = useRouter();
-  const { id: contactId, name: contactName, contact_user_id: contactUserId } = useLocalSearchParams<{
+  const { id: contactId, name: contactName, phone: contactPhone, contact_user_id: contactUserId } = useLocalSearchParams<{
     id: string;
     name: string;
     phone: string;
@@ -326,10 +327,19 @@ export default function ChatScreen() {
           {item.edited && (
             <Text style={[styles.editedTag, isMine ? { color: "rgba(255,255,255,0.4)" } : { color: "#94A3B8" }]}>edited</Text>
           )}
-          {item.reaction && (
-            <Text style={styles.reactionBadge}>{item.reaction}</Text>
-          )}
-          <Text style={[styles.messageTime, isMine ? { color: "rgba(255,255,255,0.5)" } : { color: "#94A3B8" }]}>{formatTime(item.created_at)}</Text>
+          <View style={styles.messageFooter}>
+            {item.reaction && (
+              <Text style={styles.reactionBadge}>{item.reaction}</Text>
+            )}
+            <TouchableOpacity
+              onPress={() => { setContextMsg(item); setShowEmojiPicker(true); }}
+              style={[styles.reactBtn, isMine ? { backgroundColor: "rgba(255,255,255,0.1)" } : { backgroundColor: "#E2E8F0" }]}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="happy-outline" size={12} color={isMine ? "rgba(255,255,255,0.5)" : "#94A3B8"} />
+            </TouchableOpacity>
+            <Text style={[styles.messageTime, isMine ? { color: "rgba(255,255,255,0.5)" } : { color: "#94A3B8" }]}>{formatTime(item.created_at)}</Text>
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -386,6 +396,14 @@ export default function ChatScreen() {
         )}
 
         <View style={styles.inputBar}>
+          {contactPhone ? (
+            <TouchableOpacity
+              style={styles.phoneBtn}
+              onPress={() => Linking.openURL(`tel:${contactPhone}`)}
+            >
+              <Ionicons name="call-outline" size={20} color="#22C55E" />
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity
             style={styles.locationBtn}
             onPress={handleShareLocation}
@@ -437,19 +455,25 @@ export default function ChatScreen() {
               <Ionicons name="arrow-undo" size={20} color="#17202b" />
               <Text style={styles.contextItemText}>Reply</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.contextItem} onPress={handleEditMessage}>
-              <Ionicons name="pencil" size={20} color="#17202b" />
-              <Text style={styles.contextItemText}>Edit</Text>
-            </TouchableOpacity>
             <TouchableOpacity style={styles.contextItem} onPress={() => { setShowEmojiPicker(true); }}>
               <Ionicons name="happy-outline" size={20} color="#17202b" />
               <Text style={styles.contextItemText}>React</Text>
             </TouchableOpacity>
-            <View style={styles.contextDivider} />
-            <TouchableOpacity style={styles.contextItem} onPress={handleDeleteMessage}>
-              <Ionicons name="trash-outline" size={20} color="#DC2626" />
-              <Text style={[styles.contextItemText, { color: "#DC2626" }]}>Delete</Text>
-            </TouchableOpacity>
+            {contextMsg && ((contextMsg.sender_id
+              ? contextMsg.sender_id === userId
+              : contextMsg.user_id === userId)) && (
+              <>
+                <View style={styles.contextDivider} />
+                <TouchableOpacity style={styles.contextItem} onPress={handleEditMessage}>
+                  <Ionicons name="pencil" size={20} color="#17202b" />
+                  <Text style={styles.contextItemText}>Edit</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.contextItem} onPress={handleDeleteMessage}>
+                  <Ionicons name="trash-outline" size={20} color="#DC2626" />
+                  <Text style={[styles.contextItemText, { color: "#DC2626" }]}>Delete</Text>
+                </TouchableOpacity>
+              </>
+            )}
           </View>
         </TouchableOpacity>
       </Modal>
@@ -461,11 +485,12 @@ export default function ChatScreen() {
         animationType="fade"
         onRequestClose={() => setShowEmojiPicker(false)}
       >
-        <TouchableOpacity
-          style={styles.contextOverlay}
-          activeOpacity={1}
-          onPress={() => setShowEmojiPicker(false)}
-        >
+        <View style={styles.contextOverlay}>
+          <TouchableOpacity
+            style={{ flex: 1 }}
+            activeOpacity={1}
+            onPress={() => { setShowEmojiPicker(false); setContextMsg(null); }}
+          />
           <View style={styles.emojiPicker}>
             <Text style={styles.emojiPickerTitle}>React with emoji</Text>
             <View style={styles.emojiRow}>
@@ -476,7 +501,7 @@ export default function ChatScreen() {
               ))}
             </View>
           </View>
-        </TouchableOpacity>
+        </View>
       </Modal>
 
       {/* Edit Message Modal */}
@@ -609,6 +634,15 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
   },
+  phoneBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F0FDF4",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 8,
+  },
   locationBtn: {
     width: 40,
     height: 40,
@@ -648,8 +682,20 @@ const styles = StyleSheet.create({
   },
   reactionBadge: {
     fontSize: 20,
+    marginRight: 4,
+  },
+  reactBtn: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 6,
+  },
+  messageFooter: {
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 4,
-    alignSelf: "flex-start",
   },
 
   contextOverlay: {
