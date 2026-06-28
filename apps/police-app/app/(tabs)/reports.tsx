@@ -10,7 +10,9 @@ import {
   Modal,
   ScrollView,
   Image,
+  Vibration,
 } from "react-native";
+import { Audio } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -32,8 +34,111 @@ export default function ReportsScreen() {
   const [selectedReport, setSelectedReport] = useState<any | null>(null);
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
   const [policeLocation, setPoliceLocation] = useState<{latitude: number; longitude: number} | null>(null);
+  const [alertBanner, setAlertBanner] = useState<string | null>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const activeAlertIds = useRef<Set<string>>(new Set());
   const locationWatchRef = useRef<any>(null);
   const locationIntervalRef = useRef<number | null>(null);
+  const alertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+        });
+        const { sound } = await Audio.Sound.createAsync(
+          require("../../assets/emergency_alert.wav"),
+          { volume: 1.0 },
+        );
+        if (mounted) soundRef.current = sound;
+      } catch (e) {
+        console.warn("Audio setup failed:", e);
+      }
+    })();
+    return () => {
+      mounted = false;
+      soundRef.current?.unloadAsync();
+    };
+  }, []);
+
+  const playEmergencyAlert = async (report: any) => {
+    if (activeAlertIds.current.has(report.id)) return;
+    activeAlertIds.current.add(report.id);
+    console.log("playEmergencyAlert called for:", report.id, report.crime_type);
+
+    try {
+      Vibration.vibrate(500);
+      setTimeout(() => {
+        try { Vibration.vibrate([500, 300, 500, 300, 500], true); } catch (_) {}
+      }, 600);
+    } catch (e) {
+      console.warn("Vibration failed:", e);
+    }
+
+    const label = report.crime_type?.replace(/-/g, " ") || "New report";
+    setAlertBanner(`⚠️ Emergency: ${label}`);
+    if (alertTimerRef.current) clearTimeout(alertTimerRef.current);
+    alertTimerRef.current = setTimeout(() => setAlertBanner(null), 5000);
+
+    // Audio: manual loop with 1s gap between plays
+    const playLoop = async () => {
+      if (activeAlertIds.current.size === 0) return;
+      try {
+        const sound = soundRef.current;
+        if (sound) {
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded) {
+            await sound.setPositionAsync(0);
+            await sound.playAsync();
+          }
+        }
+      } catch (e) {
+        console.warn("Audio playback failed:", e);
+      }
+      if (activeAlertIds.current.size > 0) {
+        setTimeout(playLoop, 1000);
+      }
+    };
+    playLoop();
+  };
+
+  const stopAlertForReport = async (reportId: string) => {
+    if (!activeAlertIds.current.has(reportId)) return;
+    activeAlertIds.current.delete(reportId);
+    console.log("stopAlertForReport called for:", reportId, "remaining:", activeAlertIds.current.size);
+    if (activeAlertIds.current.size === 0) {
+      try { Vibration.cancel(); } catch (e) { console.warn("Vibration cancel failed:", e); }
+      try {
+        const sound = soundRef.current;
+        if (sound) {
+          await sound.stopAsync();
+        }
+      } catch (e) { console.warn("Audio stop failed:", e); }
+    }
+    setAlertBanner(null);
+    if (alertTimerRef.current) { clearTimeout(alertTimerRef.current); alertTimerRef.current = null; }
+  };
+
+  // Fallback: alert on new pending reports from data fetches too, skip on initial data load
+  const prevReportIds = useRef<Set<string>>(new Set());
+  const initialLoadDone = useRef(false);
+  useEffect(() => {
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      for (const r of reports) prevReportIds.current.add(r.id);
+      return;
+    }
+    for (const r of reports) {
+      if (r.status === "pending" && !prevReportIds.current.has(r.id)) {
+        playEmergencyAlert(r);
+      }
+      prevReportIds.current.add(r.id);
+    }
+  }, [reports]);
 
   // Start/stop location tracking based on active report
   useEffect(() => {
@@ -105,6 +210,7 @@ export default function ReportsScreen() {
           if (newReport.resident_id) {
             loadResidentName(newReport.resident_id);
           }
+          playEmergencyAlert(newReport);
         },
       )
       .on(
@@ -112,13 +218,22 @@ export default function ReportsScreen() {
         { event: "UPDATE", schema: "public", table: "crime_reports" },
         (payload) => {
           const updated = payload.new as any;
+          if (updated.status === "in-progress") {
+            stopAlertForReport(updated.id);
+          }
           setReports((prev) =>
             prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)),
           );
         },
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+      try { Vibration.cancel(); } catch (_) {}
+      soundRef.current?.stopAsync().catch(() => {});
+      soundRef.current?.setIsLoopingAsync(false).catch(() => {});
+      activeAlertIds.current.clear();
+    };
   }, []);
 
   const loadResidentName = async (residentId: string) => {
@@ -328,6 +443,24 @@ export default function ReportsScreen() {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+
+      {alertBanner && (
+        <View style={{
+          backgroundColor: "#DC2626",
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}>
+          <Text style={{ color: "#fff", fontWeight: "700", fontSize: 14, flex: 1 }}>
+            {alertBanner}
+          </Text>
+          <TouchableOpacity onPress={() => setAlertBanner(null)}>
+            <Ionicons name="close" size={20} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <View style={s.filterRow}>
         {["all", "pending", "in-progress", "resolved"].map((f) => (

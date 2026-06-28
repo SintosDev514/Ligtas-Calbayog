@@ -91,18 +91,23 @@ export default function SignUpScreen() {
 
   return (
     <View style={s.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#001A4D" />
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
         <View style={s.logoSection}>
-          <View style={s.badge}>
-            <Ionicons name="shield-checkmark" size={32} color="#F4B51A" />
+          <Image
+            source={require("../assets/logo-police.png")}
+            style={s.logoImage}
+            resizeMode="contain"
+          />
+          <View style={s.appNameRow}>
+            <Text style={s.appNameLigtas}>LIGTAS</Text>
+            <Text style={s.appNameCalbayog}> CALBAYOG</Text>
           </View>
-          <Text style={s.appName}>Police Registration</Text>
-          <Text style={s.appSub}>Create your official account</Text>
+          <Text style={s.appSub}>Police Registration</Text>
         </View>
 
         <View style={s.form}>
@@ -111,7 +116,7 @@ export default function SignUpScreen() {
             <TextInput
               style={s.input}
               placeholder="e.g. Juan M. Dela Cruz"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor="rgba(245,247,250,0.3)"
               value={fullName}
               onChangeText={setFullName}
             />
@@ -123,7 +128,7 @@ export default function SignUpScreen() {
               <TextInput
                 style={s.input}
                 placeholder="e.g. PNP-12345"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor="rgba(245,247,250,0.3)"
                 value={badgeId}
                 onChangeText={setBadgeId}
               />
@@ -133,7 +138,7 @@ export default function SignUpScreen() {
               <TextInput
                 style={s.input}
                 placeholder="e.g. 09171234567"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor="rgba(245,247,250,0.3)"
                 value={phoneNumber}
                 onChangeText={setPhoneNumber}
                 keyboardType="phone-pad"
@@ -163,7 +168,7 @@ export default function SignUpScreen() {
             <TextInput
               style={s.input}
               placeholder="e.g. Calbayog City Police Station"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor="rgba(245,247,250,0.3)"
               value={station}
               onChangeText={setStation}
             />
@@ -175,7 +180,7 @@ export default function SignUpScreen() {
               <TextInput
                 style={s.input}
                 placeholder="email@example.com"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor="rgba(245,247,250,0.3)"
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
@@ -184,23 +189,23 @@ export default function SignUpScreen() {
             </View>
             <View style={s.half}>
               <Text style={s.label}>Password *</Text>
-              <View style={{ position: "relative" }}>
+              <View style={s.inputPasswordWrap}>
                 <TextInput
-                  style={[s.input, { paddingRight: 36 }]}
+                  style={[s.input, s.inputPassword]}
                   placeholder="Min 6 chars"
-                  placeholderTextColor="#94A3B8"
+                  placeholderTextColor="rgba(245,247,250,0.3)"
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                 />
                 <TouchableOpacity
-                  style={{ position: "absolute", right: 10, top: 10 }}
+                  style={s.passwordToggle}
                   onPress={() => setShowPassword(!showPassword)}
                 >
                   <Ionicons
                     name={showPassword ? "eye-off" : "eye"}
                     size={18}
-                    color="#94A3B8"
+                    color="rgba(245,247,250,0.4)"
                   />
                 </TouchableOpacity>
               </View>
@@ -215,7 +220,7 @@ export default function SignUpScreen() {
               </TouchableOpacity>
             ) : (
               <TouchableOpacity style={s.uploadBtn} onPress={pickImage}>
-                <Ionicons name="camera" size={22} color="#64748B" />
+                <Ionicons name="camera" size={22} color="rgba(245,247,250,0.4)" />
                 <Text style={s.uploadBtnText}>Tap to upload Police ID</Text>
               </TouchableOpacity>
             )}
@@ -229,7 +234,7 @@ export default function SignUpScreen() {
             disabled={submitting}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color="#F5F7FA" />
             ) : (
               <Text style={s.actionBtnText}>Create Account</Text>
             )}

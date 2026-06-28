@@ -6,19 +6,35 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "icon": "./assets/iconlogo.png",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.ligtas.police"
+      "bundleIdentifier": "com.ligtas.police",
+      "icon": "./assets/iconlogo.png"
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/iconlogo.png",
         "backgroundColor": "#17202b"
       },
-      "package": "com.ligtas.police"
+      "package": "com.ligtas.police",
+      "permissions": [
+        "android.permission.VIBRATE"
+      ]
     },
     "plugins": [
       "expo-router",
-      "expo-location"
+      "expo-location",
+      "expo-av",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/logo-police.png",
+          "imageWidth": 120,
+          "resizeMode": "contain",
+          "backgroundColor": "#001A4D"
+        }
+      ]
     ],
     "scheme": "ligtas-police"
   }

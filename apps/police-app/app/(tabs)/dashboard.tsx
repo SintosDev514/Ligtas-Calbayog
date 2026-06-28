@@ -18,7 +18,7 @@ import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
-import { statusColors, colors } from "../../constants/theme";
+import { statusColors, crimeIcons, colors } from "../../constants/theme";
 import { dashboardStyles as s } from "../styles/Dashboard.styles";
 import MapView, { Marker } from "../../components/MapView";
 import { openBestStreetView } from "../../../../shared/utils/streetView";
@@ -34,11 +34,14 @@ export default function DashboardScreen() {
   const [mapStyle, setMapStyle] = useState<any>("light");
   const [showStylePicker, setShowStylePicker] = useState(false);
   const [selectedResident, setSelectedResident] = useState<any | null>(null);
+  const [selectedReport, setSelectedReport] = useState<any | null>(null);
   const [alertBanner, setAlertBanner] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{latitude: number; longitude: number} | null>(null);
   const alertTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastAlertIdRef = useRef<string | null>(null);
   const locationWatchRef = useRef<any>(null);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const activeAlertIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     loadData();
@@ -58,15 +61,42 @@ export default function DashboardScreen() {
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "crime_reports" },
-        () => refreshData(),
+        (payload) => {
+          const updated = payload.new as any;
+          if (updated.status === "in-progress") {
+            stopAlertForReport(updated.id);
+          }
+          refreshData();
+        },
       )
       .subscribe();
     const poll = setInterval(refreshData, 15_000);
     return () => {
       supabase.removeChannel(channel);
       clearInterval(poll);
+      try { Vibration.cancel(); } catch (_) {}
+      soundRef.current?.stopAsync().catch(() => {});
+      soundRef.current?.setIsLoopingAsync(false).catch(() => {});
+      activeAlertIds.current.clear();
     };
   }, []);
+
+  // Fallback: alert on any new pending report from polls too, skip on initial data load
+  const prevReportIds = useRef<Set<string>>(new Set());
+  const initialLoadDone = useRef(false);
+  useEffect(() => {
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      for (const r of reports) prevReportIds.current.add(r.id);
+      return;
+    }
+    for (const r of reports) {
+      if (r.status === "pending" && !prevReportIds.current.has(r.id)) {
+        playEmergencyAlert(r);
+      }
+      prevReportIds.current.add(r.id);
+    }
+  }, [reports]);
 
   useEffect(() => {
     (async () => {
@@ -94,24 +124,86 @@ export default function DashboardScreen() {
     return () => { locationWatchRef.current?.remove?.(); };
   }, []);
 
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+        });
+        const { sound } = await Audio.Sound.createAsync(
+          require("../../assets/emergency_alert.wav"),
+          { volume: 1.0 },
+        );
+        if (mounted) soundRef.current = sound;
+      } catch (e) {
+        console.warn("Audio setup failed:", e);
+      }
+    })();
+    return () => {
+      mounted = false;
+      soundRef.current?.unloadAsync();
+    };
+  }, []);
+
   const playEmergencyAlert = async (report: any) => {
-    Vibration.vibrate([0, 200, 100, 200, 100, 400]);
+    if (activeAlertIds.current.has(report.id)) return;
+    activeAlertIds.current.add(report.id);
+    console.log("playEmergencyAlert called for:", report.id, report.crime_type);
+
     try {
-      const { sound } = await Audio.Sound.createAsync(
-        require("../../assets/emergency_alert.wav"),
-        { shouldPlay: true, volume: 1.0 },
-      );
-      sound.setOnPlaybackStatusUpdate((s) => {
-        if ((s as any).didJustFinish) sound.unloadAsync();
-      });
+      Vibration.vibrate(500);
+      setTimeout(() => {
+        try { Vibration.vibrate([500, 300, 500, 300, 500], true); } catch (_) {}
+      }, 600);
     } catch (e) {
-      console.log("Could not play alert sound:", e);
+      console.warn("Vibration failed:", e);
     }
-    const label =
-      report.crime_type?.replace(/-/g, " ") || "New report";
-    setAlertBanner(`\u26A0\uFE0F Emergency: ${label}`);
+
+    const label = report.crime_type?.replace(/-/g, " ") || "New report";
+    setAlertBanner(`⚠️ Emergency: ${label}`);
     if (alertTimerRef.current) clearTimeout(alertTimerRef.current);
     alertTimerRef.current = setTimeout(() => setAlertBanner(null), 5000);
+
+    // Audio: manual loop with 1s gap between plays
+    const playLoop = async () => {
+      if (activeAlertIds.current.size === 0) return;
+      try {
+        const sound = soundRef.current;
+        if (sound) {
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded) {
+            await sound.setPositionAsync(0);
+            await sound.playAsync();
+          }
+        }
+      } catch (e) {
+        console.warn("Audio playback failed:", e);
+      }
+      if (activeAlertIds.current.size > 0) {
+        setTimeout(playLoop, 1000);
+      }
+    };
+    playLoop();
+  };
+
+  const stopAlertForReport = async (reportId: string) => {
+    if (!activeAlertIds.current.has(reportId)) return;
+    activeAlertIds.current.delete(reportId);
+    console.log("stopAlertForReport called for:", reportId, "remaining:", activeAlertIds.current.size);
+    if (activeAlertIds.current.size === 0) {
+      try { Vibration.cancel(); } catch (e) { console.warn("Vibration cancel failed:", e); }
+      try {
+        const sound = soundRef.current;
+        if (sound) {
+          await sound.stopAsync();
+        }
+      } catch (e) { console.warn("Audio stop failed:", e); }
+    }
+    setAlertBanner(null);
+    if (alertTimerRef.current) { clearTimeout(alertTimerRef.current); alertTimerRef.current = null; }
   };
 
   const openStreetView = useCallback(() => {
@@ -129,13 +221,41 @@ export default function DashboardScreen() {
       destLng: selectedResident.longitude.toString(),
       name: selectedResident.full_name || "Resident",
     });
-    setSelectedResident(null);
+    closeModal();
     router.push(`/navigate/${selectedResident.id}?${params.toString()}` as any);
   }, [selectedResident, userLocation]);
 
   const closeModal = useCallback(() => {
     setSelectedResident(null);
+    setSelectedReport(null);
   }, []);
+
+  const handleAccept = async () => {
+    if (!selectedReport) return;
+    try {
+      await supabase
+        .from("crime_reports")
+        .update({ status: "in-progress", updated_at: new Date().toISOString() })
+        .eq("id", selectedReport.id);
+      setSelectedReport((prev: any) => prev ? { ...prev, status: "in-progress" } : null);
+      stopAlertForReport(selectedReport.id);
+    } catch (err: any) {
+      console.warn("Accept failed:", err);
+    }
+  };
+
+  const handleDecline = async () => {
+    if (!selectedReport) return;
+    try {
+      await supabase
+        .from("crime_reports")
+        .update({ status: "dismissed", updated_at: new Date().toISOString() })
+        .eq("id", selectedReport.id);
+      setSelectedReport((prev: any) => prev ? { ...prev, status: "dismissed" } : null);
+    } catch (err: any) {
+      console.warn("Decline failed:", err);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -181,7 +301,7 @@ export default function DashboardScreen() {
   const residentsWithLocation = residents.filter((r) => r.latitude).length;
 
   const emergencyReportIds = useMemo(
-    () => new Set(reports.filter((r) => r.status !== "resolved" && r.status !== "dismissed" && r.status !== "cancelled").map((r) => r.resident_id)),
+    () => new Set(reports.filter((r) => r.status === "pending").map((r) => r.resident_id)),
     [reports],
   );
 
@@ -240,6 +360,10 @@ export default function DashboardScreen() {
     );
     if (resident) {
       setSelectedResident(resident);
+      const residentReports = reports
+        .filter((r) => r.resident_id === resident.id)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setSelectedReport(residentReports[0] || null);
     }
   };
 
@@ -496,6 +620,10 @@ export default function DashboardScreen() {
           >
             {selectedResident && (
               <ScrollView showsVerticalScrollIndicator={false}>
+                <TouchableOpacity style={s.modalCloseBtn} onPress={closeModal}>
+                  <Ionicons name="close" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+
                 <View style={s.modalHeader}>
                   <View style={s.modalAvatar}>
                     {(selectedResident.avatar_url || selectedResident.photo_url) ? (
@@ -504,126 +632,125 @@ export default function DashboardScreen() {
                         style={s.modalAvatarImage}
                       />
                     ) : (
-                      <Ionicons name="person" size={32} color="#94A3B8" />
+                      <View style={s.modalAvatarPlaceholder}>
+                        <Ionicons name="person" size={28} color="#64748B" />
+                      </View>
                     )}
+                    <View style={s.modalOnlineDot} />
                   </View>
                   <Text style={s.modalName}>
                     {selectedResident.full_name || "Unknown"}
                   </Text>
                   <Text style={s.modalBadge}>
-                    {selectedResident.address || "No address on file"}
+                    <Ionicons name="location-outline" size={12} color="#64748B" /> {selectedResident.address || "No address on file"}
                   </Text>
                 </View>
 
-                <View style={s.modalInfoRow}>
-                  <Ionicons name="call" size={16} color="#64748B" />
-                  <Text style={s.modalInfoText}>
-                    {selectedResident.emergency_contact || "No emergency contact"}
-                  </Text>
-                </View>
-
-                {selectedResident.id_photo_url && (
-                  <TouchableOpacity
-                    style={s.modalInfoRow}
-                    onPress={() => Linking.openURL(selectedResident.id_photo_url)}
-                  >
-                    <Ionicons name="id-card" size={16} color="#64748B" />
-                    <Text style={[s.modalInfoText, { color: "#3B82F6", textDecorationLine: "underline" }]}>
-                      View ID Photo
-                    </Text>
-                  </TouchableOpacity>
-                )}
-
-                {selectedResident.latitude && (
-                  <View style={s.modalInfoRow}>
-                    <Ionicons name="location" size={16} color="#64748B" />
-                    <Text style={s.modalInfoText}>
-                      {selectedResident.latitude.toFixed(4)},{" "}
-                      {selectedResident.longitude.toFixed(4)}
-                    </Text>
-                  </View>
-                )}
-
-                {selectedResident.latitude && (
-                  <View style={s.modalActionsRow}>
-                    {userLocation && (
-                      <TouchableOpacity
-                        style={s.modalActionBtnNav}
-                        onPress={navigateToResident}
-                      >
-                        <Ionicons name="navigate" size={16} color="#FFFFFF" />
-                        <Text style={s.modalActionBtnTextWhite}>Navigate</Text>
-                      </TouchableOpacity>
-                    )}
-                    <TouchableOpacity
-                      style={[s.modalActionBtnStreet, !userLocation && { flex: 1 }]}
-                      onPress={openStreetView}
-                    >
-                      <Ionicons name="eye" size={16} color="#2563EB" />
-                      <Text style={s.modalActionBtnTextBlue}>Street View</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                <View style={s.modalDivider} />
-
-                <Text style={s.modalSectionTitle}>Recent Reports</Text>
-                {reports
-                  .filter((r) => r.resident_id === selectedResident.id)
-                  .slice(0, 3)
-                  .map((r) => (
-                    <View key={r.id} style={s.modalReportItem}>
-                      <View
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: 4,
-                          backgroundColor:
-                            statusColors[r.status] || "#64748B",
-                        }}
-                      />
-                      <View style={{ flex: 1 }}>
-                        <Text style={s.modalReportType}>
-                          {r.crime_type?.replace("-", " ") || "Report"}
-                        </Text>
-                        <Text style={s.modalReportDate}>
-                          {new Date(r.created_at).toLocaleDateString("en-PH", {
-                            month: "short",
-                            day: "numeric",
-                          })}
-                        </Text>
+                {selectedReport ? (
+                  <>
+                    <View style={s.modalReportCard}>
+                      <View style={s.modalReportCardHeader}>
+                        <View style={s.modalCrimeIconWrap}>
+                          <Ionicons
+                            name={(crimeIcons as any)[selectedReport.crime_type] || "alert-circle"}
+                            size={22}
+                            color={statusColors[selectedReport.status]?.text || "#EF4444"}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={s.modalReportCrime}>
+                            {selectedReport.crime_type?.replace(/-/g, " ") || "Unspecified"}
+                          </Text>
+                          <Text style={s.modalReportDate}>
+                            {new Date(selectedReport.created_at).toLocaleDateString("en-PH", {
+                              month: "long",
+                              day: "numeric",
+                              year: "numeric",
+                            })} • {new Date(selectedReport.created_at).toLocaleTimeString("en-PH", {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </Text>
+                        </View>
+                        <View style={[s.modalStatusBadge, { backgroundColor: statusColors[selectedReport.status]?.bg || "#F1F5F9" }]}>
+                          <Ionicons
+                            name={statusColors[selectedReport.status]?.icon || "ellipse"}
+                            size={10}
+                            color={statusColors[selectedReport.status]?.text || "#64748B"}
+                          />
+                          <Text style={[s.modalStatusText, { color: statusColors[selectedReport.status]?.text || "#64748B" }]}>
+                            {selectedReport.status?.replace("-", " ") || "Unknown"}
+                          </Text>
+                        </View>
                       </View>
-                      <Text
-                        style={{
-                          fontSize: 10,
-                          fontWeight: "600",
-                          color: statusColors[r.status] || "#64748B",
-                        }}
-                      >
-                        {r.status?.toUpperCase()}
-                      </Text>
+
+                      {selectedReport.description ? (
+                        <View style={s.modalDescWrap}>
+                          <Ionicons name="chatbubble-ellipses-outline" size={14} color="#64748B" style={{ marginTop: 2 }} />
+                          <Text style={s.modalReportDesc}>{selectedReport.description}</Text>
+                        </View>
+                      ) : null}
+
+                      {selectedReport.location_address && (
+                        <View style={s.modalLocRow}>
+                          <Ionicons name="navigate-outline" size={14} color="#64748B" />
+                          <Text style={s.modalLocText}>{selectedReport.location_address}</Text>
+                        </View>
+                      )}
                     </View>
-                  ))}
 
-                {reports.filter((r) => r.resident_id === selectedResident.id)
-                  .length === 0 && (
-                  <Text style={s.modalEmptyText}>
-                    No reports filed by this resident.
-                  </Text>
+                    {selectedReport.status === "pending" ? (
+                      <View style={s.modalActionsDouble}>
+                        <TouchableOpacity style={s.modalAcceptBtn} onPress={handleAccept} activeOpacity={0.8}>
+                          <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                          <Text style={s.modalAcceptBtnText}>Accept</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={s.modalDeclineBtn} onPress={handleDecline} activeOpacity={0.8}>
+                          <Ionicons name="close-circle" size={20} color="#fff" />
+                          <Text style={s.modalDeclineBtnText}>Decline</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : (
+                      <View style={s.modalActionsDouble}>
+                        {userLocation && (
+                          <TouchableOpacity
+                            style={s.modalNavBtn}
+                            onPress={navigateToResident}
+                            activeOpacity={0.8}
+                          >
+                            <Ionicons name="navigate" size={20} color="#fff" />
+                            <Text style={s.modalNavBtnText}>Navigate</Text>
+                          </TouchableOpacity>
+                        )}
+                        <TouchableOpacity
+                          style={[s.modalStreetBtn, !userLocation && { flex: 1 }]}
+                          onPress={openStreetView}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons name="eye" size={20} color="#1e40af" />
+                          <Text style={s.modalStreetBtnText}>Street View</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    <TouchableOpacity
+                      style={s.modalProfileBtn}
+                      onPress={() => {
+                        closeModal();
+                        router.push(`/resident/${selectedResident.id}` as any);
+                      }}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="person-outline" size={16} color="#0f141a" />
+                      <Text style={s.modalProfileBtnText}>View Full Profile</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <View style={s.modalEmptyWrap}>
+                    <Ionicons name="document-text-outline" size={40} color="#4A5568" />
+                    <Text style={s.modalEmptyText}>No report on file</Text>
+                  </View>
                 )}
-
-                <TouchableOpacity
-                  style={s.modalProfileBtn}
-                  onPress={() => {
-                    closeModal();
-                    router.push(
-                      `/resident/${selectedResident.id}` as any,
-                    );
-                  }}
-                >
-                  <Ionicons name="person" size={16} color="#fff" />
-                  <Text style={s.modalProfileBtnText}>View Full Profile</Text>
-                </TouchableOpacity>
               </ScrollView>
             )}
           </TouchableOpacity>

@@ -11,7 +11,6 @@ import {
   ActivityIndicator,
   ScrollView,
   Image,
-  Dimensions,
   Platform,
   TextInput,
   Alert,
@@ -20,7 +19,6 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import {
   fetchResidentReports,
@@ -29,13 +27,10 @@ import {
   subscribeToReportUpdates,
   cancelReport,
   getActivePenalty,
-  getCancelCount,
   appealPenalty,
 } from "../../../../shared/services/reportService";
 import { useMapStyle } from "../../context/MapStyleContext";
 import MapView, { Marker, UrlTile } from "../../components/MapView";
-
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const STATUS_META: Record<string, { bg: string; text: string; icon: string; label: string; accent: string; gradient: string[] }> = {
   pending: {
@@ -299,6 +294,7 @@ export default function MyReportsScreen() {
               </View>
 
               <View style={[styles.statusBadge, { backgroundColor: statusMeta.bg }]}>
+                {status === "in-progress" && <View style={styles.statusLiveDot} />}
                 <Ionicons name={statusMeta.icon as any} size={10} color={statusMeta.text} />
                 <Text style={[styles.statusText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
               </View>
@@ -309,6 +305,22 @@ export default function MyReportsScreen() {
               <Text style={styles.descriptionCollapsed} numberOfLines={2}>
                 {item.description}
               </Text>
+            )}
+
+            {/* Live tracking badge when collapsed */}
+            {!isExpanded && status === "in-progress" && (
+              <TouchableOpacity
+                style={styles.liveBadgeRow}
+                onPress={() => {
+                  setExpandedReportId(item.id);
+                  router.push({ pathname: "/(tabs)/live-tracking" as any, params: { reportId: item.id } });
+                }}
+                activeOpacity={0.8}
+              >
+                <View style={styles.liveDot} />
+                <Text style={styles.liveBadgeText}>Live — Tap to track police</Text>
+                <Ionicons name="chevron-forward" size={14} color="#F4B51A" />
+              </TouchableOpacity>
             )}
 
             {/* Expanded Content */}
@@ -460,7 +472,8 @@ export default function MyReportsScreen() {
                       style={styles.trackBtn}
                       onPress={() => router.push({ pathname: "/(tabs)/live-tracking" as any, params: { reportId: item.id } })}
                     >
-                      <Ionicons name="navigate" size={16} color="#fff" />
+                      <View style={styles.trackLiveDot} />
+                      <Ionicons name="navigate" size={18} color="#fff" />
                       <Text style={styles.trackBtnText}>Track Police</Text>
                     </TouchableOpacity>
                   )}
@@ -507,10 +520,9 @@ export default function MyReportsScreen() {
 
       {/* Header */}
       <SafeAreaView edges={["top"]} style={styles.header}>
-        <LinearGradient colors={["#17202b", "#1E293B"]} style={StyleSheet.absoluteFill} />
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-            <Ionicons name="chevron-back" size={22} color="#fff" />
+            <Ionicons name="arrow-back" size={22} color="#fff" />
           </TouchableOpacity>
           <View style={styles.headerTitleGroup}>
             <Text style={styles.headerTitle}>My Reports</Text>
@@ -624,9 +636,9 @@ export default function MyReportsScreen() {
             <RefreshControl
               refreshing={isRefreshing}
               onRefresh={() => loadReports(true)}
-              tintColor="#818CF8"
-              colors={["#818CF8"]}
-              progressBackgroundColor="#1E293B"
+              tintColor="#F4B51A"
+              colors={["#F4B51A"]}
+              progressBackgroundColor="#0F204B"
             />
           }
         />
@@ -763,11 +775,10 @@ export default function MyReportsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#F8FAFC",
   },
   header: {
-    backgroundColor: "#17202b",
-    overflow: "hidden",
+    backgroundColor: "#0F204B",
   },
   headerRow: {
     flexDirection: "row",
@@ -805,28 +816,31 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 16,
     borderRadius: 14,
-    paddingVertical: 12,
-    shadowColor: "#000",
+    paddingVertical: 14,
+    shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
+    shadowOpacity: 0.05,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
   },
   statItem: {
     flex: 1,
     alignItems: "center",
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "800",
+    letterSpacing: -0.5,
   },
   statLabel: {
     fontSize: 10,
     color: "#94A3B8",
     fontWeight: "600",
-    marginTop: 3,
+    marginTop: 4,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
+    letterSpacing: 0.8,
   },
   statDivider: {
     width: 1,
@@ -849,15 +863,10 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 3,
-    elevation: 1,
   },
   filterPillActive: {
-    backgroundColor: "#17202b",
-    borderColor: "#17202b",
+    backgroundColor: "#0F204B",
+    borderColor: "#0F204B",
   },
   filterLabel: {
     fontSize: 12,
@@ -916,7 +925,7 @@ const styles = StyleSheet.create({
   },
   retryBtn: {
     marginTop: 18,
-    backgroundColor: "#17202b",
+    backgroundColor: "#0F204B",
     paddingHorizontal: 20,
     paddingVertical: 12,
     borderRadius: 12,
@@ -952,7 +961,7 @@ const styles = StyleSheet.create({
   },
   goReportBtn: {
     marginTop: 24,
-    backgroundColor: "#17202b",
+    backgroundColor: "#0F204B",
     paddingHorizontal: 20,
     paddingVertical: 14,
     borderRadius: 14,
@@ -973,9 +982,11 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
   },
   cardInner: {
     padding: 16,
@@ -1027,6 +1038,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 4,
   },
+  statusLiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#EF4444",
+    marginRight: 4,
+  },
   statusText: {
     fontSize: 11,
     fontWeight: "700",
@@ -1036,6 +1054,31 @@ const styles = StyleSheet.create({
     color: "#64748B",
     marginTop: 12,
     lineHeight: 18,
+  },
+  liveBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(239, 68, 68, 0.08)",
+    marginTop: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.2)",
+  },
+  liveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#EF4444",
+    marginRight: 8,
+  },
+  liveBadgeText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#DC2626",
+    letterSpacing: 0.2,
   },
   expandedSection: {
     marginTop: 14,
@@ -1218,15 +1261,21 @@ const styles = StyleSheet.create({
   actionButtons: {
     gap: 8,
   },
+  trackLiveDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#fff",
+  },
   trackBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 12,
+    paddingVertical: 13,
     borderRadius: 12,
-    backgroundColor: "#7C3AED",
+    backgroundColor: "#DC2626",
     gap: 8,
-    shadowColor: "#7C3AED",
+    shadowColor: "#DC2626",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1235,7 +1284,8 @@ const styles = StyleSheet.create({
   trackBtnText: {
     color: "#fff",
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
   cancelBtn: {
     flexDirection: "row",
@@ -1262,7 +1312,7 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(15, 32, 75, 0.6)",
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 24,
@@ -1274,6 +1324,11 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 340,
     alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 10,
   },
   modalIconCircle: {
     width: 56,
@@ -1318,7 +1373,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: "#17202b",
+    backgroundColor: "#0F204B",
     alignItems: "center",
   },
   modalConfirmText: {

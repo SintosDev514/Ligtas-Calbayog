@@ -10,7 +10,6 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import {
   fetchPoliceLocation,
@@ -268,7 +267,6 @@ export default function LiveTrackingScreen() {
       </View>
 
       <View style={styles.infoCard}>
-        <LinearGradient colors={["#1E293B", "#0F172A"]} style={StyleSheet.absoluteFill} />
         <View style={styles.infoCardContent}>
           <View style={styles.statusRow}>
             <View style={[styles.statusDot, { backgroundColor: getStatusColor() }]} />
@@ -325,15 +323,15 @@ export default function LiveTrackingScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0F172A", padding: 32 },
-  loadingText: { color: "#94A3B8", fontSize: 14, fontWeight: "600", marginTop: 16 },
-  errorCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: "#FEF2F2", justifyContent: "center", alignItems: "center", marginBottom: 16 },
-  errorText: { color: "#94A3B8", fontSize: 14, textAlign: "center", lineHeight: 20, marginBottom: 20 },
-  backBtnLarge: { flexDirection: "row", alignItems: "center", backgroundColor: "#17202b", paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, gap: 8 },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0F204B", padding: 32 },
+  loadingText: { color: "rgba(255,255,255,0.6)", fontSize: 14, fontWeight: "600", marginTop: 16 },
+  errorCircle: { width: 72, height: 72, borderRadius: 36, backgroundColor: "rgba(239,68,68,0.15)", justifyContent: "center", alignItems: "center", marginBottom: 16 },
+  errorText: { color: "rgba(255,255,255,0.7)", fontSize: 14, textAlign: "center", lineHeight: 20, marginBottom: 20 },
+  backBtnLarge: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.1)", paddingHorizontal: 20, paddingVertical: 12, borderRadius: 12, gap: 8 },
   backBtnLargeText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   map: { flex: 1 },
   topOverlay: { position: "absolute", top: 0, left: 0, right: 0, paddingTop: Platform.OS === "ios" ? 50 : 30, paddingHorizontal: 16 },
-  topBar: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(15,23,42,0.85)", borderRadius: 16, padding: 10, gap: 10 },
+  topBar: { flexDirection: "row", alignItems: "center", backgroundColor: "rgba(15,32,75,0.9)", borderRadius: 16, padding: 10, gap: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" },
   backBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: "rgba(255,255,255,0.1)", justifyContent: "center", alignItems: "center" },
   topTitleGroup: { flex: 1 },
   topTitle: { color: "#fff", fontSize: 15, fontWeight: "700" },
@@ -343,12 +341,12 @@ const styles = StyleSheet.create({
   liveDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "#94A3B8" },
   liveDotActive: { backgroundColor: "#EF4444" },
   liveBtnText: { fontSize: 11, fontWeight: "700", color: "#fff", letterSpacing: 0.5 },
-  infoCard: { position: "absolute", bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden" },
+  infoCard: { position: "absolute", bottom: 0, left: 0, right: 0, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden", backgroundColor: "#0F204B" },
   infoCardContent: { padding: 20, paddingBottom: Platform.OS === "ios" ? 34 : 24 },
   statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 16 },
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   statusText: { color: "#fff", fontSize: 14, fontWeight: "600" },
-  metricsRow: { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 14, padding: 14, marginBottom: 14 },
+  metricsRow: { flexDirection: "row", backgroundColor: "rgba(255,255,255,0.06)", borderRadius: 14, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: "rgba(255,255,255,0.06)" },
   metricItem: { flex: 1, alignItems: "center", gap: 4 },
   metricDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.1)", alignSelf: "stretch" },
   metricValue: { color: "#fff", fontSize: 14, fontWeight: "700", textAlign: "center" },
@@ -356,5 +354,5 @@ const styles = StyleSheet.create({
   legendRow: { flexDirection: "row", justifyContent: "center", gap: 20 },
   legendItem: { flexDirection: "row", alignItems: "center", gap: 6 },
   legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { color: "rgba(255,255,255,0.6)", fontSize: 11, fontWeight: "500" },
+  legendText: { color: "rgba(255,255,255,0.55)", fontSize: 11, fontWeight: "500" },
 });

@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   StatusBar,
+  Image,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -48,17 +49,22 @@ export default function SignInScreen() {
 
   return (
     <View style={s.container}>
-      <StatusBar barStyle="dark-content" />
+      <StatusBar barStyle="light-content" backgroundColor="#001A4D" />
       <ScrollView
         style={s.scroll}
         contentContainerStyle={s.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
         <View style={s.logoSection}>
-          <View style={s.badge}>
-            <Ionicons name="shield-checkmark" size={32} color="#F4B51A" />
+          <Image
+            source={require("../assets/logo-police.png")}
+            style={s.logoImage}
+            resizeMode="contain"
+          />
+          <View style={s.appNameRow}>
+            <Text style={s.appNameLigtas}>LIGTAS</Text>
+            <Text style={s.appNameCalbayog}> CALBAYOG</Text>
           </View>
-          <Text style={s.appName}>Ligtas Calbayog</Text>
           <Text style={s.appSub}>Police Operations Portal</Text>
         </View>
 
@@ -68,7 +74,7 @@ export default function SignInScreen() {
             <TextInput
               style={s.input}
               placeholder="Enter your email"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor="rgba(245,247,250,0.3)"
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -78,28 +84,23 @@ export default function SignInScreen() {
 
           <View>
             <Text style={s.label}>Password</Text>
-            <View style={{ position: "relative" }}>
+            <View style={s.inputPasswordWrap}>
               <TextInput
-                style={[s.input, { paddingRight: 44 }]}
+                style={[s.input, s.inputPassword]}
                 placeholder="Enter your password"
-                placeholderTextColor="#94A3B8"
+                placeholderTextColor="rgba(245,247,250,0.3)"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
               />
               <TouchableOpacity
-                style={{
-                  position: "absolute",
-                  right: 12,
-                  top: 12,
-                  padding: 4,
-                }}
+                style={s.passwordToggle}
                 onPress={() => setShowPassword(!showPassword)}
               >
                 <Ionicons
                   name={showPassword ? "eye-off" : "eye"}
                   size={20}
-                  color="#94A3B8"
+                  color="rgba(245,247,250,0.4)"
                 />
               </TouchableOpacity>
             </View>
@@ -113,7 +114,7 @@ export default function SignInScreen() {
             disabled={submitting}
           >
             {submitting ? (
-              <ActivityIndicator size="small" color="#fff" />
+              <ActivityIndicator size="small" color="#F5F7FA" />
             ) : (
               <Text style={s.actionBtnText}>Sign In</Text>
             )}

@@ -11,6 +11,7 @@ import {
   TextInput,
   Alert,
   Image,
+  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -231,6 +232,28 @@ export default function MessagesScreen() {
             <Ionicons name="close-circle" size={18} color="#94A3B8" />
           </TouchableOpacity>
         ) : null}
+      </View>
+
+      <View style={styles.pnpCard}>
+        <View style={styles.pnpAccentBar} />
+        <View style={styles.pnpBadge}>
+          <View style={styles.pnpShieldInner}>
+            <Ionicons name="shield-checkmark" size={22} color="#0F204B" />
+          </View>
+        </View>
+        <View style={styles.pnpInfo}>
+          <Text style={styles.pnpLabel}>PNP CALBAYOG</Text>
+          <Text style={styles.pnpNumber}>117</Text>
+          <Text style={styles.pnpHint}>Emergency Hotline · 24/7</Text>
+        </View>
+        <View style={styles.pnpDivider} />
+        <TouchableOpacity
+          style={styles.pnpCallBtn}
+          onPress={() => Linking.openURL("tel:117")}
+        >
+          <Ionicons name="call" size={24} color="#fff" />
+          <Text style={styles.pnpCallText}>Call</Text>
+        </TouchableOpacity>
       </View>
 
       {contacts.length === 0 ? (
@@ -740,6 +763,83 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveBtnText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+
+  pnpCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0F204B",
+    marginHorizontal: 16,
+    marginBottom: 10,
+    paddingVertical: 14,
+    paddingRight: 12,
+    borderRadius: 14,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  pnpAccentBar: {
+    width: 4,
+    backgroundColor: "#F4B51A",
+    alignSelf: "stretch",
+    marginRight: 14,
+  },
+  pnpBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(244, 181, 26, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  pnpShieldInner: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "#F4B51A",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pnpInfo: { flex: 1 },
+  pnpLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#F4B51A",
+    letterSpacing: 1.2,
+  },
+  pnpNumber: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#fff",
+    marginTop: 0,
+    letterSpacing: 0.5,
+  },
+  pnpHint: {
+    fontSize: 11,
+    color: "rgba(255,255,255,0.55)",
+    marginTop: 2,
+    letterSpacing: 0.3,
+  },
+  pnpDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    marginHorizontal: 12,
+  },
+  pnpCallBtn: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  pnpCallText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#fff",
+    marginTop: 2,
+  },
 
   badgeDot: {
     position: "absolute",

@@ -81,10 +81,10 @@ const localStyles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: colors.background,
+    backgroundColor: colors.primary,
   },
   tabBar: {
-    backgroundColor: "#0a0f14",
+    backgroundColor: colors.tabBarBg,
     borderTopWidth: 0,
     paddingBottom: 6,
     paddingTop: 6,
