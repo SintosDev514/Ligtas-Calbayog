@@ -263,9 +263,23 @@ export default function ChatScreen() {
 
   const renderMessage = ({ item }: { item: any }) => {
     const isLocation = item.message_type === "location";
+    const msgType = item.message_type;
     const isMine = item.sender_id
       ? item.sender_id === userId
       : item.user_id === userId;
+
+    let announcementTitle = "";
+    let announcementId = "";
+    if (msgType === "announcement" && item.content) {
+      const lines = item.content.split("\n");
+      const idLine = lines.find((l: string) => l.startsWith("ANN_ID:"));
+      if (idLine) announcementId = idLine.replace("ANN_ID:", "").trim();
+      const titleLine = lines.find((l: string) => l.startsWith("ANN_ID:"));
+      if (titleLine) {
+        const idx = lines.indexOf(titleLine);
+        announcementTitle = lines[idx + 2] || "";
+      }
+    }
 
     return (
       <TouchableOpacity
@@ -321,6 +335,29 @@ export default function ChatScreen() {
                 {item.latitude?.toFixed(6)}, {item.longitude?.toFixed(6)}
               </Text>
             </View>
+          ) : msgType === "announcement" ? (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => router.push("/(tabs)/announcements")}
+            >
+              <View style={[styles.announcementCard, isMine ? { backgroundColor: "rgba(255,255,255,0.08)" } : { backgroundColor: "#F8FAFC" }]}>
+                <View style={styles.announcementCardHeader}>
+                  <View style={styles.announcementIconWrap}>
+                    <Ionicons name="megaphone" size={14} color="#F4B51A" />
+                  </View>
+                  <Text style={[styles.announcementLabel, isMine ? { color: "#F4B51A" } : { color: "#0F204B" }]}>PNP Announcement</Text>
+                </View>
+                {announcementTitle ? (
+                  <Text style={[styles.announcementTitle, isMine ? { color: "#fff" } : { color: "#1E293B" }]} numberOfLines={2}>
+                    {announcementTitle}
+                  </Text>
+                ) : null}
+                <View style={[styles.announcementFooter, isMine ? { borderTopColor: "rgba(255,255,255,0.1)" } : { borderTopColor: "#E2E8F0" }]}>
+                  <Ionicons name="open-outline" size={12} color={isMine ? "rgba(255,255,255,0.5)" : "#94A3B8"} />
+                  <Text style={[styles.announcementViewText, isMine ? { color: "rgba(255,255,255,0.5)" } : { color: "#94A3B8" }]}>View in Announcements</Text>
+                </View>
+              </View>
+            </TouchableOpacity>
           ) : (
             <Text style={[styles.messageText, isMine ? { color: "#fff" } : { color: "#17202b" }]}>{item.content}</Text>
           )}
@@ -609,6 +646,49 @@ const styles = StyleSheet.create({
   locationCoords: {
     fontSize: 11,
     marginTop: 4,
+  },
+
+  announcementCard: {
+    padding: 10,
+    borderRadius: 10,
+    minWidth: 180,
+  },
+  announcementCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 6,
+  },
+  announcementIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#0F204B",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  announcementLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  announcementTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    lineHeight: 18,
+    marginBottom: 8,
+  },
+  announcementFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingTop: 8,
+    borderTopWidth: 1,
+  },
+  announcementViewText: {
+    fontSize: 11,
+    fontWeight: "500",
   },
 
   emptyChat: {

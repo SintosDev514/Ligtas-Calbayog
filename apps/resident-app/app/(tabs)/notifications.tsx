@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,8 @@ import {
   markAllNotificationsRead,
   deleteNotification,
 } from "../../../../shared/services/messageService";
+import { getCached, setCache } from "../../../../shared/services/cacheService";
+import { setupPushNotifications, showLocalNotification } from "../../../../shared/services/pushService";
 
 const TYPE_META: Record<string, { icon: string; color: string }> = {
   contact_request: { icon: "person-add", color: "#3B82F6" },
@@ -51,19 +53,34 @@ export default function NotificationsScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const pushReady = useRef(false);
+
+  useEffect(() => {
+    setupPushNotifications().then(() => { pushReady.current = true; });
+  }, []);
 
   const loadNotifications = useCallback(async (isRefresh = false) => {
     if (isRefresh) setIsRefreshing(true);
     else setIsLoading(true);
     setError("");
+
+    const cached = await getCached("notifications");
+    if (cached) {
+      setNotifications(cached.data);
+      if (!isRefresh) setIsLoading(false);
+    }
+
     try {
       const { data: session } = await supabase.auth.getSession();
       const userId = session?.session?.user?.id;
       if (!userId) return;
+      setCurrentUserId(userId);
       const data = await fetchNotifications(userId);
       setNotifications(data);
+      setCache("notifications", data);
     } catch (e: any) {
-      setError(e.message || "Failed to load notifications.");
+      if (!cached) setError(e.message || "Failed to load notifications.");
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -73,6 +90,24 @@ export default function NotificationsScreen() {
   useEffect(() => {
     loadNotifications();
   }, [loadNotifications]);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    const channel = supabase.channel(`notifications-live-${Date.now()}`);
+    channel.on(
+      "postgres_changes",
+      { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${currentUserId}` },
+      (payload) => {
+        const n = payload.new as any;
+        setNotifications((prev) => [n, ...prev]);
+        if (pushReady.current) {
+          showLocalNotification(n.title || "New Notification", n.body || "");
+        }
+      }
+    );
+    channel.subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [currentUserId]);
 
   const handleRefresh = () => loadNotifications(true);
 
@@ -123,7 +158,12 @@ export default function NotificationsScreen() {
       >
         <TouchableOpacity
           activeOpacity={0.7}
-          onPress={() => handleMarkRead(item.id)}
+          onPress={() => {
+            handleMarkRead(item.id);
+            if (item.type === "announcement") {
+              router.push("/(tabs)/announcements");
+            }
+          }}
           style={[styles.card, !item.read && styles.cardUnread]}
         >
           <View style={[styles.iconWrap, { backgroundColor: meta.color + "18" }]}>

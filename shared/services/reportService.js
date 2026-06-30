@@ -323,6 +323,158 @@ export const subscribeToPoliceLocation = (reportId, callback) => {
 /**
  * Get the latest police location for a report
  */
+/**
+ * Toggle like on an announcement
+ */
+export const toggleAnnouncementLike = async (announcementId, userId) => {
+  const { data: existing } = await supabase
+    .from("announcement_likes")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("announcement_id", announcementId)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from("announcement_likes")
+      .delete()
+      .eq("id", existing.id);
+    if (error) throw new Error(error.message);
+    return { liked: false };
+  } else {
+    const { error } = await supabase
+      .from("announcement_likes")
+      .insert({ user_id: userId, announcement_id: announcementId });
+    if (error) throw new Error(error.message);
+    return { liked: true };
+  }
+};
+
+/**
+ * Fetch like count and whether the current user liked
+ */
+export const fetchAnnouncementLikes = async (announcementId, userId) => {
+  const { count, error: countError } = await supabase
+    .from("announcement_likes")
+    .select("id", { count: "exact", head: true })
+    .eq("announcement_id", announcementId);
+  if (countError) throw new Error(countError.message);
+
+  let liked = false;
+  if (userId) {
+    const { data: userLike } = await supabase
+      .from("announcement_likes")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("announcement_id", announcementId)
+      .maybeSingle();
+    liked = !!userLike;
+  }
+
+  return { count: count ?? 0, liked };
+};
+
+/**
+ * Fetch like status and count for multiple announcements
+ */
+export const fetchBatchAnnouncementLikes = async (announcementIds, userId) => {
+  if (!announcementIds || announcementIds.length === 0) return {};
+
+  let likedSet = new Set();
+  if (userId) {
+    const { data: userLikes } = await supabase
+      .from("announcement_likes")
+      .select("announcement_id")
+      .in("announcement_id", announcementIds)
+      .eq("user_id", userId);
+    likedSet = new Set((userLikes ?? []).map((l) => l.announcement_id));
+  }
+
+  const countMap = {};
+  for (const id of announcementIds) {
+    countMap[id] = 0;
+  }
+  const { data: allLikes } = await supabase
+    .from("announcement_likes")
+    .select("announcement_id")
+    .in("announcement_id", announcementIds);
+  for (const l of allLikes ?? []) {
+    countMap[l.announcement_id] = (countMap[l.announcement_id] ?? 0) + 1;
+  }
+
+  const result = {};
+  for (const id of announcementIds) {
+    result[id] = { liked: likedSet.has(id), count: countMap[id] ?? 0 };
+  }
+  return result;
+};
+
+/**
+ * Add a comment to an announcement
+ */
+export const addAnnouncementComment = async (announcementId, userId, content) => {
+  const { data, error } = await supabase
+    .from("announcement_comments")
+    .insert({ user_id: userId, announcement_id: announcementId, content })
+    .select()
+    .single();
+
+  if (error) throw new Error(error.message);
+
+  const { data: profile } = await supabase
+    .from("resident_profiles")
+    .select("full_name, avatar_url")
+    .eq("id", userId)
+    .maybeSingle();
+
+  return { ...data, resident: profile ?? { full_name: "Unknown", avatar_url: null } };
+};
+
+/**
+ * Fetch comments for an announcement
+ */
+export const fetchAnnouncementComments = async (announcementId) => {
+  const { data, error } = await supabase
+    .from("announcement_comments")
+    .select("*")
+    .eq("announcement_id", announcementId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw new Error(error.message);
+  const items = data ?? [];
+
+  const userIds = [...new Set(items.map((c) => c.user_id))];
+  if (userIds.length === 0) return [];
+
+  const { data: profiles } = await supabase
+    .from("resident_profiles")
+    .select("id, full_name, avatar_url")
+    .in("id", userIds);
+
+  const profileMap = {};
+  for (const p of profiles ?? []) {
+    profileMap[p.id] = p;
+  }
+
+  return items.map((c) => ({
+    ...c,
+    resident: profileMap[c.user_id] ?? { full_name: "Unknown", avatar_url: null },
+  }));
+};
+
+/**
+ * Fetch comment count for an announcement
+ */
+export const fetchAnnouncementCommentCount = async (announcementId) => {
+  const { count, error } = await supabase
+    .from("announcement_comments")
+    .select("id", { count: "exact", head: true })
+    .eq("announcement_id", announcementId);
+
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+};
+
 export const fetchPoliceLocation = async (reportId) => {
   const { data, error } = await supabase
     .from("police_locations")

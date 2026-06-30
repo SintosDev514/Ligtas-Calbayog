@@ -133,13 +133,9 @@ export default function HomeScreen() {
         .channel("rann-" + id)
         .on(
           "postgres_changes",
-          { event: "INSERT", schema: "public", table: "announcements" },
-          (payload) => {
-            const ann = payload.new as any;
+          { event: "*", schema: "public", table: "announcements" },
+          () => {
             loadData();
-            if (ann?.title) {
-              Alert.alert("New Announcement", ann.title);
-            }
           },
         )
         .subscribe();
@@ -807,6 +803,7 @@ export default function HomeScreen() {
                 key={announcement.id}
                 style={styles.announcementCard}
                 activeOpacity={0.7}
+                onPress={() => router.push("/(tabs)/announcements" as any)}
               >
                 <View style={styles.announcementIcon}>
                   <Ionicons name="megaphone" size={18} color="#1D4ED8" />
@@ -820,6 +817,19 @@ export default function HomeScreen() {
                       announcement.message ||
                       "No description"}
                   </Text>
+                  {(announcement.image_url || announcement.video_url) && (
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
+                      {announcement.image_url && (
+                        <Text style={{ fontSize: 11, color: "#3B82F6" }}>📷 Photo</Text>
+                      )}
+                      {announcement.video_url && (
+                        <Text style={{ fontSize: 11, color: "#DC2626" }}>🎬 Video</Text>
+                      )}
+                      {announcement.latitude && (
+                        <Text style={{ fontSize: 11, color: "#059669" }}>📍 Location</Text>
+                      )}
+                    </View>
+                  )}
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
               </TouchableOpacity>
