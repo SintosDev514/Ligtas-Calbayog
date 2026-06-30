@@ -272,12 +272,18 @@ export const appealPenalty = async (penaltyId, userId, message) => {
  * Upsert police officer's location for a specific report
  */
 export const upsertPoliceLocation = async (officerId, reportId, latitude, longitude) => {
-  const { data: existing } = await supabase
+  let query = supabase
     .from("police_locations")
     .select("id")
-    .eq("officer_id", officerId)
-    .eq("report_id", reportId)
-    .maybeSingle();
+    .eq("officer_id", officerId);
+
+  if (reportId) {
+    query = query.eq("report_id", reportId);
+  } else {
+    query = query.is("report_id", null);
+  }
+
+  const { data: existing } = await query.maybeSingle();
 
   if (existing) {
     const { error } = await supabase
@@ -288,7 +294,7 @@ export const upsertPoliceLocation = async (officerId, reportId, latitude, longit
   } else {
     const { error } = await supabase
       .from("police_locations")
-      .insert({ officer_id: officerId, report_id: reportId, latitude, longitude });
+      .insert({ officer_id: officerId, report_id: reportId || null, latitude, longitude });
     if (error) throw new Error(error.message);
   }
 };

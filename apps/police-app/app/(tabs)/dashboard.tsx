@@ -22,6 +22,7 @@ import { statusColors, crimeIcons, colors } from "../../constants/theme";
 import { dashboardStyles as s } from "../styles/Dashboard.styles";
 import MapView, { Marker } from "../../components/MapView";
 import { openBestStreetView } from "../../../../shared/utils/streetView";
+import { upsertPoliceLocation } from "../../../../shared/services/reportService";
 
 export default function DashboardScreen() {
   const { profile } = useAuth();
@@ -123,6 +124,17 @@ export default function DashboardScreen() {
     })();
     return () => { locationWatchRef.current?.remove?.(); };
   }, []);
+
+  // Heartbeat: upload location every ~30s so admin tracking shows "online"
+  const lastHeartbeatRef = useRef(0);
+  useEffect(() => {
+    if (!profile?.id || !userLocation) return;
+    const now = Date.now();
+    if (now - lastHeartbeatRef.current < 25000) return;
+    lastHeartbeatRef.current = now;
+    upsertPoliceLocation(profile.id, null, userLocation.latitude, userLocation.longitude)
+      .catch((err) => console.warn("Heartbeat failed:", err.message));
+  }, [profile?.id, userLocation]);
 
   useEffect(() => {
     let mounted = true;
@@ -587,17 +599,24 @@ export default function DashboardScreen() {
             onMarkerPress={handleMarkerPress}
           >
             {visibleResidents.map(renderResidentMarker)}
-            {userLocation && (
-              <Marker
-                coordinate={userLocation}
-                pinColor="#3B82F6"
-              >
-                <Image
-                  source={Image.resolveAssetSource(require("../../assets/logo-black.png"))}
-                  style={{ width: 28, height: 28, borderRadius: 14 }}
-                />
-              </Marker>
-            )}
+              {userLocation && (
+                <Marker
+                  coordinate={userLocation}
+                  pinColor="#3B82F6"
+                >
+                  {profile?.photo_url || profile?.police_id_photo_url ? (
+                    <Image
+                      source={{ uri: profile.photo_url || profile.police_id_photo_url! }}
+                      style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: "#3B82F6" }}
+                    />
+                  ) : (
+                    <Image
+                      source={Image.resolveAssetSource(require("../../assets/logo-black.png"))}
+                      style={{ width: 28, height: 28, borderRadius: 14 }}
+                    />
+                  )}
+                </Marker>
+              )}
           </MapView>
         </View>
       )}

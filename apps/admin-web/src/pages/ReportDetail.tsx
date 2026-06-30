@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
-import type { CrimeReport } from "../types";
+import { ArrowLeft, AlertTriangle, MapPin, Clock, CheckCircle, XCircle, MessageSquare, Car, Shield, Eye } from "lucide-react";
 
 const STATUSES = [
   "pending",
@@ -12,6 +12,14 @@ const STATUSES = [
 ];
 
 const NEEDS_BACKUP = "needs-backup";
+
+const statusIcons: Record<string, typeof Clock> = {
+  pending: Clock,
+  "under-review": Eye,
+  "in-progress": Car,
+  resolved: CheckCircle,
+  dismissed: XCircle,
+};
 
 export default function ReportDetail() {
   const { id } = useParams();
@@ -121,6 +129,24 @@ export default function ReportDetail() {
       minute: "2-digit",
     });
 
+  const getTimelineIcon = (type: string) => {
+    switch (type) {
+      case "dispatched": return Car;
+      case "backup_requested": return AlertTriangle;
+      case "resolved": return CheckCircle;
+      default: return Clock;
+    }
+  };
+
+  const getTimelineColor = (type: string) => {
+    switch (type) {
+      case "dispatched": return "#2563EB";
+      case "backup_requested": return "#DC2626";
+      case "resolved": return "#16A34A";
+      default: return "#94A3B8";
+    }
+  };
+
   if (loading) {
     return (
       <div className="page-body" style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
@@ -137,7 +163,7 @@ export default function ReportDetail() {
         </div>
         <div className="page-body">
           <div className="empty-state">
-            <div className="icon">🔍</div>
+            <div className="empty-icon"><AlertTriangle size={24} /></div>
             <h3>Report not found</h3>
             <button className="btn btn-outline" onClick={() => navigate("/reports")} style={{ marginTop: 16 }}>
               Back to Reports
@@ -148,17 +174,21 @@ export default function ReportDetail() {
     );
   }
 
+  const StatusIcon = statusIcons[report.status] || Clock;
+
   return (
     <>
       <div className="page-header">
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <button className="btn btn-sm btn-outline" onClick={() => navigate("/reports")}>
-            ← Back
+            <ArrowLeft size={16} /> Back
           </button>
           <h2 style={{ textTransform: "capitalize" }}>
             {report.crime_type?.replace(/-/g, " ")}
           </h2>
-          <span className={`badge badge-${report.status}`}>{report.status}</span>
+          <span className={`badge badge-${report.status}`}>
+            <StatusIcon size={11} /> {report.status}
+          </span>
         </div>
         <span style={{ fontSize: 13, color: "var(--gray-400)" }}>
           {formatDate(report.created_at)}
@@ -167,7 +197,7 @@ export default function ReportDetail() {
       <div className="page-body">
         <div className="report-detail-grid">
           <div>
-            <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card" style={{ marginBottom: 24 }}>
               <div className="report-info-section">
                 <h3>Description</h3>
                 <p>{report.description || "No description provided"}</p>
@@ -178,16 +208,16 @@ export default function ReportDetail() {
                   <img
                     src={report.photo_url}
                     alt="Report evidence"
-                    style={{ maxWidth: "100%", maxHeight: 400, borderRadius: 8 }}
+                    style={{ maxWidth: "100%", maxHeight: 400, borderRadius: "var(--radius-md)" }}
                   />
                 </div>
               )}
               {report.location_address && (
                 <div className="report-info-section">
-                  <h3>Location</h3>
+                  <h3><MapPin size={12} style={{ marginRight: 4 }} /> Location</h3>
                   <p>{report.location_address}</p>
                   {report.latitude && report.longitude && (
-                    <p style={{ fontSize: 13, color: "var(--gray-400)" }}>
+                    <p style={{ fontSize: 13, color: "var(--gray-400)", marginTop: 4 }}>
                       {report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}
                     </p>
                   )}
@@ -200,9 +230,9 @@ export default function ReportDetail() {
             </div>
 
             {feedback && (
-              <div className="card" style={{ marginBottom: 20 }}>
+              <div className="card" style={{ marginBottom: 24 }}>
                 <div className="report-info-section">
-                  <h3>Police Feedback</h3>
+                  <h3><MessageSquare size={12} style={{ marginRight: 4 }} /> Police Feedback</h3>
                   <p><strong>Officer:</strong> {feedback.officer_name || "N/A"}</p>
                   <p><strong>Response:</strong> {feedback.response_message || "N/A"}</p>
                   {feedback.estimated_arrival && (
@@ -216,104 +246,81 @@ export default function ReportDetail() {
             )}
 
             {actionUpdates.length > 0 && (
-              <div className="card" style={{ marginBottom: 20 }}>
+              <div className="card" style={{ marginBottom: 24 }}>
                 <div className="report-info-section">
                   <h3>Action Timeline</h3>
                 </div>
-                {actionUpdates.map((u: any) => (
-                  <div
-                    key={u.id}
-                    style={{
-                      display: "flex",
-                      gap: 12,
-                      padding: "12px 0",
-                      borderBottom: "1px solid var(--gray-100)",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: "50%",
-                        background: "var(--gray-100)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: 14,
-                        flexShrink: 0,
-                      }}
-                    >
-                      {u.action_type === "dispatched"
-                        ? "🚓"
-                        : u.action_type === "backup_requested"
-                          ? "🆘"
-                          : u.action_type === "resolved"
-                            ? "✅"
-                            : "📌"}
+                {actionUpdates.map((u: any) => {
+                  const Icon = getTimelineIcon(u.action_type);
+                  const color = getTimelineColor(u.action_type);
+                  return (
+                    <div key={u.id} className="timeline-item">
+                      <div className="timeline-icon" style={{ background: `${color}15`, color }}>
+                        <Icon size={16} />
+                      </div>
+                      <div className="timeline-content">
+                        <p>{u.action_type?.replace(/_/g, " ")}</p>
+                        {u.description && <p className="timeline-desc">{u.description}</p>}
+                        <p className="timeline-time">{formatDate(u.created_at)}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p style={{ fontSize: 14, fontWeight: 500, textTransform: "capitalize" }}>
-                        {u.action_type?.replace(/_/g, " ")}
-                      </p>
-                      <p style={{ fontSize: 13, color: "var(--gray-500)" }}>
-                        {u.description || ""}
-                      </p>
-                      <p style={{ fontSize: 11, color: "var(--gray-400)", marginTop: 2 }}>
-                        {formatDate(u.created_at)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
 
           <div>
-            <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card" style={{ marginBottom: 24 }}>
               <div className="report-info-section">
-                <h3>Resident Info</h3>
+                <h3><Shield size={12} style={{ marginRight: 4 }} /> Resident Info</h3>
                 <p><strong>Name:</strong> {report.resident?.full_name || "Unknown"}</p>
                 <p><strong>Phone:</strong> {report.resident?.phone_number || "—"}</p>
                 <p><strong>Address:</strong> {report.resident?.address || "—"}</p>
               </div>
             </div>
 
-            <div className="card" style={{ marginBottom: 20 }}>
+            <div className="card" style={{ marginBottom: 24 }}>
               <div className="report-info-section">
                 <h3>Status Actions</h3>
               </div>
               <div className="report-action-buttons">
-                {STATUSES.map((s) => (
-                  <button
-                    key={s}
-                    className={`btn btn-sm ${report.status === s ? "btn-primary" : "btn-outline"}`}
-                    onClick={() => updateStatus(s)}
-                    disabled={updating || report.status === s}
-                    style={{ textTransform: "capitalize" }}
-                  >
-                    {s === "in-progress" ? "Accept" : s === "under-review" ? "Review" : s}
-                  </button>
-                ))}
+                {STATUSES.map((s) => {
+                  const Icon = statusIcons[s] || Clock;
+                  const isActive = report.status === s;
+                  return (
+                    <button
+                      key={s}
+                      className={`btn btn-sm ${isActive ? "btn-primary" : "btn-outline"}`}
+                      onClick={() => updateStatus(s)}
+                      disabled={updating || isActive}
+                      style={{ textTransform: "capitalize" }}
+                    >
+                      <Icon size={14} />
+                      {s === "in-progress" ? "Accept" : s === "under-review" ? "Review" : s}
+                    </button>
+                  );
+                })}
               </div>
               {report.status !== NEEDS_BACKUP && report.status !== "resolved" && (
-                <div style={{ marginTop: 12 }}>
+                <div style={{ marginTop: 14 }}>
                   <button
                     className="btn btn-sm btn-danger"
                     onClick={() => updateStatus(NEEDS_BACKUP)}
                     disabled={updating}
                   >
-                    🆘 Request Backup
+                    <AlertTriangle size={14} /> Request Backup
                   </button>
                 </div>
               )}
               {report.status === NEEDS_BACKUP && (
                 <div
                   style={{
-                    marginTop: 12,
-                    padding: "10px 14px",
-                    background: "#FEF2F2",
-                    borderRadius: 8,
-                    color: "var(--red)",
+                    marginTop: 14,
+                    padding: "12px 16px",
+                    background: "rgba(239,68,68,0.15)",
+                    borderRadius: "var(--radius-md)",
+                    color: "#F87171",
                     fontSize: 13,
                     fontWeight: 600,
                     display: "flex",
@@ -321,7 +328,8 @@ export default function ReportDetail() {
                     gap: 8,
                   }}
                 >
-                  🆘 Backup has been requested for this incident
+                  <AlertTriangle size={16} />
+                  Backup has been requested for this incident
                 </div>
               )}
             </div>
@@ -329,11 +337,11 @@ export default function ReportDetail() {
             {report.latitude && report.longitude && (
               <div className="card">
                 <div className="report-info-section">
-                  <h3>Location Map</h3>
+                  <h3><MapPin size={12} style={{ marginRight: 4 }} /> Location Map</h3>
                 </div>
                 <div
                   id="report-map"
-                  style={{ width: "100%", height: 250, borderRadius: 8 }}
+                  style={{ width: "100%", height: 250, borderRadius: "var(--radius-md)" }}
                 >
                   <MapView
                     latitude={report.latitude}

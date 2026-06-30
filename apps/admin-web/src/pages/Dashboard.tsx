@@ -2,6 +2,16 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import type { DashboardStats } from "../types";
+import { FileText, Clock, Shield, CheckCircle, Users, Megaphone, ArrowRight } from "lucide-react";
+
+const statConfig = [
+  { key: "totalReports", label: "Total Reports", icon: FileText, color: "#60A5FA", bg: "rgba(37,107,235,0.15)", link: "/reports" },
+  { key: "pendingReports", label: "Pending Reports", icon: Clock, color: "#FBBF24", bg: "rgba(245,158,11,0.15)", link: "/reports" },
+  { key: "totalOfficers", label: "Active Officers", icon: Shield, color: "#60A5FA", bg: "rgba(37,107,235,0.15)", link: null },
+  { key: "resolvedReports", label: "Resolved Reports", icon: CheckCircle, color: "#34D399", bg: "rgba(16,185,129,0.15)", link: null },
+  { key: "totalResidents", label: "Total Residents", icon: Users, color: "#A78BFA", bg: "rgba(139,92,246,0.15)", link: null },
+  { key: "totalAnnouncements", label: "Announcements", icon: Megaphone, color: "#34D399", bg: "rgba(16,185,129,0.15)", link: "/announcements" },
+];
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -106,43 +116,30 @@ export default function Dashboard() {
       </div>
       <div className="page-body">
         <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-icon" style={{ background: "#EFF6FF", color: "#1D4ED8" }}>📋</div>
-            <div className="stat-label">Total Reports</div>
-            <div className="stat-value">{stats?.totalReports ?? 0}</div>
-          </div>
-          <div className="stat-card" onClick={() => navigate("/reports")} style={{ cursor: "pointer" }}>
-            <div className="stat-icon" style={{ background: "#FEF3C7", color: "#D97706" }}>⏳</div>
-            <div className="stat-label">Pending Reports</div>
-            <div className="stat-value">{stats?.pendingReports ?? 0}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon" style={{ background: "#DBEAFE", color: "#2563EB" }}>🚨</div>
-            <div className="stat-label">Active Officers</div>
-            <div className="stat-value">{stats?.totalOfficers ?? 0}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon" style={{ background: "#D1FAE5", color: "#059669" }}>✅</div>
-            <div className="stat-label">Resolved Reports</div>
-            <div className="stat-value">{stats?.resolvedReports ?? 0}</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon" style={{ background: "#F5F3FF", color: "#7C3AED" }}>👥</div>
-            <div className="stat-label">Total Residents</div>
-            <div className="stat-value">{stats?.totalResidents ?? 0}</div>
-          </div>
-          <div className="stat-card" onClick={() => navigate("/announcements")} style={{ cursor: "pointer" }}>
-            <div className="stat-icon" style={{ background: "#ECFDF5", color: "#059669" }}>📢</div>
-            <div className="stat-label">Announcements</div>
-            <div className="stat-value">{stats?.totalAnnouncements ?? 0}</div>
-          </div>
+          {statConfig.map((cfg) => {
+            const value = stats ? (stats as any)[cfg.key] ?? 0 : 0;
+            const Icon = cfg.icon;
+            return (
+              <div
+                key={cfg.key}
+                className={`stat-card${cfg.link ? " clickable" : ""}`}
+                onClick={cfg.link ? () => navigate(cfg.link) : undefined}
+              >
+                <div className="stat-icon" style={{ background: cfg.bg, color: cfg.color }}>
+                  <Icon size={20} />
+                </div>
+                <div className="stat-label">{cfg.label}</div>
+                <div className="stat-value">{value}</div>
+              </div>
+            );
+          })}
         </div>
 
         <div className="card">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
             <h3 style={{ fontSize: 16, fontWeight: 700 }}>Recent Reports</h3>
             <button className="btn btn-sm btn-outline" onClick={() => navigate("/reports")}>
-              View All
+              View All <ArrowRight size={14} />
             </button>
           </div>
           {recentReports.length > 0 ? (
@@ -158,8 +155,10 @@ export default function Dashboard() {
                 </thead>
                 <tbody>
                   {recentReports.map((r) => (
-                    <tr key={r.id} onClick={() => navigate(`/reports/${r.id}`)} style={{ cursor: "pointer" }}>
-                      <td style={{ textTransform: "capitalize" }}>{r.crime_type?.replace(/-/g, " ")}</td>
+                    <tr key={r.id} className="clickable-row" onClick={() => navigate(`/reports/${r.id}`)}>
+                      <td style={{ textTransform: "capitalize", fontWeight: 600 }}>
+                        {r.crime_type?.replace(/-/g, " ")}
+                      </td>
                       <td>{r.resident?.full_name || "Unknown"}</td>
                       <td>
                         <span className={`badge badge-${r.status}`}>{r.status}</span>
@@ -172,7 +171,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <div className="empty-state">
-              <div className="icon">📋</div>
+              <div className="empty-icon"><FileText size={24} /></div>
               <h3>No Reports Yet</h3>
               <p>Reports from residents will appear here</p>
             </div>

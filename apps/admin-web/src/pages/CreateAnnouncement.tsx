@@ -2,11 +2,14 @@ import { useState, useEffect, useRef, FormEvent } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
+import { ArrowLeft, Image, Plus, MapPin, Save, X } from "lucide-react";
 
 export default function CreateAnnouncement() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { toast } = useToast();
   const isEditing = !!id;
 
   const [title, setTitle] = useState("");
@@ -15,7 +18,7 @@ export default function CreateAnnouncement() {
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [existingImageUrls, setExistingImageUrls] = useState<string[]>([]);
-  const [videoUrls, setVideoUrls] = useState<string[]>([]);
+  const [videoUrls, setVideoUrls] = useState<string[]>([""]);
   const [locationName, setLocationName] = useState<string>("");
   const [latitude, setLatitude] = useState<string>("");
   const [longitude, setLongitude] = useState<string>("");
@@ -186,12 +189,14 @@ export default function CreateAnnouncement() {
           .update(payload)
           .eq("id", id);
         if (updateError) throw new Error("Update failed: " + updateError.message);
+        toast("Announcement updated", "success");
       } else {
         payload.created_at = new Date().toISOString();
         const { error: insertError } = await supabase
           .from("announcements")
           .insert(payload);
         if (insertError) throw new Error("Create failed: " + insertError.message);
+        toast("Announcement published", "success");
       }
 
       navigate("/announcements");
@@ -207,18 +212,14 @@ export default function CreateAnnouncement() {
       <div className="page-header">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <button className="btn btn-sm btn-outline" onClick={() => navigate("/announcements")}>
-            ← Back
+            <ArrowLeft size={16} /> Back
           </button>
           <h2>{isEditing ? "Edit Announcement" : "Create Announcement"}</h2>
         </div>
       </div>
       <div className="page-body">
         <div className="card" style={{ maxWidth: 800 }}>
-          {error && (
-            <div style={{ padding: "10px 14px", background: "#FEE2E2", color: "var(--red)", borderRadius: 8, fontSize: 13, marginBottom: 16 }}>
-              {error}
-            </div>
-          )}
+          {error && <div className="form-error"><X size={16} /> {error}</div>}
 
           <form onSubmit={handleSubmit}>
             <div className="form-group">
@@ -246,27 +247,27 @@ export default function CreateAnnouncement() {
             <div className="form-group">
               <label>Images</label>
               <label className="file-upload-btn">
-                📷 Add Images
+                <Image size={16} /> Add Images
                 <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageSelect} />
               </label>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
                 {existingImageUrls.map((url, i) => (
                   <div key={`exist-${i}`} className="image-preview">
                     <img src={url} alt="" />
-                    <button type="button" className="remove-image" onClick={() => removeExistingImage(i)}>×</button>
+                    <button type="button" className="remove-image" onClick={() => removeExistingImage(i)}><X size={12} /></button>
                   </div>
                 ))}
                 {imagePreviews.map((preview, i) => (
                   <div key={`new-${i}`} className="image-preview">
                     <img src={preview} alt="" />
-                    <button type="button" className="remove-image" onClick={() => removeNewImage(i)}>×</button>
+                    <button type="button" className="remove-image" onClick={() => removeNewImage(i)}><X size={12} /></button>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="form-group">
-              <label>Videos</label>
+              <label>Video URLs</label>
               {videoUrls.map((url, i) => (
                 <div key={i} style={{ display: "flex", gap: 8, marginBottom: 8 }}>
                   <input
@@ -277,11 +278,13 @@ export default function CreateAnnouncement() {
                     style={{ flex: 1 }}
                   />
                   {videoUrls.length > 1 && (
-                    <button type="button" className="btn btn-sm btn-danger" onClick={() => removeVideoField(i)}>×</button>
+                    <button type="button" className="btn btn-sm btn-danger" onClick={() => removeVideoField(i)}><X size={16} /></button>
                   )}
                 </div>
               ))}
-              <button type="button" className="btn btn-sm btn-outline" onClick={addVideoField}>+ Add Another Video</button>
+              <button type="button" className="btn btn-sm btn-outline" onClick={addVideoField}>
+                <Plus size={14} /> Add Another Video
+              </button>
             </div>
 
             <div className="form-group">
@@ -298,14 +301,17 @@ export default function CreateAnnouncement() {
                 </div>
               </div>
               {!useMapPicker ? (
-                <button type="button" className="btn btn-sm btn-outline" onClick={initMapPicker} style={{ marginTop: 4 }}>🗺️ Pick from Map</button>
+                <button type="button" className="btn btn-sm btn-outline" onClick={initMapPicker} style={{ marginTop: 4 }}>
+                  <MapPin size={14} /> Pick from Map
+                </button>
               ) : (
                 <div id="location-picker-map" className="location-picker-map" />
               )}
             </div>
 
-            <div style={{ display: "flex", gap: 12, marginTop: 24 }}>
+            <div style={{ display: "flex", gap: 12, marginTop: 28 }}>
               <button type="submit" className="btn btn-primary" disabled={submitting}>
+                <Save size={16} />
                 {submitting ? "Saving..." : isEditing ? "Update Announcement" : "Publish Announcement"}
               </button>
               <button type="button" className="btn btn-outline" onClick={() => navigate("/announcements")}>Cancel</button>

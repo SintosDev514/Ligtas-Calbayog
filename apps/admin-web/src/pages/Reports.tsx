@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import type { CrimeReport } from "../types";
+import { Search, Filter, FileText, ChevronLeft, ChevronRight } from "lucide-react";
+
+const ITEMS_PER_PAGE = 15;
 
 export default function Reports() {
   const navigate = useNavigate();
@@ -9,6 +12,7 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     loadReports();
@@ -71,6 +75,13 @@ export default function Reports() {
     return true;
   });
 
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paged = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, search]);
+
   if (loading) {
     return (
       <div className="page-body" style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
@@ -89,6 +100,7 @@ export default function Reports() {
       </div>
       <div className="page-body">
         <div className="filters-bar">
+          <Filter size={16} style={{ color: "var(--gray-400)" }} />
           <select
             className="filter-select"
             value={filter}
@@ -102,62 +114,95 @@ export default function Reports() {
             <option value="dismissed">Dismissed</option>
             <option value="cancelled">Cancelled</option>
           </select>
-          <input
-            className="search-input"
-            placeholder="Search by type, resident, description..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <span style={{ fontSize: 13, color: "var(--gray-400)" }}>
-            {filtered.length} results
-          </span>
+          <div style={{ position: "relative", flex: 1, minWidth: 220 }}>
+            <Search size={16} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--gray-400)" }} />
+            <input
+              className="search-input"
+              style={{ paddingLeft: 36 }}
+              placeholder="Search by type, resident, description..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <span className="filter-count">{filtered.length} results</span>
         </div>
 
         {filtered.length > 0 ? (
-          <div className="table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Crime Type</th>
-                  <th>Resident</th>
-                  <th>Location</th>
-                  <th>Status</th>
-                  <th>Date</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => (
-                  <tr
-                    key={r.id}
-                    onClick={() => navigate(`/reports/${r.id}`)}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <td style={{ textTransform: "capitalize", fontWeight: 600 }}>
-                      {r.crime_type?.replace(/-/g, " ")}
-                    </td>
-                    <td>
-                      <div style={{ fontWeight: 500 }}>{r.resident?.full_name || "Unknown"}</div>
-                      <div style={{ fontSize: 12, color: "var(--gray-400)" }}>
-                        {r.resident?.phone_number || ""}
-                      </div>
-                    </td>
-                    <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {r.location_address || `${r.latitude?.toFixed(4)}, ${r.longitude?.toFixed(4)}` || "—"}
-                    </td>
-                    <td>
-                      <span className={`badge badge-${r.status}`}>{r.status}</span>
-                    </td>
-                    <td style={{ color: "var(--gray-400)", fontSize: 13 }}>
-                      {formatDate(r.created_at)}
-                    </td>
+          <>
+            <div className="table-container">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Crime Type</th>
+                    <th>Resident</th>
+                    <th>Location</th>
+                    <th>Status</th>
+                    <th>Date</th>
                   </tr>
+                </thead>
+                <tbody>
+                  {paged.map((r) => (
+                    <tr
+                      key={r.id}
+                      className="clickable-row"
+                      onClick={() => navigate(`/reports/${r.id}`)}
+                    >
+                      <td style={{ textTransform: "capitalize", fontWeight: 600 }}>
+                        {r.crime_type?.replace(/-/g, " ")}
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 500 }}>{r.resident?.full_name || "Unknown"}</div>
+                        <div style={{ fontSize: 12, color: "var(--gray-400)" }}>
+                          {r.resident?.phone_number || ""}
+                        </div>
+                      </td>
+                      <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {r.location_address || `${r.latitude?.toFixed(4)}, ${r.longitude?.toFixed(4)}` || "—"}
+                      </td>
+                      <td>
+                        <span className={`badge badge-${r.status}`}>{r.status}</span>
+                      </td>
+                      <td style={{ color: "var(--gray-400)", fontSize: 13 }}>
+                        {formatDate(r.created_at)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {totalPages > 1 && (
+              <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 20 }}>
+                <button
+                  className="btn btn-sm btn-outline"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    className={`btn btn-sm ${p === page ? "btn-primary" : "btn-ghost"}`}
+                    onClick={() => setPage(p)}
+                    style={{ minWidth: 36 }}
+                  >
+                    {p}
+                  </button>
                 ))}
-              </tbody>
-            </table>
-          </div>
+                <button
+                  className="btn btn-sm btn-outline"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                >
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="empty-state">
-            <div className="icon">📋</div>
+            <div className="empty-icon"><FileText size={24} /></div>
             <h3>No reports found</h3>
             <p>
               {filter !== "all" || search

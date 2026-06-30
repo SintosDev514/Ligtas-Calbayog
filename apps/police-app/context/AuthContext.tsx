@@ -9,6 +9,7 @@ interface PoliceProfile {
   station: string;
   phone_number: string | null;
   police_id_photo_url: string | null;
+  photo_url: string | null;
 }
 
 interface AuthContextType {
