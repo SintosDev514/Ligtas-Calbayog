@@ -20,20 +20,23 @@ const navGroups = [
     ],
   },
   {
+    label: "OPERATIONS",
+    items: [
+      { path: "/police-tracking", label: "Operations Map", icon: MapPin },
+      { path: "/patrol-units", label: "Patrol Units", icon: Shield },
+      { path: "/patrol-history", label: "Patrol History", icon: History },
+      { path: "/shift-schedule", label: "Shift Schedule", icon: Calendar },
+    ],
+  },
+  {
     label: "INCIDENTS",
     items: [
       { path: "/reports", label: "Reports", icon: FileText },
       { path: "/active-incidents", label: "Active Incidents", icon: AlertTriangle },
       { path: "/resolved-cases", label: "Resolved Cases", icon: CheckCircle },
-    ],
-  },
-  {
-    label: "OPERATIONS",
-    items: [
-      { path: "/police-tracking", label: "Police Tracking", icon: MapPin },
-      { path: "/patrol-units", label: "Patrol Units", icon: Shield },
-      { path: "/patrol-history", label: "Patrol History", icon: History },
-      { path: "/shift-schedule", label: "Shift Schedule", icon: Calendar },
+      { path: "/crime-statistics", label: "Crime Statistics", icon: BarChart3 },
+      { path: "/crime-heatmap", label: "Crime Heatmap", icon: Map },
+      { path: "/response-time", label: "Response Time", icon: Timer },
     ],
   },
   {
@@ -42,14 +45,6 @@ const navGroups = [
       { path: "/police-officers", label: "Police Officers", icon: Users },
       { path: "/duty-assignment", label: "Duty Assignment", icon: ClipboardList },
       { path: "/performance", label: "Performance", icon: TrendingUp },
-    ],
-  },
-  {
-    label: "ANALYTICS",
-    items: [
-      { path: "/crime-statistics", label: "Crime Statistics", icon: BarChart3 },
-      { path: "/crime-heatmap", label: "Crime Heatmap", icon: Map },
-      { path: "/response-time", label: "Response Time", icon: Timer },
     ],
   },
   {
