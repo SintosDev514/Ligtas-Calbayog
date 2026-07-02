@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
-import { ArrowLeft, AlertTriangle, MapPin, Clock, CheckCircle, XCircle, MessageSquare, Car, Shield, Eye } from "lucide-react";
+import {
+  ArrowLeft, AlertTriangle, MapPin, Clock, CheckCircle, XCircle,
+  MessageSquare, Car, Shield, Eye, Phone, User,
+  Image as ImageIcon, ExternalLink, Maximize2, X, Calendar, ImageOff
+} from "lucide-react";
 
 const STATUSES = [
   "pending",
@@ -13,12 +17,39 @@ const STATUSES = [
 
 const NEEDS_BACKUP = "needs-backup";
 
+const statusColors: Record<string, { bg: string; text: string; border: string }> = {
+  pending: { bg: "rgba(245,158,11,0.12)", text: "#d97706", border: "rgba(245,158,11,0.25)" },
+  "under-review": { bg: "rgba(37,107,235,0.12)", text: "#2563eb", border: "rgba(37,107,235,0.25)" },
+  "in-progress": { bg: "rgba(139,92,246,0.12)", text: "#7c3aed", border: "rgba(139,92,246,0.25)" },
+  resolved: { bg: "rgba(16,185,129,0.12)", text: "#059669", border: "rgba(16,185,129,0.25)" },
+  dismissed: { bg: "rgba(100,116,139,0.12)", text: "#64748b", border: "rgba(100,116,139,0.25)" },
+  "needs-backup": { bg: "rgba(239,68,68,0.12)", text: "#dc2626", border: "rgba(239,68,68,0.25)" },
+};
+
 const statusIcons: Record<string, typeof Clock> = {
   pending: Clock,
   "under-review": Eye,
   "in-progress": Car,
   resolved: CheckCircle,
   dismissed: XCircle,
+};
+
+const getTimelineIcon = (type: string) => {
+  switch (type) {
+    case "dispatched": return Car;
+    case "backup_requested": return AlertTriangle;
+    case "resolved": return CheckCircle;
+    default: return Clock;
+  }
+};
+
+const getTimelineColor = (type: string) => {
+  switch (type) {
+    case "dispatched": return "#7c3aed";
+    case "backup_requested": return "#dc2626";
+    case "resolved": return "#059669";
+    default: return "#94a3b8";
+  }
 };
 
 export default function ReportDetail() {
@@ -29,6 +60,8 @@ export default function ReportDetail() {
   const [actionUpdates, setActionUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (!id) return;
@@ -129,28 +162,27 @@ export default function ReportDetail() {
       minute: "2-digit",
     });
 
-  const getTimelineIcon = (type: string) => {
-    switch (type) {
-      case "dispatched": return Car;
-      case "backup_requested": return AlertTriangle;
-      case "resolved": return CheckCircle;
-      default: return Clock;
-    }
-  };
+  const formatDateShort = (d: string) =>
+    new Date(d).toLocaleDateString("en-PH", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
 
-  const getTimelineColor = (type: string) => {
-    switch (type) {
-      case "dispatched": return "#2563EB";
-      case "backup_requested": return "#DC2626";
-      case "resolved": return "#16A34A";
-      default: return "#94A3B8";
-    }
+  const formatTime = (d: string) =>
+    new Date(d).toLocaleTimeString("en-PH", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const openInMaps = (lat: number, lng: number) => {
+    window.open(`https://www.google.com/maps?q=${lat},${lng}`, "_blank");
   };
 
   if (loading) {
     return (
       <div className="page-body" style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
-        <div className="spinner" />
+        <div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
       </div>
     );
   }
@@ -161,7 +193,7 @@ export default function ReportDetail() {
         <div className="page-header">
           <h2>Report Not Found</h2>
         </div>
-        <div className="page-body">
+      <div className="page-body rd-page-body">
           <div className="empty-state">
             <div className="empty-icon"><AlertTriangle size={24} /></div>
             <h3>Report not found</h3>
@@ -174,186 +206,270 @@ export default function ReportDetail() {
     );
   }
 
+  const photoUrls: string[] = report.photo_url
+    ? report.photo_url.split(",").map((u: string) => u.trim()).filter(Boolean)
+    : [];
+
   const StatusIcon = statusIcons[report.status] || Clock;
+  const sc = statusColors[report.status] || statusColors.dismissed;
 
   return (
     <>
       <div className="page-header">
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div className="rd-header-left">
           <button className="btn btn-sm btn-outline" onClick={() => navigate("/reports")}>
-            <ArrowLeft size={16} /> Back
+            <ArrowLeft size={15} /> Back
           </button>
-          <h2 style={{ textTransform: "capitalize" }}>
-            {report.crime_type?.replace(/-/g, " ")}
-          </h2>
-          <span className={`badge badge-${report.status}`}>
-            <StatusIcon size={11} /> {report.status}
+          <h2 className="rd-title">{report.crime_type?.replace(/-/g, " ")}</h2>
+          <span className={`rd-badge rd-badge-${report.status}`}>
+            <StatusIcon size={12} />
+            {report.status?.replace("-", " ")}
           </span>
         </div>
-        <span style={{ fontSize: 13, color: "var(--gray-400)" }}>
-          {formatDate(report.created_at)}
-        </span>
+        <span className="rd-header-date">{formatDate(report.created_at)}</span>
       </div>
-      <div className="page-body">
-        <div className="report-detail-grid">
-          <div>
-            <div className="card" style={{ marginBottom: 24 }}>
-              <div className="report-info-section">
-                <h3>Description</h3>
-                <p>{report.description || "No description provided"}</p>
-              </div>
-              {report.photo_url && (
-                <div className="report-info-section">
-                  <h3>Evidence Photo</h3>
-                  <img
-                    src={report.photo_url}
-                    alt="Report evidence"
-                    style={{ maxWidth: "100%", maxHeight: 400, borderRadius: "var(--radius-md)" }}
-                  />
-                </div>
-              )}
-              {report.location_address && (
-                <div className="report-info-section">
-                  <h3><MapPin size={12} style={{ marginRight: 4 }} /> Location</h3>
-                  <p>{report.location_address}</p>
-                  {report.latitude && report.longitude && (
-                    <p style={{ fontSize: 13, color: "var(--gray-400)", marginTop: 4 }}>
-                      {report.latitude.toFixed(6)}, {report.longitude.toFixed(6)}
-                    </p>
-                  )}
-                </div>
-              )}
-              <div className="report-info-section">
-                <h3>Share Live Location</h3>
-                <p>{report.share_live_location ? "Yes" : "No"}</p>
-              </div>
-            </div>
 
-            {feedback && (
-              <div className="card" style={{ marginBottom: 24 }}>
-                <div className="report-info-section">
-                  <h3><MessageSquare size={12} style={{ marginRight: 4 }} /> Police Feedback</h3>
-                  <p><strong>Officer:</strong> {feedback.officer_name || "N/A"}</p>
-                  <p><strong>Response:</strong> {feedback.response_message || "N/A"}</p>
-                  {feedback.estimated_arrival && (
-                    <p><strong>ETA:</strong> {feedback.estimated_arrival}</p>
-                  )}
-                  <p style={{ fontSize: 12, color: "var(--gray-400)", marginTop: 8 }}>
-                    {formatDate(feedback.created_at)}
-                  </p>
+      <div className="page-body rd-page-body">
+        <div className="rd-layout">
+          <div className="rd-main">
+            {photoUrls.length > 0 && (
+              <div className="rd-card rd-card-media" style={{ "--rd-accent": "#6366f1" } as React.CSSProperties}>
+                <div className="rd-card-head">
+                  <ImageIcon size={13} />
+                  <span>Evidence Photos</span>
+                  <span className="rd-card-badge">{photoUrls.length}</span>
                 </div>
-              </div>
-            )}
-
-            {actionUpdates.length > 0 && (
-              <div className="card" style={{ marginBottom: 24 }}>
-                <div className="report-info-section">
-                  <h3>Action Timeline</h3>
-                </div>
-                {actionUpdates.map((u: any) => {
-                  const Icon = getTimelineIcon(u.action_type);
-                  const color = getTimelineColor(u.action_type);
-                  return (
-                    <div key={u.id} className="timeline-item">
-                      <div className="timeline-icon" style={{ background: `${color}15`, color }}>
-                        <Icon size={16} />
-                      </div>
-                      <div className="timeline-content">
-                        <p>{u.action_type?.replace(/_/g, " ")}</p>
-                        {u.description && <p className="timeline-desc">{u.description}</p>}
-                        <p className="timeline-time">{formatDate(u.created_at)}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="card" style={{ marginBottom: 24 }}>
-              <div className="report-info-section">
-                <h3><Shield size={12} style={{ marginRight: 4 }} /> Resident Info</h3>
-                <p><strong>Name:</strong> {report.resident?.full_name || "Unknown"}</p>
-                <p><strong>Phone:</strong> {report.resident?.phone_number || "—"}</p>
-                <p><strong>Address:</strong> {report.resident?.address || "—"}</p>
-              </div>
-            </div>
-
-            <div className="card" style={{ marginBottom: 24 }}>
-              <div className="report-info-section">
-                <h3>Status Actions</h3>
-              </div>
-              <div className="report-action-buttons">
-                {STATUSES.map((s) => {
-                  const Icon = statusIcons[s] || Clock;
-                  const isActive = report.status === s;
-                  return (
-                    <button
-                      key={s}
-                      className={`btn btn-sm ${isActive ? "btn-primary" : "btn-outline"}`}
-                      onClick={() => updateStatus(s)}
-                      disabled={updating || isActive}
-                      style={{ textTransform: "capitalize" }}
+                <div className={`rd-photo-grid ${photoUrls.length === 1 ? "single" : ""}`}>
+                  {photoUrls.slice(0, 4).map((url, i) => (
+                    <div
+                      key={i}
+                      className="rd-photo-item"
+                      onClick={() => !failedImages.has(i) && setLightboxUrl(url)}
                     >
-                      <Icon size={14} />
-                      {s === "in-progress" ? "Accept" : s === "under-review" ? "Review" : s}
-                    </button>
-                  );
-                })}
+                      {failedImages.has(i) ? (
+                        <div className="rd-photo-failed" title={url}>
+                          <ImageOff size={18} />
+                        </div>
+                      ) : (
+                        <>
+                          <img
+                            src={url}
+                            alt={`Evidence ${i + 1}`}
+                            onError={() => setFailedImages((prev) => new Set(prev).add(i))}
+                          />
+                          <div className="rd-photo-zoom"><Maximize2 size={13} /></div>
+                        </>
+                      )}
+                      {i === 3 && photoUrls.length > 4 && (
+                        <div className="rd-photo-overlay">+{photoUrls.length - 4}</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-              {report.status !== NEEDS_BACKUP && report.status !== "resolved" && (
-                <div style={{ marginTop: 14 }}>
-                  <button
-                    className="btn btn-sm btn-danger"
-                    onClick={() => updateStatus(NEEDS_BACKUP)}
-                    disabled={updating}
-                  >
-                    <AlertTriangle size={14} /> Request Backup
-                  </button>
-                </div>
-              )}
-              {report.status === NEEDS_BACKUP && (
-                <div
-                  style={{
-                    marginTop: 14,
-                    padding: "12px 16px",
-                    background: "rgba(239,68,68,0.15)",
-                    borderRadius: "var(--radius-md)",
-                    color: "#F87171",
-                    fontSize: 13,
-                    fontWeight: 600,
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 8,
-                  }}
-                >
-                  <AlertTriangle size={16} />
-                  Backup has been requested for this incident
-                </div>
-              )}
+            )}
+
+            <div className="rd-card rd-card-desc" style={{ "--rd-accent": "#0ea5e9" } as React.CSSProperties}>
+              <div className="rd-card-head">
+                <MessageSquare size={13} />
+                <span>Description</span>
+              </div>
+              <p className="rd-description">
+                {report.description || "No description provided."}
+              </p>
             </div>
 
-            {report.latitude && report.longitude && (
-              <div className="card">
-                <div className="report-info-section">
-                  <h3><MapPin size={12} style={{ marginRight: 4 }} /> Location Map</h3>
+            <div className="rd-card rd-card-location" style={{ "--rd-accent": "#f59e0b" } as React.CSSProperties}>
+              <div className="rd-card-head">
+                <MapPin size={13} />
+                <span>Location Details</span>
+              </div>
+              <div className="rd-location-info">
+                {report.location_address && (
+                  <div className="rd-loc-row">
+                    <span className="rd-loc-label">Address</span>
+                    <span className="rd-loc-value">{report.location_address}</span>
+                  </div>
+                )}
+                {report.latitude != null && report.longitude != null && (
+                  <div className="rd-loc-row">
+                    <span className="rd-loc-label">Coordinates</span>
+                    <span className="rd-loc-value">
+                      {Number(report.latitude).toFixed(4)}, {Number(report.longitude).toFixed(4)}
+                    </span>
+                  </div>
+                )}
+                {report.latitude != null && report.longitude != null && (
+                  <div className="rd-loc-row">
+                    <span className="rd-loc-label">Google Maps</span>
+                    <button className="rd-loc-link" onClick={() => openInMaps(report.latitude, report.longitude)}>
+                      Open in Maps →
+                    </button>
+                  </div>
+                )}
+                <div className="rd-loc-row">
+                  <span className="rd-loc-label">Live Location</span>
+                  <span className={`rd-loc-tag ${report.share_live_location ? "on" : ""}`}>
+                    {report.share_live_location ? "Enabled" : "Disabled"}
+                  </span>
                 </div>
-                <div
-                  id="report-map"
-                  style={{ width: "100%", height: 250, borderRadius: "var(--radius-md)" }}
-                >
+              </div>
+              {report.latitude != null && report.longitude != null && (
+                <div className="rd-map-box" id="rd-map">
                   <MapView
                     latitude={report.latitude}
                     longitude={report.longitude}
                     label={report.crime_type?.replace(/-/g, " ")}
                   />
                 </div>
+              )}
+            </div>
+
+            {actionUpdates.length > 0 && (
+              <div className="rd-card rd-card-timeline" style={{ "--rd-accent": "#8b5cf6" } as React.CSSProperties}>
+                <div className="rd-card-head">
+                  <Clock size={13} />
+                  <span>Action Timeline</span>
+                  <span className="rd-card-badge">{actionUpdates.length}</span>
+                </div>
+                <div className="rd-timeline">
+                  {actionUpdates.map((u: any, i: number) => {
+                    const Icon = getTimelineIcon(u.action_type);
+                    const color = getTimelineColor(u.action_type);
+                    const isLast = i === actionUpdates.length - 1;
+                    return (
+                      <div key={u.id} className="rd-tl-item">
+                        <div className="rd-tl-track">
+                          <div className="rd-tl-dot" style={{ borderColor: color }} />
+                          {!isLast && <div className="rd-tl-line" style={{ background: color }} />}
+                        </div>
+                        <div className="rd-tl-body">
+                          <div className="rd-tl-top">
+                            <span className="rd-tl-action">{u.action_type?.replace(/_/g, " ")}</span>
+                            <span className="rd-tl-time">
+                              {formatDateShort(u.created_at)} at {formatTime(u.created_at)}
+                            </span>
+                          </div>
+                          {u.description && <p className="rd-tl-desc">{u.description}</p>}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="rd-side">
+            <div className="rd-card rd-card-status" style={{ "--rd-accent": sc.text } as React.CSSProperties}>
+              <div className="rd-card-head">
+                <Shield size={13} />
+                <span>Status</span>
+              </div>
+              <div className="rd-status-hero" style={{ background: sc.bg, borderColor: sc.border }}>
+                <StatusIcon size={18} />
+                <span>{report.status?.replace("-", " ")}</span>
+              </div>
+              <div className="rd-status-meta">
+                <Calendar size={12} />
+                Reported {formatDateShort(report.created_at)}
+              </div>
+              <div className="rd-divider" />
+              <div className="rd-actions-grid">
+                {STATUSES.map((s) => {
+                  const Icon = statusIcons[s] || Clock;
+                  const isActive = report.status === s;
+                  const sColors = statusColors[s] || statusColors.dismissed;
+                  return (
+                    <button
+                      key={s}
+                      className={`rd-action-btn ${isActive ? "active" : ""}`}
+                      style={{
+                        "--act-bg": sColors.bg,
+                        "--act-clr": sColors.text,
+                        "--act-bdr": sColors.border,
+                      } as React.CSSProperties}
+                      onClick={() => updateStatus(s)}
+                      disabled={updating || isActive}
+                    >
+                      <Icon size={12} />
+                      {s === "in-progress" ? "Accept" : s === "under-review" ? "Review" : s}
+                    </button>
+                  );
+                })}
+              </div>
+              {report.status !== NEEDS_BACKUP && report.status !== "resolved" && (
+                <button className="rd-danger-btn" onClick={() => updateStatus(NEEDS_BACKUP)} disabled={updating}>
+                  <AlertTriangle size={12} />
+                  Request Backup
+                </button>
+              )}
+              {report.status === NEEDS_BACKUP && (
+                <div className="rd-danger-alert">
+                  <AlertTriangle size={14} />
+                  Backup requested for this incident
+                </div>
+              )}
+            </div>
+
+            <div className="rd-card rd-card-resident" style={{ "--rd-accent": "#14b8a6" } as React.CSSProperties}>
+              <div className="rd-card-head">
+                <User size={13} />
+                <span>Resident</span>
+              </div>
+              <div className="rd-resident">
+                <div className="rd-res-avatar">
+                  {report.resident?.avatar_url || report.resident?.id_photo_url ? (
+                    <img src={report.resident.avatar_url || report.resident.id_photo_url} alt="" />
+                  ) : (
+                    <User size={16} />
+                  )}
+                </div>
+                <div className="rd-res-body">
+                  <div className="rd-res-name">{report.resident?.full_name || "Unknown"}</div>
+                  <div className="rd-res-row"><Phone size={10} />{report.resident?.phone_number || "—"}</div>
+                  <div className="rd-res-row"><MapPin size={10} />{report.resident?.address || "—"}</div>
+                </div>
+              </div>
+            </div>
+
+            {feedback && (
+              <div className="rd-card rd-card-feedback" style={{ "--rd-accent": "#ec4899" } as React.CSSProperties}>
+                <div className="rd-card-head">
+                  <MessageSquare size={13} />
+                  <span>Police Feedback</span>
+                </div>
+                <div className="rd-feedback">
+                  <div className="rd-fb-row">
+                    <span className="rd-fb-label">Officer</span>
+                    <span className="rd-fb-value">{feedback.officer_name || "N/A"}</span>
+                  </div>
+                  <div className="rd-fb-row">
+                    <span className="rd-fb-label">Response</span>
+                    <span className="rd-fb-value">{feedback.response_message || "N/A"}</span>
+                  </div>
+                  {feedback.estimated_arrival && (
+                    <div className="rd-fb-row">
+                      <span className="rd-fb-label">ETA</span>
+                      <span className="rd-fb-value">{feedback.estimated_arrival}</span>
+                    </div>
+                  )}
+                  <div className="rd-fb-date">{formatDate(feedback.created_at)}</div>
+                </div>
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {lightboxUrl && (
+        <div className="rd-lightbox" onClick={() => setLightboxUrl(null)}>
+          <button className="rd-lb-close" onClick={() => setLightboxUrl(null)}>
+            <X size={22} />
+          </button>
+          <img className="rd-lb-img" src={lightboxUrl} alt="" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
     </>
   );
 }
@@ -370,7 +486,7 @@ function MapView({
   useEffect(() => {
     let map: any = null;
     import("maplibre-gl").then((maplibregl) => {
-      const container = document.getElementById("report-map");
+      const container = document.getElementById("rd-map");
       if (!container) return;
       map = new maplibregl.Map({
         container,

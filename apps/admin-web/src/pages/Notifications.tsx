@@ -56,7 +56,7 @@ export default function Notifications() {
     }
   };
 
-  if (loading) return <div className="page-body"><div className="spinner" /></div>;
+  if (loading) return <div className="page-body"><div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>;
 
   return (
     <>

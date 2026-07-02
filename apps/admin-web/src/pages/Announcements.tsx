@@ -118,7 +118,7 @@ export default function Announcements() {
   if (loading) {
     return (
       <div className="page-body" style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
-        <div className="spinner" />
+        <div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
       </div>
     );
   }

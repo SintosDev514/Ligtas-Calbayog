@@ -36,6 +36,7 @@ export default function ReportsScreen() {
   const [policeLocation, setPoliceLocation] = useState<{latitude: number; longitude: number} | null>(null);
   const [alertBanner, setAlertBanner] = useState<string | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const soundLoaded = useRef(false);
   const activeAlertIds = useRef<Set<string>>(new Set());
   const locationWatchRef = useRef<any>(null);
   const locationIntervalRef = useRef<number | null>(null);
@@ -54,7 +55,10 @@ export default function ReportsScreen() {
           require("../../assets/emergency_alert.wav"),
           { volume: 1.0 },
         );
-        if (mounted) soundRef.current = sound;
+        if (mounted) {
+          soundRef.current = sound;
+          soundLoaded.current = true;
+        }
       } catch (e) {
         console.warn("Audio setup failed:", e);
       }
@@ -85,16 +89,17 @@ export default function ReportsScreen() {
     alertTimerRef.current = setTimeout(() => setAlertBanner(null), 5000);
 
     // Audio: manual loop with 1s gap between plays
-    const playLoop = async () => {
+    const playLoop = async (retries = 3) => {
       if (activeAlertIds.current.size === 0) return;
       try {
         const sound = soundRef.current;
-        if (sound) {
-          const status = await sound.getStatusAsync();
-          if (status.isLoaded) {
-            await sound.setPositionAsync(0);
-            await sound.playAsync();
-          }
+        if (sound && soundLoaded.current) {
+          await sound.stopAsync();
+          await sound.setPositionAsync(0);
+          await sound.playAsync();
+        } else if (retries > 0) {
+          setTimeout(() => playLoop(retries - 1), 500);
+          return;
         }
       } catch (e) {
         console.warn("Audio playback failed:", e);

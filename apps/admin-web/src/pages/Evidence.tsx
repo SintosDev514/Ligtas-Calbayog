@@ -31,7 +31,7 @@ export default function Evidence() {
   const totalPages = Math.ceil(reports.length / ITEMS_PER_PAGE);
   const paginated = reports.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
-  if (loading) return <div className="page-body"><div className="spinner" /></div>;
+  if (loading) return <div className="page-body"><div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>;
 
   return (
     <>

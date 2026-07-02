@@ -48,7 +48,7 @@ export default function Performance() {
     setLoading(false);
   };
 
-  if (loading) return <div className="page-body"><div className="spinner" /></div>;
+  if (loading) return <div className="page-body"><div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>;
 
   const resolveRate = stats.total > 0 ? Math.round((stats.resolved / stats.total) * 100) : 0;
 

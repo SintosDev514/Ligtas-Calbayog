@@ -18,6 +18,7 @@ import {
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { File } from "expo-file-system";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   CameraView,
@@ -300,30 +301,23 @@ export default function ReportScreen() {
   };
 
   const uploadReportMedia = async (uri: string, type: "image" | "video") => {
-    try {
-      const response = await fetch(uri);
-      const blob = await response.blob();
+    const ext = type === "video" ? "mp4" : "jpg";
+    const filename = `report-${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+    const contentType = type === "video" ? "video/mp4" : "image/jpeg";
 
-      const ext = type === "video" ? "mp4" : "jpg";
-      const filename = `report-${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
-      const contentType = type === "video" ? "video/mp4" : "image/jpeg";
+    const buffer = (await new File(uri).bytes()).buffer;
 
-      const { error } = await supabase.storage
-        .from("report-photos")
-        .upload(filename, blob, {
-          contentType,
-        });
+    const { error } = await supabase.storage
+      .from("report-photos")
+      .upload(filename, buffer, { contentType, upsert: true });
 
-      if (error) return null;
+    if (error) throw new Error(error.message);
 
-      const { data } = supabase.storage
-        .from("report-photos")
-        .getPublicUrl(filename);
+    const { data } = supabase.storage
+      .from("report-photos")
+      .getPublicUrl(filename);
 
-      return data.publicUrl;
-    } catch {
-      return null;
-    }
+    return data.publicUrl;
   };
 
   const handleSubmit = async () => {

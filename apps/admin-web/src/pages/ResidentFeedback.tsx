@@ -31,7 +31,7 @@ export default function ResidentFeedback() {
   const totalPages = Math.ceil(feedback.length / ITEMS_PER_PAGE);
   const paginated = feedback.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
-  if (loading) return <div className="page-body"><div className="spinner" /></div>;
+  if (loading) return <div className="page-body"><div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>;
 
   return (
     <>

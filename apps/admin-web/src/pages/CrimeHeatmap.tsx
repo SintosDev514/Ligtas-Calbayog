@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import { Map, MapPin, Layers, AlertTriangle } from "lucide-react";
 
 export default function CrimeHeatmap() {
+  const navigate = useNavigate();
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const [reports, setReports] = useState<any[]>([]);
@@ -131,12 +133,7 @@ export default function CrimeHeatmap() {
 
         map.on("click", "points", (e: any) => {
           const feature = e.features[0];
-          new (maplibre as any).Popup()
-            .setLngLat(feature.geometry.coordinates)
-            .setHTML(
-              `<strong>${feature.properties.crime_type}</strong><br/>Status: ${feature.properties.status}<br/>${feature.properties.time}`
-            )
-            .addTo(map);
+          navigate(`/reports/${feature.properties.id}`);
         });
       });
 
@@ -146,7 +143,7 @@ export default function CrimeHeatmap() {
     }
   };
 
-  if (loading) return <div className="page-body"><div className="spinner" /></div>;
+  if (loading) return <div className="page-body"><div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>;
 
   const crimesWithLocation = reports.length;
 

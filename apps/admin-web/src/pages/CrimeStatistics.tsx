@@ -50,7 +50,7 @@ export default function CrimeStatistics() {
     setLoading(false);
   };
 
-  if (loading) return <div className="page-body"><div className="spinner" /></div>;
+  if (loading) return <div className="page-body"><div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>;
 
   const resolveRate = stats.total > 0 ? Math.round((stats.resolved / stats.total) * 100) : 0;
   const maxType = byType.length > 0 ? Math.max(...byType.map((t) => t.count)) : 1;

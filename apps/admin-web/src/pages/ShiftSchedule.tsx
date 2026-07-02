@@ -22,7 +22,7 @@ export default function ShiftSchedule() {
     { name: "Night", icon: Moon, time: "22:00 - 06:00", color: "var(--blue)", bg: "rgba(37,99,235,0.1)", officers: officers.slice(Math.ceil(2 * officers.length / 3)) },
   ];
 
-  if (loading) return <div className="page-body"><div className="spinner" /></div>;
+  if (loading) return <div className="page-body"><div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>;
 
   return (
     <>

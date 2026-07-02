@@ -18,6 +18,7 @@ import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { File } from "expo-file-system";
 import {
   CameraView,
   useCameraPermissions,
@@ -88,27 +89,23 @@ export default function EmergencyReportScreen() {
   };
 
   const uploadReportMedia = async (uri: string, type: "image" | "video") => {
-    try {
-      const response = await fetch(uri);
-      const blob = await response.blob();
-      const ext = type === "video" ? "mp4" : "jpg";
-      const filename = `emergency-${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
-      const contentType = type === "video" ? "video/mp4" : "image/jpeg";
+    const ext = type === "video" ? "mp4" : "jpg";
+    const filename = `emergency-${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
+    const contentType = type === "video" ? "video/mp4" : "image/jpeg";
 
-      const { error } = await supabase.storage
-        .from("report-photos")
-        .upload(filename, blob, { contentType });
+    const buffer = (await new File(uri).bytes()).buffer;
 
-      if (error) return null;
+    const { error } = await supabase.storage
+      .from("report-photos")
+      .upload(filename, buffer, { contentType, upsert: true });
 
-      const { data } = supabase.storage
-        .from("report-photos")
-        .getPublicUrl(filename);
+    if (error) throw new Error(error.message);
 
-      return data.publicUrl;
-    } catch {
-      return null;
-    }
+    const { data } = supabase.storage
+      .from("report-photos")
+      .getPublicUrl(filename);
+
+    return data.publicUrl;
   };
 
   const handleSubmit = async () => {

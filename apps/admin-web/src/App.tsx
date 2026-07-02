@@ -34,7 +34,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   if (isLoading) {
     return (
       <div className="loading-screen">
-        <div className="spinner" />
+        <div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
         <p>Loading...</p>
       </div>
     );
@@ -53,7 +53,7 @@ export default function App() {
   if (isLoading) {
     return (
       <div className="loading-screen">
-        <div className="spinner" />
+        <div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
         <p>Loading...</p>
       </div>
     );

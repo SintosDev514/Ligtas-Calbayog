@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useAlarm } from "../context/AlarmContext";
 import {
@@ -80,13 +81,16 @@ const REPORT_EMERGENCY_TYPES = ["emergency", "robbery", "assault", "hit-and-run"
 
 export default function PoliceTracking() {
   const { alarmCount } = useAlarm();
+  const navigate = useNavigate();
+  const navigateRef = useRef(navigate);
+  navigateRef.current = navigate;
   const [officers, setOfficers] = useState<OfficerData[]>([]);
   const [residents, setResidents] = useState<ResidentData[]>([]);
   const [loading, setLoading] = useState(true);
   const [mapError, setMapError] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"all" | "police" | "residents">("all");
-  const [showSidebar, setShowSidebar] = useState(true);
+  const [showSidebar, setShowSidebar] = useState(false);
   const [showReportPanel, setShowReportPanel] = useState(false);
   const [reports, setReports] = useState<ReportDetail[]>([]);
   const [focusedReportId, setFocusedReportId] = useState<string | null>(null);
@@ -472,33 +476,14 @@ export default function PoliceTracking() {
         el.textContent = r.resident?.full_name?.charAt(0) || "?";
       }
 
-      const isEm = REPORT_EMERGENCY_TYPES.includes(r.crime_type?.toLowerCase());
-      const isPen = r.status === "pending";
-
-      const popup = new maplibregl.Popup({ offset: 25, maxWidth: "320px" }).setHTML(`
-        <div class="popup-content" style="padding:12px;font-family:inherit;">
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
-            ${isEm && isPen ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M12 2L2 22h20L12 2z"/><line x1="12" y1="10" x2="12" y2="16"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>' : ""}
-            <strong style="text-transform:capitalize;font-size:13px;">${r.crime_type?.replace(/-/g, " ")}</strong>
-            <span style="font-size:10px;padding:1px 6px;border-radius:4px;background:#dbeafe;color:#1e40af;text-transform:capitalize">${r.status}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:12px;">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-            <span>${r.resident?.full_name || "Unknown"}</span>
-          </div>
-          ${r.resident?.phone_number ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:12px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>${r.resident.phone_number}</div>` : ""}
-          ${r.location_address ? `<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:12px;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>${r.location_address}</div>` : ""}
-          ${r.share_live_location ? '<div style="font-size:11px;color:#059669;font-weight:600;margin-top:4px;">● Live Location Sharing</div>' : ""}
-          <div style="font-size:10px;color:#9ca3af;margin-top:6px;border-top:1px solid #e5e7eb;padding-top:6px;">
-            Reported: ${new Date(r.created_at).toLocaleDateString()} ${new Date(r.created_at).toLocaleTimeString()}
-          </div>
-        </div>
-      `);
-
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat([r.longitude, r.latitude])
-        .setPopup(popup)
         .addTo(mapRef.current);
+
+      el.style.cursor = "pointer";
+      el.addEventListener("click", () => {
+        navigateRef.current(`/reports/${r.id}`);
+      });
 
       markersRef.current.push(marker);
     }
@@ -556,7 +541,7 @@ export default function PoliceTracking() {
   if (loading) {
     return (
       <div className="page-body" style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
-        <div className="spinner" />
+        <div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
       </div>
     );
   }
