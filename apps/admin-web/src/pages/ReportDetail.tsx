@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import {
@@ -182,7 +182,19 @@ export default function ReportDetail() {
   if (loading) {
     return (
       <div className="page-body" style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
-        <div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+        <div aria-label="Loading..." role="status" className="loader">
+  <svg className="icon" viewBox="0 0 256 256">
+    <line x1="128" y1="32" x2="128" y2="64" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="195.9" y1="60.1" x2="173.3" y2="82.7" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="224" y1="128" x2="192" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="195.9" y1="195.9" x2="173.3" y2="173.3" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="128" y1="224" x2="128" y2="192" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="60.1" y1="195.9" x2="82.7" y2="173.3" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="32" y1="128" x2="64" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="60.1" y1="60.1" x2="82.7" y2="82.7" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+  </svg>
+  <span className="loading-text">Loading...</span>
+</div>
       </div>
     );
   }
@@ -315,7 +327,7 @@ export default function ReportDetail() {
                 </div>
               </div>
               {report.latitude != null && report.longitude != null && (
-                <div className="rd-map-box" id="rd-map">
+                <div className="rd-map-box">
                   <MapView
                     latitude={report.latitude}
                     longitude={report.longitude}
@@ -483,18 +495,18 @@ function MapView({
   longitude: number;
   label?: string;
 }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     let map: any = null;
     import("maplibre-gl").then((maplibregl) => {
-      const container = document.getElementById("rd-map");
-      if (!container) return;
+      if (!containerRef.current) return;
       map = new maplibregl.Map({
-        container,
+        container: containerRef.current,
         style: "https://tiles.openfreemap.org/styles/liberty",
         center: [longitude, latitude],
         zoom: 14,
       });
-      map.addControl(new maplibregl.NavigationControl(), "top-right");
       new maplibregl.Marker({ color: "#DC2626" })
         .setLngLat([longitude, latitude])
         .setPopup(
@@ -509,5 +521,5 @@ function MapView({
     };
   }, [latitude, longitude]);
 
-  return null;
+  return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
-import { Map, MapPin, Layers, AlertTriangle } from "lucide-react";
+import { Map, AlertTriangle } from "lucide-react";
 
 export default function CrimeHeatmap() {
   const navigate = useNavigate();
@@ -143,26 +143,35 @@ export default function CrimeHeatmap() {
     }
   };
 
-  if (loading) return <div className="page-body"><div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>;
-
-  const crimesWithLocation = reports.length;
+  if (loading) return <div className="page-body"><div aria-label="Loading..." role="status" className="loader">
+  <svg className="icon" viewBox="0 0 256 256">
+    <line x1="128" y1="32" x2="128" y2="64" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="195.9" y1="60.1" x2="173.3" y2="82.7" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="224" y1="128" x2="192" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="195.9" y1="195.9" x2="173.3" y2="173.3" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="128" y1="224" x2="128" y2="192" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="60.1" y1="195.9" x2="82.7" y2="173.3" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="32" y1="128" x2="64" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="60.1" y1="60.1" x2="82.7" y2="82.7" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+  </svg>
+  <span className="loading-text">Loading...</span>
+</div></div>;
 
   return (
-    <>
-      <div className="page-header">
-        <h2><Map size={22} /> Crime Heatmap</h2>
-        <span className="badge">{crimesWithLocation} points</span>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - var(--header-height, 64px))" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", background: "var(--gray-100)", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+        <h2 style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 700, color: "var(--gray-900)" }}>
+          <Map size={18} /> Crime Heatmap
+        </h2>
       </div>
-      <div className="page-body">
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <div ref={mapContainer} style={{ width: "100%", height: "calc(100vh - 200px)", minHeight: 500 }} />
-          {mapError && (
-            <div style={{ position: "absolute", top: 80, left: "50%", transform: "translateX(-50%)", background: "var(--red)", color: "#fff", padding: "10px 20px", borderRadius: 8, zIndex: 10 }}>
-              <AlertTriangle size={16} /> Map tiles could not be loaded
-            </div>
-          )}
-        </div>
+      <div style={{ position: "relative", flex: 1, minHeight: 0 }}>
+        <div ref={mapContainer} style={{ width: "100%", height: "100%" }} />
+        {mapError && (
+          <div style={{ position: "absolute", top: 20, left: "50%", transform: "translateX(-50%)", background: "var(--red)", color: "#fff", padding: "10px 20px", borderRadius: 8, zIndex: 10 }}>
+            <AlertTriangle size={16} /> Map tiles could not be loaded
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 }

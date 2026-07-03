@@ -94,7 +94,7 @@ export default function PoliceTracking() {
   const [showReportPanel, setShowReportPanel] = useState(false);
   const [reports, setReports] = useState<ReportDetail[]>([]);
   const [focusedReportId, setFocusedReportId] = useState<string | null>(null);
-  const [mapStyle, setMapStyle] = useState("liberty");
+  const [mapStyle, setMapStyle] = useState("dark");
   const satelliteStyle: any = {
     version: 8,
     sources: {
@@ -109,8 +109,8 @@ export default function PoliceTracking() {
   };
 
   const mapStyles = [
-    { id: "liberty", label: "Light", url: "https://tiles.openfreemap.org/styles/liberty", icon: Sun },
     { id: "dark", label: "Dark", url: "https://tiles.openfreemap.org/styles/dark", icon: Moon },
+    { id: "liberty", label: "Light", url: "https://tiles.openfreemap.org/styles/liberty", icon: Sun },
     { id: "satellite", label: "Satellite", url: satelliteStyle, icon: MapPin },
   ];
   const mapRef = useRef<any>(null);
@@ -541,7 +541,19 @@ export default function PoliceTracking() {
   if (loading) {
     return (
       <div className="page-body" style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
-        <div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div>
+        <div aria-label="Loading..." role="status" className="loader">
+  <svg className="icon" viewBox="0 0 256 256">
+    <line x1="128" y1="32" x2="128" y2="64" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="195.9" y1="60.1" x2="173.3" y2="82.7" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="224" y1="128" x2="192" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="195.9" y1="195.9" x2="173.3" y2="173.3" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="128" y1="224" x2="128" y2="192" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="60.1" y1="195.9" x2="82.7" y2="173.3" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="32" y1="128" x2="64" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="60.1" y1="60.1" x2="82.7" y2="82.7" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+  </svg>
+  <span className="loading-text">Loading...</span>
+</div>
       </div>
     );
   }

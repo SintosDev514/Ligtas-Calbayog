@@ -5,13 +5,35 @@ import { MapPin, Users, FileText, AlertTriangle, ChevronLeft, ChevronRight, Sear
 const ITEMS_PER_PAGE = 15;
 
 const BARANGAYS = [
-  "Bagacay", "Bantayan", "Binaliw", "Borobathon", "Cabilawan", "Calbayog",
+  "Bagacay", "Bantayan", "Binaliw", "Borobathon", "Cabilawan",
   "Canhabagat", "Caponayan", "Carayman", "Cogon", "Dalahican", "Danao",
   "Ginabuyan", "Jiabong", "Lagdagan", "Lalab", "Lampano", "Lantaw",
   "Lawaan", "Lonoy", "Lunao", "Mabini", "Malaga", "Malajog",
   "Maya", "Obrero", "Pajo", "Palanas", "Pangdan", "Rawis",
   "San Policarpo", "Santo Niño", "Tagumpay", "Tinambacan", "Tominamos", "Tugas",
 ];
+
+const getBarangay = (addr: string): string => {
+  const parts = (addr || "").toLowerCase().split(",").map(s => s.trim().replace(/^(brgy\.?\s*|barangay\s*|bgy\.?\s*|bray\.?\s*|purok\s+\d+\s*)/, ""));
+  for (const part of parts) {
+    for (const name of BARANGAYS) {
+      const n = name.toLowerCase();
+      if (part.includes(n) || n.includes(part)) return name;
+      const pWords = part.split(/\s+/).filter(w => w.length >= 4);
+      const nWords = n.split(/\s+/).filter(w => w.length >= 4);
+      for (const pw of pWords) {
+        for (const nw of nWords) {
+          let prefix = 0;
+          for (let i = 0; i < Math.min(pw.length, nw.length); i++) {
+            if (pw[i] === nw[i]) prefix++; else break;
+          }
+          if (prefix >= 5) return name;
+        }
+      }
+    }
+  }
+  return "Calbayog City";
+};
 
 export default function Barangays() {
   const [barangayStats, setBarangayStats] = useState<any[]>([]);
@@ -35,17 +57,11 @@ export default function Barangays() {
     for (const name of BARANGAYS) {
       stats[name] = { total: 0, resolved: 0, active: 0 };
     }
-    stats["Other"] = { total: 0, resolved: 0, active: 0 };
+    stats["Calbayog City"] = { total: 0, resolved: 0, active: 0 };
 
     for (const r of data || []) {
-      const addr = (r.location_address || "").toLowerCase();
-      let matched = "Other";
-      for (const name of BARANGAYS) {
-        if (addr.includes(name.toLowerCase())) {
-          matched = name;
-          break;
-        }
-      }
+      const matched = getBarangay(r.location_address);
+      if (!stats[matched]) stats[matched] = { total: 0, resolved: 0, active: 0 };
       stats[matched].total++;
       if (r.status === "resolved") stats[matched].resolved++;
       else stats[matched].active++;
@@ -63,7 +79,19 @@ export default function Barangays() {
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
-  if (loading) return <div className="page-body"><div className="honeycomb"><div></div><div></div><div></div><div></div><div></div><div></div><div></div></div></div>;
+  if (loading) return <div className="page-body"><div aria-label="Loading..." role="status" className="loader">
+  <svg className="icon" viewBox="0 0 256 256">
+    <line x1="128" y1="32" x2="128" y2="64" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="195.9" y1="60.1" x2="173.3" y2="82.7" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="224" y1="128" x2="192" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="195.9" y1="195.9" x2="173.3" y2="173.3" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="128" y1="224" x2="128" y2="192" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="60.1" y1="195.9" x2="82.7" y2="173.3" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="32" y1="128" x2="64" y2="128" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+    <line x1="60.1" y1="60.1" x2="82.7" y2="82.7" stroke-linecap="round" stroke-linejoin="round" stroke-width="24"></line>
+  </svg>
+  <span className="loading-text">Loading...</span>
+</div></div>;
 
   return (
     <>
@@ -83,8 +111,8 @@ export default function Barangays() {
         {paginated.length === 0 ? (
           <div className="empty-state">
             <div className="empty-icon"><MapPin size={40} /></div>
-            <h3>No barangay data</h3>
-            <p>Crime data will be grouped by barangay here.</p>
+            <h3>No barangay data found</h3>
+            <p>Crime reports will appear grouped by barangay here.</p>
           </div>
         ) : (
           <>
