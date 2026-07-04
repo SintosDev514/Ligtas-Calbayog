@@ -1,4 +1,4 @@
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import {
   LayoutDashboard, FileText, AlertTriangle, CheckCircle,
@@ -8,9 +8,9 @@ import {
   Megaphone, MessageSquare,
   FolderOpen, MapPin as MapPinIcon, Bell,
   UserCog, ShieldCheck, ClipboardList as AuditIcon, Settings,
-  LogOut, ChevronLeft, ExternalLink, X
+  LogOut, ChevronLeft, X
 } from "lucide-react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../supabase";
 
 const navGroups = [
@@ -77,10 +77,56 @@ const navGroups = [
 export default function Layout() {
   const { signOut, profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [newReport, setNewReport] = useState<any>(null);
   const [visible, setVisible] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const [pendingCount, setPendingCount] = useState(0);
+  const lastNotifiedId = useRef<string | null>(null);
+
+  const fetchPendingCount = useCallback(async () => {
+    try {
+      const { count } = await supabase
+        .from("crime_reports")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["pending", "under-review", "in-progress"]);
+      if (count !== null) setPendingCount(count);
+    } catch {
+      // silent
+    }
+  }, []);
+
+  const locationRef = useRef(location.pathname);
+  locationRef.current = location.pathname;
+
+  const ACTIVE_STATUSES = ["pending", "under-review", "in-progress", "needs-backup"];
+
+  const showReportNotification = useCallback((report: any) => {
+    if (!report?.id || report.id === lastNotifiedId.current) return;
+    if (/^\/reports\/[^/]+$/.test(locationRef.current)) return;
+    if (!ACTIVE_STATUSES.includes(report.status)) return;
+    lastNotifiedId.current = report.id;
+    setNewReport(report);
+    setVisible(true);
+    fetchPendingCount();
+  }, [fetchPendingCount]);
+
+  const pollLatestReport = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from("crime_reports")
+        .select("id, crime_type, location_address, created_at, status")
+        .in("status", ["pending", "under-review", "in-progress", "needs-backup"])
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+      if (data?.id && data.id !== lastNotifiedId.current) {
+        showReportNotification(data);
+      }
+    } catch {
+      // silent — no active reports or fetch error
+    }
+  }, [showReportNotification]);
 
   useEffect(() => {
     const channel = supabase
@@ -89,26 +135,33 @@ export default function Layout() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "crime_reports" },
         (payload: any) => {
-          const report = payload.new;
-          setNewReport(report);
-          setVisible(true);
-          clearTimeout(timerRef.current);
-          timerRef.current = setTimeout(() => setVisible(false), 6000);
+          showReportNotification(payload.new);
         }
       )
-      .subscribe();
+      .subscribe((status: string) => {
+        console.log("[Layout] Realtime status:", status);
+      });
+
+    fetchPendingCount();
+
+    const poll = setInterval(pollLatestReport, 15000);
+    const countPoll = setInterval(fetchPendingCount, 30000);
+
     return () => {
       supabase.removeChannel(channel);
-      clearTimeout(timerRef.current);
+      clearInterval(poll);
+      clearInterval(countPoll);
     };
-  }, []);
+  }, [showReportNotification, pollLatestReport]);
 
   const handleView = () => {
     setVisible(false);
     if (newReport?.id) navigate(`/reports/${newReport.id}`);
   };
 
-  const handleDismiss = () => setVisible(false);
+  const handleDismiss = () => {
+    setVisible(false);
+  };
 
   const handleLogout = async () => {
     await signOut();
@@ -118,85 +171,57 @@ export default function Layout() {
   return (
     <div className="layout">
       {visible && newReport && (
-        <>
-          <div
-            onClick={handleDismiss}
-            style={{
-              position: "fixed", inset: 0, zIndex: 9998,
-              background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
-              animation: "fadeIn 0.25s ease-out",
-            }}
-          />
-          <div
-            style={{
-              position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
-              zIndex: 9999, width: 400, maxWidth: "90vw",
-              background: "var(--gray-100)", borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.08)",
-              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
-              animation: "alertSlideIn 0.35s cubic-bezier(0.16,1,0.3,1)",
-              overflow: "hidden",
-            }}
-          >
-            <div style={{
-              background: "linear-gradient(135deg, rgba(239,68,68,0.15), rgba(239,68,68,0.05))",
-              padding: "20px 24px 16px",
-              borderBottom: "1px solid rgba(255,255,255,0.06)",
-              display: "flex", alignItems: "flex-start", gap: 12,
-            }}>
-              <div style={{
-                width: 40, height: 40, borderRadius: 10,
-                background: "rgba(239,68,68,0.2)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                flexShrink: 0,
-              }}>
-                <AlertTriangle size={20} color="#ef4444" />
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: "var(--gray-900)", marginBottom: 2 }}>
-                  New Report Alert
-                </div>
-                <div style={{ fontSize: 12, color: "var(--gray-500)", lineHeight: 1.4 }}>
-                  A new incident has been reported
-                  {newReport.crime_type && (
-                    <> — <span style={{ textTransform: "capitalize", color: "var(--gray-400)", fontWeight: 600 }}>{newReport.crime_type.replace(/-/g, " ")}</span></>
-                  )}
-                </div>
-              </div>
-              <button onClick={handleDismiss}
-                style={{
-                  background: "none", border: "none", cursor: "pointer",
-                  color: "var(--gray-500)", padding: 2, lineHeight: 0,
-                }}
-              >
-                <X size={16} />
-              </button>
+        <div
+          onClick={handleView}
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+            background: "linear-gradient(135deg, rgba(239,68,68,0.95), rgba(185,28,28,0.95))",
+            backdropFilter: "blur(12px)",
+            padding: "14px 20px",
+            display: "flex", alignItems: "center", gap: 14,
+            cursor: "pointer",
+            boxShadow: "0 4px 24px rgba(239,68,68,0.4)",
+            animation: "bannerSlideDown 0.4s cubic-bezier(0.16,1,0.3,1)",
+            userSelect: "none",
+          }}
+        >
+          <div style={{
+            width: 36, height: 36, borderRadius: 8,
+            background: "rgba(255,255,255,0.2)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            flexShrink: 0,
+          }}>
+            <AlertTriangle size={18} color="#fff" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#fff", marginBottom: 1 }}>
+              New Report Arrived
             </div>
-            <div style={{ padding: "12px 24px 16px", display: "flex", gap: 8, justifyContent: "flex-end" }}>
-              <button
-                onClick={handleDismiss}
-                style={{
-                  padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  background: "transparent", color: "var(--gray-500)",
-                  border: "1px solid var(--gray-300)", borderRadius: 6,
-                }}
-              >
-                Dismiss
-              </button>
-              <button
-                onClick={handleView}
-                style={{
-                  padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer",
-                  background: "#ef4444", color: "#fff",
-                  border: "none", borderRadius: 6,
-                  display: "flex", alignItems: "center", gap: 5,
-                }}
-              >
-                View Report <ExternalLink size={12} />
-              </button>
+            <div style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", lineHeight: 1.3 }}>
+              {newReport.crime_type ? (
+                <><span style={{ textTransform: "capitalize" }}>{newReport.crime_type.replace(/-/g, " ")}</span> incident reported</>
+              ) : (
+                "A new incident has been reported"
+              )}
+              {newReport.location_address && (
+                <> &middot; {newReport.location_address}</>
+              )}
             </div>
           </div>
-        </>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDismiss(); }}
+            style={{
+              background: "rgba(255,255,255,0.15)", border: "none",
+              cursor: "pointer", color: "#fff", padding: 6, lineHeight: 0,
+              borderRadius: 6, flexShrink: 0,
+              transition: "background 0.2s",
+            }}
+            onMouseOver={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.25)")}
+            onMouseOut={(e) => (e.currentTarget.style.background = "rgba(255,255,255,0.15)")}
+          >
+            <X size={14} />
+          </button>
+        </div>
       )}
 
       <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
@@ -229,6 +254,9 @@ export default function Layout() {
                     <item.icon size={18} />
                   </span>
                   <span className="nav-label">{item.label}</span>
+                  {(item.path === "/reports" || item.path === "/police-tracking") && pendingCount > 0 && (
+                    <span className="nav-badge">{pendingCount > 99 ? "99+" : pendingCount}</span>
+                  )}
                 </NavLink>
               ))}
             </div>

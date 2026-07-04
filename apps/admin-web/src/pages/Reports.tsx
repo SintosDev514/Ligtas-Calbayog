@@ -1,18 +1,23 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
+import { useAlarm } from "../context/AlarmContext";
 import type { CrimeReport } from "../types";
-import { Search, Filter, FileText, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Filter, FileText, ChevronLeft, ChevronRight, Trash2, AlertTriangle, X } from "lucide-react";
 
 const ITEMS_PER_PAGE = 15;
 
 export default function Reports() {
   const navigate = useNavigate();
+  const { refreshAlarm } = useAlarm();
   const [reports, setReports] = useState<CrimeReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const deleteIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     loadReports();
@@ -60,6 +65,29 @@ export default function Reports() {
       hour: "2-digit",
       minute: "2-digit",
     });
+
+  const handleDelete = async () => {
+    const id = deleteIdRef.current;
+    if (!id) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from("crime_reports").delete().eq("id", id);
+      if (error) throw error;
+      refreshAlarm();
+      loadReports();
+      deleteIdRef.current = null;
+      setShowDeleteModal(false);
+    } catch (err) {
+      console.error("Failed to delete report:", err);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const promptDelete = (id: string) => {
+    deleteIdRef.current = id;
+    setShowDeleteModal(true);
+  };
 
   const filtered = reports.filter((r) => {
     if (filter !== "all" && r.status !== filter) return false;
@@ -150,6 +178,7 @@ export default function Reports() {
                     <th>Location</th>
                     <th>Status</th>
                     <th>Date</th>
+                    <th style={{ width: 60 }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -157,7 +186,10 @@ export default function Reports() {
                     <tr
                       key={r.id}
                       className="clickable-row"
-                      onClick={() => navigate(`/reports/${r.id}`)}
+                      onClick={(e) => {
+                        if ((e.target as HTMLElement).closest("button")) return;
+                        navigate(`/reports/${r.id}`);
+                      }}
                     >
                       <td style={{ textTransform: "capitalize", fontWeight: 600 }}>
                         {r.crime_type?.replace(/-/g, " ")}
@@ -176,6 +208,22 @@ export default function Reports() {
                       </td>
                       <td style={{ color: "var(--gray-400)", fontSize: 13 }}>
                         {formatDate(r.created_at)}
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => promptDelete(r.id)}
+                          disabled={deleting}
+                          title="Delete report"
+                          style={{
+                            background: "none", border: "none", cursor: "pointer",
+                            color: "var(--gray-400)", padding: 4, borderRadius: 4,
+                            transition: "color 0.15s",
+                          }}
+                          onMouseOver={(e) => (e.currentTarget.style.color = "#ef4444")}
+                          onMouseOut={(e) => (e.currentTarget.style.color = "var(--gray-400)")}
+                        >
+                          <Trash2 size={15} />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -224,6 +272,88 @@ export default function Reports() {
           </div>
         )}
       </div>
+
+      {showDeleteModal && (
+        <>
+          <div
+            onClick={() => !deleting && setShowDeleteModal(false)}
+            style={{
+              position: "fixed", inset: 0, zIndex: 9998,
+              background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+              animation: "fadeIn 0.2s ease-out",
+            }}
+          />
+          <div
+            style={{
+              position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+              zIndex: 9999, width: 360, maxWidth: "90vw",
+              background: "var(--gray-100)", borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.08)",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+              animation: "alertSlideIn 0.3s cubic-bezier(0.16,1,0.3,1)",
+              overflow: "hidden",
+            }}
+          >
+            <div style={{
+              padding: "24px 24px 0",
+              display: "flex", alignItems: "flex-start", gap: 14,
+            }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12,
+                background: "rgba(239,68,68,0.15)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                <AlertTriangle size={22} color="#ef4444" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--gray-900)", marginBottom: 4 }}>
+                  Delete Report
+                </div>
+                <div style={{ fontSize: 13, color: "var(--gray-500)", lineHeight: 1.5 }}>
+                  This action cannot be undone. The report and all associated data will be permanently removed.
+                </div>
+              </div>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--gray-500)", padding: 2, lineHeight: 0,
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div style={{ padding: "20px 24px", display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                style={{
+                  padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  background: "transparent", color: "var(--gray-500)",
+                  border: "1px solid var(--gray-300)", borderRadius: 8,
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                style={{
+                  padding: "9px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                  background: "#ef4444", color: "#fff",
+                  border: "none", borderRadius: 8,
+                  display: "flex", alignItems: "center", gap: 6,
+                }}
+              >
+                <Trash2 size={15} />
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </>
+      )}
     </>
   );
 }

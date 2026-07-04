@@ -5,6 +5,7 @@ const EMERGENCY_TYPES = ["emergency", "robbery", "assault", "hit-and-run", "burg
 
 interface AlarmContextType {
   alarmCount: number;
+  refreshAlarm: () => void;
 }
 
 const AlarmContext = createContext<AlarmContextType | undefined>(undefined);
@@ -175,7 +176,7 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
   }, [checkReports]);
 
   return (
-    <AlarmContext.Provider value={{ alarmCount }}>
+    <AlarmContext.Provider value={{ alarmCount, refreshAlarm: checkReports }}>
       {children}
     </AlarmContext.Provider>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
+import { useAlarm } from "../context/AlarmContext";
 import {
   ArrowLeft, AlertTriangle, MapPin, Clock, CheckCircle, XCircle,
   MessageSquare, Car, Shield, Eye, Phone, User,
@@ -60,6 +61,7 @@ export default function ReportDetail() {
   const [actionUpdates, setActionUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const { refreshAlarm } = useAlarm();
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
 
@@ -146,6 +148,7 @@ export default function ReportDetail() {
       }
 
       loadReport();
+      refreshAlarm();
     } catch (err) {
       console.error("Failed to update status:", err);
     } finally {

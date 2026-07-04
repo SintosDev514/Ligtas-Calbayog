@@ -65,7 +65,12 @@ export default function Evidence() {
                 <div className="card" key={r.id} style={{ overflow: "hidden" }}>
                   {r.photo_url && (
                     <div style={{ width: "100%", height: 180, overflow: "hidden", background: "var(--gray-100)" }}>
-                      <img src={r.photo_url} alt="Evidence" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      <img
+                        src={r.photo_url.split(",")[0].trim()}
+                        alt="Evidence"
+                        style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                      />
                     </div>
                   )}
                   <div className="card-body">
