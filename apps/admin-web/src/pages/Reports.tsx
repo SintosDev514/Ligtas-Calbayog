@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useAlarm } from "../context/AlarmContext";
 import type { CrimeReport } from "../types";
+import { useToast } from "../context/ToastContext";
 import { Search, Filter, FileText, ChevronLeft, ChevronRight, Trash2, AlertTriangle, X } from "lucide-react";
 
 const ITEMS_PER_PAGE = 15;
@@ -10,6 +11,7 @@ const ITEMS_PER_PAGE = 15;
 export default function Reports() {
   const navigate = useNavigate();
   const { refreshAlarm } = useAlarm();
+  const { toast } = useToast();
   const [reports, setReports] = useState<CrimeReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
@@ -71,6 +73,30 @@ export default function Reports() {
     if (!id) return;
     setDeleting(true);
     try {
+      const { data: report } = await supabase
+        .from("crime_reports")
+        .select("photo_url")
+        .eq("id", id)
+        .single();
+
+      if (report?.photo_url) {
+        const filenames = report.photo_url
+          .split(",")
+          .map((u: string) => u.trim())
+          .filter(Boolean)
+          .map((url: string) => {
+            try { return new URL(url).pathname.split("/").pop() || null; }
+            catch { return null; }
+          })
+          .filter(Boolean) as string[];
+        if (filenames.length > 0) {
+          for (const name of filenames) {
+            const { error } = await supabase.storage.from("report-photos").remove([name]);
+            if (error) console.warn(`Storage delete failed for ${name}: ${error.message}`);
+          }
+        }
+      }
+
       const { error } = await supabase.from("crime_reports").delete().eq("id", id);
       if (error) throw error;
       refreshAlarm();

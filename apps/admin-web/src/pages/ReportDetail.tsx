@@ -5,7 +5,8 @@ import { useAlarm } from "../context/AlarmContext";
 import {
   ArrowLeft, AlertTriangle, MapPin, Clock, CheckCircle, XCircle,
   MessageSquare, Car, Shield, Eye, Phone, User,
-  Image as ImageIcon, ExternalLink, Maximize2, X, Calendar, ImageOff
+  Image as ImageIcon, ExternalLink, Maximize2, X, Calendar, ImageOff,
+  Video, Play
 } from "lucide-react";
 
 const STATUSES = [
@@ -63,6 +64,7 @@ export default function ReportDetail() {
   const [updating, setUpdating] = useState(false);
   const { refreshAlarm } = useAlarm();
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [lightboxLoading, setLightboxLoading] = useState(false);
   const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
 
   useEffect(() => {
@@ -147,6 +149,17 @@ export default function ReportDetail() {
         });
       }
 
+      if (report?.resident_id) {
+        await supabase.from("notifications").insert({
+          user_id: report.resident_id,
+          type: "report_update",
+          title: "Report Status Updated",
+          body: `Your ${report.crime_type?.replace(/-/g, " ") || "report"} status has been changed to "${status.replace("-", " ")}".`,
+          data: { report_id: id, status },
+          created_at: new Date().toISOString(),
+        });
+      }
+
       loadReport();
       refreshAlarm();
     } catch (err) {
@@ -225,6 +238,8 @@ export default function ReportDetail() {
     ? report.photo_url.split(",").map((u: string) => u.trim()).filter(Boolean)
     : [];
 
+  const isVideoUrl = (url: string) => /\.(mp4|webm|mov|avi)$/i.test(url);
+
   const StatusIcon = statusIcons[report.status] || Clock;
   const sc = statusColors[report.status] || statusColors.dismissed;
 
@@ -255,16 +270,40 @@ export default function ReportDetail() {
                   <span className="rd-card-badge">{photoUrls.length}</span>
                 </div>
                 <div className={`rd-photo-grid ${photoUrls.length === 1 ? "single" : ""}`}>
-                  {photoUrls.slice(0, 4).map((url, i) => (
+                  {photoUrls.slice(0, 4).map((url, i) => {
+                    const isVideo = isVideoUrl(url);
+                    return (
                     <div
                       key={i}
                       className="rd-photo-item"
-                      onClick={() => !failedImages.has(i) && setLightboxUrl(url)}
+                      onClick={() => {
+                        if (failedImages.has(i)) return;
+                        setLightboxLoading(true);
+                        if (isVideo) { requestAnimationFrame(() => setLightboxUrl(url)); return; }
+                        requestAnimationFrame(() => {
+                          const preload = new Image();
+                          preload.onload = () => {
+                            preload.decode().then(() => {
+                              setLightboxUrl(url);
+                              setLightboxLoading(false);
+                            });
+                          };
+                          preload.onerror = () => { setLightboxUrl(url); setLightboxLoading(false); };
+                          preload.src = url;
+                        });
+                      }}
                     >
                       {failedImages.has(i) ? (
                         <div className="rd-photo-failed" title={url}>
                           <ImageOff size={18} />
                         </div>
+                      ) : isVideo ? (
+                        <>
+                          <video src={url} muted playsInline preload="metadata"
+                            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            onError={() => setFailedImages((prev) => new Set(prev).add(i))} />
+                          <div className="rd-photo-zoom"><Play size={13} /></div>
+                        </>
                       ) : (
                         <>
                           <img
@@ -279,7 +318,8 @@ export default function ReportDetail() {
                         <div className="rd-photo-overlay">+{photoUrls.length - 4}</div>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -477,12 +517,40 @@ export default function ReportDetail() {
         </div>
       </div>
 
-      {lightboxUrl && (
-        <div className="rd-lightbox" onClick={() => setLightboxUrl(null)}>
-          <button className="rd-lb-close" onClick={() => setLightboxUrl(null)}>
+      {(lightboxUrl || lightboxLoading) && (
+        <div className="rd-lightbox" onClick={() => { setLightboxUrl(null); setLightboxLoading(false); }}>
+          <button className="rd-lb-close" onClick={() => { setLightboxUrl(null); setLightboxLoading(false); }}>
             <X size={22} />
           </button>
-          <img className="rd-lb-img" src={lightboxUrl} alt="" onClick={(e) => e.stopPropagation()} />
+          {lightboxLoading && (
+            <div style={{
+              position: "absolute", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+              color: "#fff", fontSize: 14, display: "flex", flexDirection: "column",
+              alignItems: "center", gap: 10,
+            }}>
+              <div aria-label="Loading..." role="status" className="loader" style={{"--loader-color": "#fff"} as React.CSSProperties}>
+                <svg className="icon" viewBox="0 0 256 256">
+                  <line x1="128" y1="32" x2="128" y2="64" strokeLinecap="round" strokeLinejoin="round" strokeWidth="24"></line>
+                  <line x1="195.9" y1="60.1" x2="173.3" y2="82.7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="24"></line>
+                  <line x1="224" y1="128" x2="192" y2="128" strokeLinecap="round" strokeLinejoin="round" strokeWidth="24"></line>
+                  <line x1="195.9" y1="195.9" x2="173.3" y2="173.3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="24"></line>
+                  <line x1="128" y1="224" x2="128" y2="192" strokeLinecap="round" strokeLinejoin="round" strokeWidth="24"></line>
+                  <line x1="60.1" y1="195.9" x2="82.7" y2="173.3" strokeLinecap="round" strokeLinejoin="round" strokeWidth="24"></line>
+                  <line x1="32" y1="128" x2="64" y2="128" strokeLinecap="round" strokeLinejoin="round" strokeWidth="24"></line>
+                  <line x1="60.1" y1="60.1" x2="82.7" y2="82.7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="24"></line>
+                </svg>
+              </div>
+              Loading...
+            </div>
+          )}
+          {isVideoUrl(lightboxUrl) ? (
+            <video className="rd-lb-img" src={lightboxUrl} controls autoPlay
+              onClick={(e) => e.stopPropagation()}
+              onLoadedData={() => setLightboxLoading(false)}
+              onError={() => setLightboxLoading(false)} />
+          ) : (
+            <img className="rd-lb-img" src={lightboxUrl} alt="" onClick={(e) => e.stopPropagation()} />
+          )}
         </div>
       )}
     </>

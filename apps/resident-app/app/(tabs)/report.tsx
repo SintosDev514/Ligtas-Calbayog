@@ -18,7 +18,6 @@ import {
 
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { File } from "expo-file-system";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
   CameraView,
@@ -26,6 +25,8 @@ import {
   useMicrophonePermissions,
 } from "expo-camera";
 import MapView, { Marker, UrlTile } from "@/components/MapView";
+
+import * as FileSystem from "expo-file-system/legacy";
 
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import {
@@ -305,11 +306,14 @@ export default function ReportScreen() {
     const filename = `report-${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
     const contentType = type === "video" ? "video/mp4" : "image/jpeg";
 
-    const buffer = (await new File(uri).bytes()).buffer;
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: "base64",
+    });
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
     const { error } = await supabase.storage
       .from("report-photos")
-      .upload(filename, buffer, { contentType, upsert: true });
+      .upload(filename, bytes, { contentType, upsert: true });
 
     if (error) throw new Error(error.message);
 

@@ -18,12 +18,12 @@ import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { File } from "expo-file-system";
 import {
   CameraView,
   useCameraPermissions,
   useMicrophonePermissions,
 } from "expo-camera";
+import * as FileSystem from "expo-file-system/legacy";
 import { supabase } from "../../../shared/supabase/supabaseClient";
 import {
   submitCrimeReport,
@@ -36,7 +36,7 @@ export default function EmergencyReportScreen() {
   const { location } = useLocation();
 
   const [description, setDescription] = useState("");
-  const [capturedMedia, setCapturedMedia] = useState<any[]>([]);
+  const [capturedMedia, setCapturedMedia] = useState<{ uri: string; type: "image" | "video" }[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedId, setSubmittedId] = useState("");
@@ -44,7 +44,11 @@ export default function EmergencyReportScreen() {
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
+  const [cameraMode, setCameraMode] = useState<"picture" | "video">("picture");
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordTimer, setRecordTimer] = useState(0);
   const cameraRef = useRef<CameraView>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -75,13 +79,63 @@ export default function EmergencyReportScreen() {
     try {
       const photo = await cameraRef.current.takePictureAsync({ quality: 0.7 });
       if (photo?.uri) {
-        setCapturedMedia((prev) => [...prev, { uri: photo.uri, type: "image" as const }]);
+        setCapturedMedia((prev) => [...prev, { uri: photo.uri, type: "image" }]);
       }
     } catch {
       Alert.alert("Error", "Failed to capture image.");
     } finally {
       setIsCameraOpen(false);
     }
+  };
+
+  const toggleRecording = async () => {
+    if (!cameraRef.current) return;
+    if (isRecording) {
+      cameraRef.current.stopRecording();
+      setIsRecording(false);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    } else {
+      try {
+        setIsRecording(true);
+        setRecordTimer(0);
+
+        timerRef.current = setInterval(() => {
+          setRecordTimer((prev) => {
+            if (prev >= 14) {
+              if (cameraRef.current) cameraRef.current.stopRecording();
+              if (timerRef.current) {
+                clearInterval(timerRef.current);
+                timerRef.current = null;
+              }
+              return 15;
+            }
+            return prev + 1;
+          });
+        }, 1000);
+
+        const video = await cameraRef.current.recordAsync({ maxDuration: 15, quality: "720p" });
+        if (video?.uri) {
+          setCapturedMedia((prev) => [...prev, { uri: video.uri, type: "video" }]);
+        }
+      } catch {
+        Alert.alert("Recording Error", "Unable to start video recording.");
+        setIsRecording(false);
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+          timerRef.current = null;
+        }
+      } finally {
+        setIsCameraOpen(false);
+      }
+    }
+  };
+
+  const formatTimer = (secs: number) => {
+    const s = secs % 60;
+    return `00:${s < 10 ? "0" : ""}${s}`;
   };
 
   const removeMedia = (index: number) => {
@@ -93,11 +147,14 @@ export default function EmergencyReportScreen() {
     const filename = `emergency-${Date.now()}-${Math.random().toString(36).substring(7)}.${ext}`;
     const contentType = type === "video" ? "video/mp4" : "image/jpeg";
 
-    const buffer = (await new File(uri).bytes()).buffer;
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: "base64",
+    });
+    const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
 
     const { error } = await supabase.storage
       .from("report-photos")
-      .upload(filename, buffer, { contentType, upsert: true });
+      .upload(filename, bytes, { contentType, upsert: true });
 
     if (error) throw new Error(error.message);
 
@@ -294,7 +351,7 @@ export default function EmergencyReportScreen() {
             ) : (
               <TouchableOpacity style={styles.evidenceAdd} onPress={openCamera}>
                 <Ionicons name="camera-outline" size={28} color="#EF4444" />
-                <Text style={styles.evidenceAddText}>Tap to capture photo evidence</Text>
+                <Text style={styles.evidenceAddText}>Tap to capture photo or video evidence</Text>
               </TouchableOpacity>
             )}
           </Animated.View>
@@ -366,26 +423,64 @@ export default function EmergencyReportScreen() {
       {/* Camera Modal */}
       {isCameraOpen && (
         <View style={styles.cameraModal}>
+          {isRecording && (
+            <View style={styles.recordingHeader}>
+              <View style={styles.recordingDot} />
+              <Text style={styles.recordingTimerText}>
+                REC {formatTimer(recordTimer)} (15s Max)
+              </Text>
+            </View>
+          )}
+
           <CameraView
             ref={cameraRef}
             style={StyleSheet.absoluteFill}
             facing="back"
+            mode={cameraMode}
           >
-            <View style={styles.cameraOverlay}>
-              <TouchableOpacity
-                style={styles.cameraClose}
-                onPress={() => setIsCameraOpen(false)}
-              >
-                <Ionicons name="close" size={28} color="#FFFFFF" />
-              </TouchableOpacity>
+            <View style={styles.cameraBottomControls}>
+              {!isRecording && (
+                <View style={styles.modeTabsRow}>
+                  <TouchableOpacity
+                    onPress={() => setCameraMode("picture")}
+                    style={[styles.modeTab, cameraMode === "picture" && styles.modeTabActive]}
+                  >
+                    <Text style={[styles.modeTabText, cameraMode === "picture" && styles.modeTabTextActive]}>
+                      PHOTO
+                    </Text>
+                  </TouchableOpacity>
 
-              <View style={styles.cameraBottom}>
+                  <TouchableOpacity
+                    onPress={() => setCameraMode("video")}
+                    style={[styles.modeTab, cameraMode === "video" && styles.modeTabActive]}
+                  >
+                    <Text style={[styles.modeTabText, cameraMode === "video" && styles.modeTabTextActive]}>
+                      VIDEO
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <View style={styles.cameraControlsRow}>
                 <TouchableOpacity
-                  style={styles.cameraCapture}
-                  onPress={takePhoto}
+                  style={styles.cameraClose}
+                  onPress={() => setIsCameraOpen(false)}
+                  disabled={isRecording}
                 >
-                  <View style={styles.cameraCaptureInner} />
+                  <Ionicons name="close" size={24} color="#fff" />
                 </TouchableOpacity>
+
+                {cameraMode === "picture" ? (
+                  <TouchableOpacity style={styles.captureButton} onPress={takePhoto}>
+                    <View style={styles.captureInner} />
+                  </TouchableOpacity>
+                ) : (
+                  <TouchableOpacity style={[styles.captureButton, { borderColor: "#EF4444" }]} onPress={toggleRecording}>
+                    <View style={[styles.captureInner, isRecording ? styles.captureInnerVideoRecording : { backgroundColor: "#EF4444" }]} />
+                  </TouchableOpacity>
+                )}
+
+                <View style={{ width: 50 }} />
               </View>
             </View>
           </CameraView>
@@ -669,39 +764,113 @@ const styles = StyleSheet.create({
     zIndex: 100,
     backgroundColor: "#000",
   },
-  cameraOverlay: {
-    flex: 1,
-    justifyContent: "space-between",
-    padding: 24,
+
+  recordingHeader: {
+    position: "absolute",
+    top: 50,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(220, 38, 38, 0.85)",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    zIndex: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.25)",
   },
+
+  recordingDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#FFFFFF",
+    marginRight: 8,
+  },
+
+  recordingTimerText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 12,
+  },
+
+  cameraBottomControls: {
+    position: "absolute",
+    bottom: 24,
+    width: "100%",
+    alignItems: "center",
+  },
+
+  modeTabsRow: {
+    flexDirection: "row",
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    borderRadius: 30,
+    padding: 4,
+    marginBottom: 16,
+    borderWidth: 0.5,
+    borderColor: "rgba(255, 255, 255, 0.15)",
+  },
+
+  modeTab: {
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+
+  modeTabActive: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+  },
+
+  modeTabText: {
+    color: "rgba(255, 255, 255, 0.6)",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+
+  modeTabTextActive: {
+    color: "#FFFFFF",
+  },
+
+  cameraControlsRow: {
+    width: "100%",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 30,
+  },
+
   cameraClose: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(0,0,0,0.5)",
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: "center",
     alignItems: "center",
-    alignSelf: "flex-end",
-    marginTop: Platform.OS === "ios" ? 50 : 20,
   },
-  cameraBottom: {
-    alignItems: "center",
-    paddingBottom: 40,
-  },
-  cameraCapture: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+
+  captureButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     borderWidth: 4,
     borderColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
   },
-  cameraCaptureInner: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+
+  captureInner: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: "#FFFFFF",
+  },
+
+  captureInnerVideoRecording: {
+    width: 26,
+    height: 26,
+    borderRadius: 4,
+    backgroundColor: "#EF4444",
   },
 
   /* Submitting Overlay */
