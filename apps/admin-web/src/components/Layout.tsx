@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useAlarm } from "../context/AlarmContext";
 import {
   LayoutDashboard, FileText, AlertTriangle, CheckCircle,
   MapPin, Shield, History, Calendar,
@@ -10,7 +11,7 @@ import {
   UserCog, ShieldCheck, ClipboardList as AuditIcon, Settings,
   LogOut, ChevronLeft, X
 } from "lucide-react";
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../supabase";
 
 const navGroups = [
@@ -76,13 +77,11 @@ const navGroups = [
 
 export default function Layout() {
   const { signOut, profile } = useAuth();
+  const { newReport, showBanner, setShowBanner } = useAlarm();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
-  const [newReport, setNewReport] = useState<any>(null);
-  const [visible, setVisible] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
-  const lastNotifiedId = useRef<string | null>(null);
 
   const fetchPendingCount = useCallback(async () => {
     try {
@@ -96,71 +95,25 @@ export default function Layout() {
     }
   }, []);
 
-  const locationRef = useRef(location.pathname);
-  locationRef.current = location.pathname;
-
-  const ACTIVE_STATUSES = ["pending", "under-review", "in-progress", "needs-backup"];
-
-  const showReportNotification = useCallback((report: any) => {
-    if (!report?.id || report.id === lastNotifiedId.current) return;
-    if (/^\/reports\/[^/]+$/.test(locationRef.current)) return;
-    if (!ACTIVE_STATUSES.includes(report.status)) return;
-    lastNotifiedId.current = report.id;
-    setNewReport(report);
-    setVisible(true);
+  useEffect(() => {
     fetchPendingCount();
+    const countPoll = setInterval(fetchPendingCount, 30000);
+    return () => clearInterval(countPoll);
   }, [fetchPendingCount]);
 
-  const pollLatestReport = useCallback(async () => {
-    try {
-      const { data } = await supabase
-        .from("crime_reports")
-        .select("id, crime_type, location_address, created_at, status")
-        .in("status", ["pending", "under-review", "in-progress", "needs-backup"])
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
-      if (data?.id && data.id !== lastNotifiedId.current) {
-        showReportNotification(data);
-      }
-    } catch {
-      // silent — no active reports or fetch error
-    }
-  }, [showReportNotification]);
-
   useEffect(() => {
-    const channel = supabase
-      .channel("global-new-reports")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "crime_reports" },
-        (payload: any) => {
-          showReportNotification(payload.new);
-        }
-      )
-      .subscribe((status: string) => {
-        console.log("[Layout] Realtime status:", status);
-      });
-
-    fetchPendingCount();
-
-    const poll = setInterval(pollLatestReport, 15000);
-    const countPoll = setInterval(fetchPendingCount, 30000);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(poll);
-      clearInterval(countPoll);
-    };
-  }, [showReportNotification, pollLatestReport]);
+    if (/^\/reports\/[^/]+$/.test(location.pathname)) {
+      setShowBanner(false);
+    }
+  }, [location.pathname, setShowBanner]);
 
   const handleView = () => {
-    setVisible(false);
+    setShowBanner(false);
     if (newReport?.id) navigate(`/reports/${newReport.id}`);
   };
 
   const handleDismiss = () => {
-    setVisible(false);
+    setShowBanner(false);
   };
 
   const handleLogout = async () => {
@@ -170,7 +123,7 @@ export default function Layout() {
 
   return (
     <div className="layout">
-      {visible && newReport && (
+      {showBanner && newReport && (
         <div
           onClick={handleView}
           style={{

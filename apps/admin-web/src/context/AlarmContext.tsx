@@ -2,10 +2,23 @@ import React, { createContext, useContext, useState, useRef, useEffect, useCallb
 import { supabase } from "../supabase";
 
 const EMERGENCY_TYPES = ["emergency", "robbery", "assault", "hit-and-run", "burglary", "theft"];
+const ACTIVE_STATUSES = ["pending", "under-review", "in-progress", "needs-backup"];
+
+interface NewReportBanner {
+  id: string;
+  crime_type: string;
+  location_address?: string;
+  created_at: string;
+  status: string;
+}
 
 interface AlarmContextType {
   alarmCount: number;
   refreshAlarm: () => void;
+  newReport: NewReportBanner | null;
+  setNewReport: (report: NewReportBanner | null) => void;
+  showBanner: boolean;
+  setShowBanner: (show: boolean) => void;
 }
 
 const AlarmContext = createContext<AlarmContextType | undefined>(undefined);
@@ -80,9 +93,12 @@ function startLoop(buffer: AudioBuffer) {
 
 export function AlarmProvider({ children }: { children: React.ReactNode }) {
   const [alarmCount, setAlarmCount] = useState(0);
+  const [newReport, setNewReport] = useState<NewReportBanner | null>(null);
+  const [showBanner, setShowBanner] = useState(false);
   const audioUnlocked = useRef(false);
+  const lastNotifiedId = useRef<string | null>(null);
 
-  const checkReports = useCallback(async () => {
+  const checkReports = useCallback(async (newReportPayload?: NewReportBanner) => {
     try {
       const { data } = await supabase
         .from("crime_reports")
@@ -116,6 +132,12 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         stopLoop();
+      }
+
+      if (newReportPayload && newReportPayload.id !== lastNotifiedId.current && ACTIVE_STATUSES.includes(newReportPayload.status)) {
+        lastNotifiedId.current = newReportPayload.id;
+        setNewReport(newReportPayload);
+        setShowBanner(true);
       }
     } catch (e) {
       console.error("[AlarmContext] checkReports error:", e);
@@ -156,8 +178,8 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
 
     const channel = supabase
       .channel("global-alarm")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "crime_reports" }, () => {
-        checkReports();
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "crime_reports" }, (payload: any) => {
+        checkReports(payload.new);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "crime_reports" }, () => {
         checkReports();
@@ -176,7 +198,7 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
   }, [checkReports]);
 
   return (
-    <AlarmContext.Provider value={{ alarmCount, refreshAlarm: checkReports }}>
+    <AlarmContext.Provider value={{ alarmCount, refreshAlarm: checkReports, newReport, setNewReport, showBanner, setShowBanner }}>
       {children}
     </AlarmContext.Provider>
   );
