@@ -43,6 +43,7 @@ interface MarkerProps {
   coordinate: { latitude: number; longitude: number };
   title?: string;
   pinColor?: string;
+  iconName?: string;
   children?: React.ReactNode;
 }
 
@@ -130,6 +131,7 @@ const MapView: React.FC<MapViewProps> = ({
       coordinate: { latitude: number; longitude: number };
       title?: string;
       pinColor?: string;
+      iconName?: string;
     }[] = [];
     React.Children.forEach(children, (child) => {
       if (
@@ -141,6 +143,7 @@ const MapView: React.FC<MapViewProps> = ({
           coordinate: props.coordinate,
           title: props.title,
           pinColor: props.pinColor,
+          iconName: props.iconName,
         });
       }
     });
@@ -270,13 +273,18 @@ const MapView: React.FC<MapViewProps> = ({
 
     markerData.forEach((m) => {
       const el = document.createElement("div");
-      el.style.width = "24px";
-      el.style.height = "24px";
-      el.style.borderRadius = "50%";
-      el.style.background = m.pinColor || "#EF4444";
-      el.style.border = "3px solid #fff";
-      el.style.boxShadow = "0 2px 4px rgba(0,0,0,0.3)";
-      el.style.cursor = "pointer";
+      if (m.iconName === "post-pin") {
+        el.innerHTML = '<svg viewBox="0 0 24 24" width="28" height="28" fill="#fbbf24" stroke="#d97706" stroke-width="0.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3" fill="#fff"/></svg>';
+        el.style.cursor = "pointer";
+      } else {
+        el.style.width = "24px";
+        el.style.height = "24px";
+        el.style.borderRadius = "50%";
+        el.style.background = m.pinColor || "#EF4444";
+        el.style.border = "3px solid #fff";
+        el.style.boxShadow = "0 2px 4px rgba(0,0,0,0.3)";
+        el.style.cursor = "pointer";
+      }
 
       const marker = new maplibregl.Marker({ element: el })
         .setLngLat([m.coordinate.longitude, m.coordinate.latitude])

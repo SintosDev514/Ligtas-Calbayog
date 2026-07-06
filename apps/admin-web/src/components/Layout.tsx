@@ -11,7 +11,7 @@ import {
   UserCog, ShieldCheck, ClipboardList as AuditIcon, Settings,
   LogOut, ChevronLeft, X
 } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../supabase";
 
 const navGroups = [
@@ -77,11 +77,13 @@ const navGroups = [
 
 export default function Layout() {
   const { signOut, profile } = useAuth();
-  const { newReport, showBanner, setShowBanner } = useAlarm();
+  const { refreshAlarm } = useAlarm();
   const navigate = useNavigate();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
+  const [bannerReport, setBannerReport] = useState<any | null>(null);
+  const lastBannerId = useRef<string | null>(null);
 
   const fetchPendingCount = useCallback(async () => {
     try {
@@ -95,6 +97,24 @@ export default function Layout() {
     }
   }, []);
 
+  const checkNewReport = useCallback(async () => {
+    try {
+      const { data } = await supabase
+        .from("crime_reports")
+        .select("id, crime_type, location_address, created_at, status")
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (data && data.id !== lastBannerId.current) {
+        lastBannerId.current = data.id;
+        setBannerReport(data);
+      }
+    } catch {
+      // silent
+    }
+  }, []);
+
   useEffect(() => {
     fetchPendingCount();
     const countPoll = setInterval(fetchPendingCount, 30000);
@@ -102,18 +122,27 @@ export default function Layout() {
   }, [fetchPendingCount]);
 
   useEffect(() => {
+    checkNewReport();
+    const interval = setInterval(checkNewReport, 3000);
+    return () => clearInterval(interval);
+  }, [checkNewReport]);
+
+  useEffect(() => {
     if (/^\/reports\/[^/]+$/.test(location.pathname)) {
-      setShowBanner(false);
+      setBannerReport(null);
     }
-  }, [location.pathname, setShowBanner]);
+  }, [location.pathname]);
 
   const handleView = () => {
-    setShowBanner(false);
-    if (newReport?.id) navigate(`/reports/${newReport.id}`);
+    if (bannerReport?.id) {
+      const id = bannerReport.id;
+      setBannerReport(null);
+      navigate(`/reports/${id}`);
+    }
   };
 
   const handleDismiss = () => {
-    setShowBanner(false);
+    setBannerReport(null);
   };
 
   const handleLogout = async () => {
@@ -123,7 +152,7 @@ export default function Layout() {
 
   return (
     <div className="layout">
-      {showBanner && newReport && (
+      {bannerReport && (
         <div
           onClick={handleView}
           style={{
@@ -151,13 +180,13 @@ export default function Layout() {
               New Report Arrived
             </div>
             <div style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", lineHeight: 1.3 }}>
-              {newReport.crime_type ? (
-                <><span style={{ textTransform: "capitalize" }}>{newReport.crime_type.replace(/-/g, " ")}</span> incident reported</>
+              {bannerReport.crime_type ? (
+                <><span style={{ textTransform: "capitalize" }}>{bannerReport.crime_type.replace(/-/g, " ")}</span> incident reported</>
               ) : (
                 "A new incident has been reported"
               )}
-              {newReport.location_address && (
-                <> &middot; {newReport.location_address}</>
+              {bannerReport.location_address && (
+                <> &middot; {bannerReport.location_address}</>
               )}
             </div>
           </div>

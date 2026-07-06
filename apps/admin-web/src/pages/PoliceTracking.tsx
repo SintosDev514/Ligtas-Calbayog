@@ -77,6 +77,15 @@ interface ReportDetail {
   }[];
 }
 
+interface PolicePost {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  address: string | null;
+  officers: { id: string; full_name: string; badge_id: string; rank: string }[];
+}
+
 const REPORT_EMERGENCY_TYPES = ["emergency", "robbery", "assault", "hit-and-run", "burglary", "theft"];
 
 export default function PoliceTracking() {
@@ -94,7 +103,7 @@ export default function PoliceTracking() {
   const [showReportPanel, setShowReportPanel] = useState(false);
   const [reports, setReports] = useState<ReportDetail[]>([]);
   const [focusedReportId, setFocusedReportId] = useState<string | null>(null);
-  const [mapStyle, setMapStyle] = useState("dark");
+  const [mapStyle, setMapStyle] = useState("liberty");
   const satelliteStyle: any = {
     version: 8,
     sources: {
@@ -120,6 +129,18 @@ export default function PoliceTracking() {
   const residentsRef = useRef<ResidentData[]>([]);
   const activeTabRef = useRef<"all" | "police" | "residents">("all");
   const focusedReportIdRef = useRef<string | null>(null);
+  const [policePosts, setPolicePosts] = useState<PolicePost[]>([]);
+  const policePostsRef = useRef<PolicePost[]>([]);
+  const [placingPost, setPlacingPost] = useState(false);
+  const placingPostRef = useRef(false);
+  const [isPostModalOpen, setIsPostModalOpen] = useState(false);
+  const [postPlaceLat, setPostPlaceLat] = useState<number | null>(null);
+  const [postPlaceLng, setPostPlaceLng] = useState<number | null>(null);
+  const [postName, setPostName] = useState("");
+  const [allOfficers, setAllOfficers] = useState<any[]>([]);
+  const [selectedOfficers, setSelectedOfficers] = useState<Set<string>>(new Set());
+  const [officerSearch, setOfficerSearch] = useState("");
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
 
   const loadAllReports = useCallback(async () => {
     try {
@@ -182,11 +203,14 @@ export default function PoliceTracking() {
   }, []);
 
   useEffect(() => {
-    Promise.all([loadOfficers(), loadResidents()]).then(([oData, rData]) => {
+    Promise.all([loadOfficers(), loadResidents(), loadPolicePosts(), loadAllOfficers()]).then(([oData, rData, pData, aData]) => {
       officersRef.current = oData;
       residentsRef.current = rData;
+      policePostsRef.current = pData;
       setOfficers(oData);
       setResidents(rData);
+      setPolicePosts(pData);
+      setAllOfficers(aData);
       loadAllReports();
       initMap();
     });
@@ -217,6 +241,20 @@ export default function PoliceTracking() {
           if (mapRef.current) addAllMarkers();
         });
       })
+      .on("postgres_changes", { event: "*", schema: "public", table: "police_posts" }, () => {
+        loadPolicePosts().then((pData) => {
+          policePostsRef.current = pData;
+          setPolicePosts(pData);
+          if (mapRef.current) addAllMarkers();
+        });
+      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "police_post_assignments" }, () => {
+        loadPolicePosts().then((pData) => {
+          policePostsRef.current = pData;
+          setPolicePosts(pData);
+          if (mapRef.current) addAllMarkers();
+        });
+      })
       .subscribe((status: string) => {
         console.log("[realtime] admin-ops-map status:", status);
       });
@@ -230,6 +268,10 @@ export default function PoliceTracking() {
       markersRef.current = [];
     };
   }, [loadAllReports]);
+
+  useEffect(() => {
+    placingPostRef.current = placingPost;
+  }, [placingPost]);
 
   async function loadOfficers() {
     try {
@@ -309,6 +351,128 @@ export default function PoliceTracking() {
     }
   }
 
+  async function loadPolicePosts() {
+    try {
+      const { data } = await supabase
+        .from("police_posts")
+        .select("id, name, latitude, longitude, address")
+        .order("name");
+      const posts = (data ?? []) as PolicePost[];
+
+      const postIds = posts.map((p) => p.id);
+      const assignmentsMap: Record<string, any[]> = {};
+      if (postIds.length > 0) {
+        const { data: assigns } = await supabase
+          .from("police_post_assignments")
+          .select("post_id, officer:police_profiles!officer_id(id, full_name, badge_id, rank)")
+          .in("post_id", postIds);
+        for (const a of assigns ?? []) {
+          if (!assignmentsMap[a.post_id]) assignmentsMap[a.post_id] = [];
+          if (a.officer) assignmentsMap[a.post_id].push(a.officer);
+        }
+      }
+
+      return posts.map((p) => ({ ...p, officers: assignmentsMap[p.id] || [] }));
+    } catch (err) {
+      console.error("Failed to load police posts:", err);
+      return [];
+    }
+  }
+
+  async function loadAllOfficers() {
+    try {
+      const { data } = await supabase
+        .from("police_profiles")
+        .select("id, full_name, badge_id, rank")
+        .order("full_name");
+      return data ?? [];
+    } catch (err) {
+      console.error("Failed to load officers:", err);
+      return [];
+    }
+  }
+
+  function openEditPost(post: PolicePost) {
+    setEditingPostId(post.id);
+    setPostName(post.name);
+    setPostPlaceLat(post.latitude);
+    setPostPlaceLng(post.longitude);
+    setSelectedOfficers(new Set(post.officers?.map((o) => o.id) || []));
+    setOfficerSearch("");
+    setPlacingPost(false);
+    setIsPostModalOpen(true);
+  }
+
+  async function submitPost() {
+    if (!postName.trim() || postPlaceLat == null || postPlaceLng == null) return;
+    try {
+      if (editingPostId) {
+        await supabase.from("police_posts").update({
+          name: postName.trim(),
+          latitude: postPlaceLat,
+          longitude: postPlaceLng,
+          updated_at: new Date().toISOString(),
+        }).eq("id", editingPostId);
+        await syncAssignments(editingPostId);
+      } else {
+        const { data: inserted } = await supabase.from("police_posts").insert({
+          name: postName.trim(),
+          latitude: postPlaceLat,
+          longitude: postPlaceLng,
+        }).select("id").single();
+        if (inserted) await syncAssignments(inserted.id);
+      }
+      resetPostModal();
+      const pData = await loadPolicePosts();
+      policePostsRef.current = pData;
+      setPolicePosts(pData);
+      if (mapRef.current) addAllMarkers();
+    } catch (err) {
+      console.error("Failed to save police post:", err);
+    }
+  }
+
+  async function syncAssignments(postId: string) {
+    const { data: existing } = await supabase
+      .from("police_post_assignments")
+      .select("officer_id")
+      .eq("post_id", postId);
+    const existingIds = new Set((existing ?? []).map((a) => a.officer_id));
+    const toAdd = [...selectedOfficers].filter((id) => !existingIds.has(id));
+    const toRemove = [...existingIds].filter((id) => !selectedOfficers.has(id));
+    if (toRemove.length > 0) {
+      await supabase.from("police_post_assignments").delete().eq("post_id", postId).in("officer_id", toRemove);
+    }
+    if (toAdd.length > 0) {
+      await supabase.from("police_post_assignments").insert(toAdd.map((officer_id) => ({ post_id: postId, officer_id })));
+    }
+  }
+
+  function resetPostModal() {
+    setPostName("");
+    setPostPlaceLat(null);
+    setPostPlaceLng(null);
+    setSelectedOfficers(new Set());
+    setOfficerSearch("");
+    setEditingPostId(null);
+    setIsPostModalOpen(false);
+    setPlacingPost(false);
+  }
+
+  async function deletePost() {
+    if (!editingPostId) return;
+    try {
+      await supabase.from("police_posts").delete().eq("id", editingPostId);
+      resetPostModal();
+      const pData = await loadPolicePosts();
+      policePostsRef.current = pData;
+      setPolicePosts(pData);
+      if (mapRef.current) addAllMarkers();
+    } catch (err) {
+      console.error("Failed to delete police post:", err);
+    }
+  }
+
   async function initMap() {
     try {
       const maplibregl = await import("maplibre-gl");
@@ -328,6 +492,15 @@ export default function PoliceTracking() {
       mapRef.current = map;
 
       map.on("load", () => addAllMarkers());
+
+      map.on("click", (e: any) => {
+        if (placingPostRef.current) {
+          setPostPlaceLat(e.lngLat.lat);
+          setPostPlaceLng(e.lngLat.lng);
+          setIsPostModalOpen(true);
+        }
+      });
+
       map.on("error", () => setMapError(true));
     } catch {
       setMapError(true);
@@ -487,6 +660,45 @@ export default function PoliceTracking() {
 
       markersRef.current.push(marker);
     }
+
+    // Police Post markers
+    for (const post of policePostsRef.current) {
+      if (post.latitude == null || post.longitude == null) continue;
+
+      const el = document.createElement("div");
+      el.className = "post-marker";
+      el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+
+      const officerHtml = post.officers?.length
+        ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,0.08);font-size:11px;color:var(--gray-400);">
+             <strong style="color:var(--gray-600)">Patrol Officers:</strong>
+             ${post.officers.map((o) => `<div style="display:flex;align-items:center;gap:4px;margin-top:3px;color:var(--gray-500)">${o.full_name} <span style="color:var(--gray-400);font-size:10px">(${o.rank})</span></div>`).join("")}
+           </div>`
+        : "";
+
+      const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
+        <div class="popup-content">
+          <h4 style="display:flex;align-items:center;gap:6px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" style="width:16px;height:16px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+            ${post.name}
+          </h4>
+          ${post.address ? `<p>${post.address}</p>` : ""}
+          ${officerHtml}
+        </div>
+      `);
+
+      const marker = new maplibregl.Marker({ element: el })
+        .setLngLat([post.longitude, post.latitude])
+        .setPopup(popup)
+        .addTo(mapRef.current);
+
+      el.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        openEditPost(post);
+      });
+
+      markersRef.current.push(marker);
+    }
   }
 
   const formatTime = (d: string) =>
@@ -600,6 +812,12 @@ export default function PoliceTracking() {
             {alarmCount > 0 && <span className="left-bar-badge">{alarmCount}</span>}
           </button>
           <span className="left-bar-item-label">Reports</span>
+        </div>
+        <div className="left-bar-item">
+          <button className={`left-bar-btn${placingPost ? " active" : ""}`} onClick={() => setPlacingPost(!placingPost)} title="Add Police Post">
+            <Shield size={16} />
+          </button>
+          <span className="left-bar-item-label">Add Post</span>
         </div>
         <div className="left-bar-item">
           <button className="left-bar-btn" onClick={toggleFullscreen} title="Fullscreen">
@@ -857,6 +1075,102 @@ export default function PoliceTracking() {
           )}
         </div>
       </div>}
+
+      {isPostModalOpen && (
+        <div className="modal-overlay" onClick={resetPostModal}>
+          <div className="rd-acct-modal" onClick={(e) => e.stopPropagation()} style={{ width: 360, maxHeight: "80vh", display: "flex", flexDirection: "column" }}>
+            <button className="rd-acct-modal-close" onClick={resetPostModal}>
+              <X size={16} />
+            </button>
+            <div className="rd-acct-modal-header" style={{ marginBottom: 10 }}>
+              <Shield size={12} /> {editingPostId ? "Edit Police Post" : "Add Police Post"}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, flex: 1, overflow: "hidden" }}>
+              <input
+                type="text"
+                className="pt-input"
+                placeholder="Post name (e.g. Calbayog PNP Station 1)"
+                value={postName}
+                onChange={(e) => setPostName(e.target.value)}
+                autoFocus
+              />
+              <div style={{ fontSize: 11, color: "var(--gray-500)" }}>
+                {postPlaceLat != null && postPlaceLng != null
+                  ? `📍 ${postPlaceLat.toFixed(4)}, ${postPlaceLng.toFixed(4)}`
+                  : "Click on the map to set location"}
+              </div>
+
+              <div style={{ borderTop: "1px solid var(--gray-300)", paddingTop: 8 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--gray-400)", marginBottom: 6 }}>
+                  Patrol Officers
+                </div>
+                <input
+                  type="text"
+                  className="pt-input"
+                  placeholder="Search officers..."
+                  value={officerSearch}
+                  onChange={(e) => setOfficerSearch(e.target.value)}
+                  style={{ marginBottom: 6 }}
+                />
+                <div style={{ maxHeight: 180, overflowY: "auto", display: "flex", flexDirection: "column", gap: 2 }}>
+                  {allOfficers
+                    .filter((o) => !officerSearch || o.full_name?.toLowerCase().includes(officerSearch.toLowerCase()) || o.badge_id?.toLowerCase().includes(officerSearch.toLowerCase()))
+                    .map((o) => {
+                      const isSelected = selectedOfficers.has(o.id);
+                      return (
+                        <label
+                          key={o.id}
+                          className="rd-acct-modal-btn"
+                          style={{
+                            cursor: "pointer",
+                            padding: "6px 10px",
+                            fontSize: 11,
+                            "--btn-clr": isSelected ? "#60a5fa" : "var(--gray-500)",
+                            borderColor: isSelected ? "rgba(96,165,250,0.3)" : "var(--gray-300)",
+                            background: isSelected ? "rgba(96,165,250,0.08)" : undefined,
+                          } as React.CSSProperties}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {
+                              const next = new Set(selectedOfficers);
+                              if (isSelected) next.delete(o.id); else next.add(o.id);
+                              setSelectedOfficers(next);
+                            }}
+                            style={{ accentColor: "#60a5fa" }}
+                          />
+                          <span style={{ flex: 1 }}>{o.full_name}</span>
+                          <span style={{ fontSize: 9, color: "var(--gray-400)" }}>{o.rank}</span>
+                        </label>
+                      );
+                    })}
+                  {allOfficers.length === 0 && (
+                    <div style={{ fontSize: 11, color: "var(--gray-400)", padding: "8px 0", textAlign: "center" }}>No officers loaded</div>
+                  )}
+                </div>
+                {selectedOfficers.size > 0 && (
+                  <div style={{ fontSize: 10, color: "var(--gray-400)", marginTop: 4 }}>
+                    {selectedOfficers.size} officer{selectedOfficers.size > 1 ? "s" : ""} selected
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: "flex", gap: 8, justifyContent: "space-between", marginTop: "auto", paddingTop: 8, borderTop: "1px solid var(--gray-300)" }}>
+                <div>
+                  {editingPostId && (
+                    <button className="btn btn-danger" onClick={deletePost}>Delete</button>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn btn-outline" onClick={resetPostModal}>Cancel</button>
+                  <button className="btn btn-primary" onClick={submitPost} disabled={!postName.trim()}>{editingPostId ? "Save" : "Add Post"}</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

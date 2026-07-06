@@ -119,6 +119,7 @@ export default function ReportScreen() {
   const [recordTimer, setRecordTimer] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [submittedReportId, setSubmittedReportId] = useState<string>("");
+  const [nearestPost, setNearestPost] = useState<string | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -148,6 +149,12 @@ export default function ReportScreen() {
       setLocation(sharedLocation);
     }
   }, [sharedLocation, fadeAnim, slideAnim]);
+
+  useEffect(() => {
+    if (location?.latitude && location?.longitude) {
+      findNearestPost(location.latitude, location.longitude);
+    }
+  }, [location?.latitude, location?.longitude]);
 
   useEffect(() => {
     if (!isLiveLocationActive) {
@@ -324,6 +331,20 @@ export default function ReportScreen() {
     return data.publicUrl;
   };
 
+  const findNearestPost = async (lat: number, lng: number) => {
+    const { data: posts } = await supabase
+      .from("police_posts")
+      .select("name, latitude, longitude");
+    if (!posts || posts.length === 0) return;
+    let nearest = posts[0];
+    let minDist = Infinity;
+    for (const p of posts) {
+      const d = haversine(lat, lng, p.latitude, p.longitude);
+      if (d < minDist) { minDist = d; nearest = p; }
+    }
+    setNearestPost(nearest.name);
+  };
+
   const handleSubmit = async () => {
     if (!description.trim() && capturedMedia.length === 0) {
       Alert.alert(
@@ -387,6 +408,30 @@ export default function ReportScreen() {
         locationAddress: location?.address,
         photoUrl: photoUrl as any,
       });
+
+      // Find nearest police post
+      if (location?.latitude && location?.longitude) {
+        const { data: posts } = await supabase
+          .from("police_posts")
+          .select("name, latitude, longitude");
+        if (posts && posts.length > 0) {
+          let nearest = posts[0];
+          let minDist = Infinity;
+          for (const p of posts) {
+            const d = haversine(
+              location.latitude,
+              location.longitude,
+              p.latitude,
+              p.longitude,
+            );
+            if (d < minDist) {
+              minDist = d;
+              nearest = p;
+            }
+          }
+          setNearestPost(nearest.name);
+        }
+      }
 
       // Show success modal with report ID for transparency
       setSubmittedReportId(result?.id?.toString() ?? "");
@@ -588,6 +633,13 @@ export default function ReportScreen() {
               )}
             </View>
 
+            {nearestPost && (
+              <View style={styles.nearestPostCard}>
+                <Ionicons name="location" size={16} color="#F59E0B" />
+                <Text style={styles.nearestPostText}>Nearest post: {nearestPost}</Text>
+              </View>
+            )}
+
             {/* MULTI-MEDIA EVIDENCE CARD */}
             <View style={styles.card}>
               <View style={styles.cardHeader}>
@@ -783,6 +835,15 @@ export default function ReportScreen() {
               </View>
             )}
 
+            {nearestPost && (
+              <View style={styles.nearestPostBox}>
+                <Ionicons name="location" size={14} color="#F59E0B" />
+                <Text style={styles.nearestPostText}>
+                  Nearest police post: {nearestPost}
+                </Text>
+              </View>
+            )}
+
             <TouchableOpacity
               style={[styles.successPrimaryBtn]}
               onPress={() => {
@@ -921,6 +982,18 @@ export default function ReportScreen() {
       </Modal>
     </View>
   );
+}
+
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 const styles = StyleSheet.create({
@@ -1526,6 +1599,26 @@ const styles = StyleSheet.create({
     color: "#17202b",
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
     letterSpacing: 1,
+  },
+
+  nearestPostBox: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFBEB",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    marginBottom: 18,
+  },
+
+  nearestPostText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#92400E",
+    marginLeft: 8,
+    flex: 1,
   },
 
   successPrimaryBtn: {

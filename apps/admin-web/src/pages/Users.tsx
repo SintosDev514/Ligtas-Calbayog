@@ -34,7 +34,21 @@ export default function Users() {
     if (activeTab === "police") {
       const { data: d, error } = await supabase.from("police_profiles").select("*").order("full_name");
       if (error) console.error("police_profiles query error:", error);
-      data = d;
+      const { data: assignments } = await supabase
+        .from("police_post_assignments")
+        .select("officer_id, post_id");
+      const { data: posts } = await supabase
+        .from("police_posts")
+        .select("id, name");
+      const postNameMap: Record<string, string | null> = {};
+      if (posts) for (const p of posts) postNameMap[p.id] = p.name;
+      const postMap: Record<string, string | null> = {};
+      if (assignments) {
+        for (const a of assignments) {
+          postMap[a.officer_id] = postNameMap[a.post_id] ?? null;
+        }
+      }
+      data = (d || []).map((p) => ({ ...p, assigned_post: postMap[p.id] || null }));
     } else if (activeTab === "resident") {
       const { data: d, error } = await supabase.from("resident_profiles").select("*").order("full_name");
       if (error) console.error("resident_profiles query error:", error);
@@ -138,6 +152,7 @@ export default function Users() {
                         <th>Badge ID</th>
                         <th>Rank</th>
                         <th>Station</th>
+                        <th>Assigned Post</th>
                         <th>Contact</th>
                         <th style={{ textAlign: "center" }}>Action</th>
                       </>
@@ -169,6 +184,7 @@ export default function Users() {
                           <td><span className="badge"><Shield size={12} /> {u.badge_id}</span></td>
                           <td>{u.rank}</td>
                           <td><MapPin size={12} /> {u.station}</td>
+                          <td>{u.assigned_post ? <span className="badge"><MapPin size={12} /> {u.assigned_post}</span> : "—"}</td>
                           <td>{u.phone_number ? <><Phone size={12} /> {u.phone_number}</> : "—"}</td>
                           <td style={{ textAlign: "center" }}>
                             <button className="btn-ghost btn-sm" title="View details" style={{ color: "var(--blue)" }}>

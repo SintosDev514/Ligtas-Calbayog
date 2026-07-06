@@ -10,6 +10,7 @@ import {
   ScrollView,
   Linking,
   Vibration,
+  Alert,
 } from "react-native";
 import { Audio } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -38,6 +39,8 @@ export default function DashboardScreen() {
   const [selectedReport, setSelectedReport] = useState<any | null>(null);
   const [alertBanner, setAlertBanner] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{latitude: number; longitude: number} | null>(null);
+  const [activeReportId, setActiveReportId] = useState<string | null>(null);
+  const [policePosts, setPolicePosts] = useState<any[]>([]);
   const alertTimerRef = useRef<NodeJS.Timeout | null>(null);
   const lastAlertIdRef = useRef<string | null>(null);
   const locationWatchRef = useRef<any>(null);
@@ -67,6 +70,9 @@ export default function DashboardScreen() {
           const updated = payload.new as any;
           if (updated.status === "in-progress") {
             stopAlertForReport(updated.id);
+          }
+          if (updated.id === activeReportId && (updated.status === "resolved" || updated.status === "dismissed")) {
+            setActiveReportId(null);
           }
           refreshData();
         },
@@ -131,11 +137,12 @@ export default function DashboardScreen() {
   useEffect(() => {
     if (!profile?.id || !userLocation) return;
     const now = Date.now();
-    if (now - lastHeartbeatRef.current < 25000) return;
+    if (!activeReportId && now - lastHeartbeatRef.current < 25000) return;
+    if (activeReportId && now - lastHeartbeatRef.current < 5000) return;
     lastHeartbeatRef.current = now;
-    upsertPoliceLocation(profile.id, null, userLocation.latitude, userLocation.longitude)
+    upsertPoliceLocation(profile.id, activeReportId, userLocation.latitude, userLocation.longitude)
       .catch((err) => console.warn("Heartbeat failed:", err.message));
-  }, [profile?.id, userLocation]);
+  }, [profile?.id, userLocation, activeReportId]);
 
   useEffect(() => {
     let mounted = true;
@@ -252,12 +259,23 @@ export default function DashboardScreen() {
     try {
       await supabase
         .from("crime_reports")
-        .update({ status: "in-progress", updated_at: new Date().toISOString() })
+        .update({
+          status: "in-progress",
+          assigned_officer_id: profile?.id,
+          updated_at: new Date().toISOString(),
+        })
         .eq("id", selectedReport.id);
+
       setSelectedReport((prev: any) => prev ? { ...prev, status: "in-progress" } : null);
+      setActiveReportId(selectedReport.id);
       stopAlertForReport(selectedReport.id);
+      if (userLocation) {
+        upsertPoliceLocation(profile!.id, selectedReport.id, userLocation.latitude, userLocation.longitude)
+          .catch((err) => console.warn("Location upsert after accept failed:", err.message));
+      }
     } catch (err: any) {
       console.warn("Accept failed:", err);
+      Alert.alert("Error", err.message || "Failed to accept report");
     }
   };
 
@@ -279,17 +297,19 @@ export default function DashboardScreen() {
     try {
       setLoading(true);
       setError(null);
-      const [residentData, reportsData] = await Promise.all([
+      const [residentData, reportsData, postsData] = await Promise.all([
         supabase.from("resident_profiles").select("*"),
         supabase
           .from("crime_reports")
           .select("*")
           .order("created_at", { ascending: false }),
+        supabase.from("police_posts").select("*").order("name"),
       ]);
       if (residentData.error) throw residentData.error;
       if (reportsData.error) throw reportsData.error;
       setResidents(residentData.data || []);
       setReports(reportsData.data || []);
+      setPolicePosts(postsData.data || []);
     } catch (err: any) {
       console.error("Failed to load data:", err);
       setError(err?.message || "Failed to load data. Please try again.");
@@ -300,15 +320,17 @@ export default function DashboardScreen() {
 
   const refreshData = async () => {
     try {
-      const [residentData, reportsData] = await Promise.all([
+      const [residentData, reportsData, postsData] = await Promise.all([
         supabase.from("resident_profiles").select("*"),
         supabase
           .from("crime_reports")
           .select("*")
           .order("created_at", { ascending: false }),
+        supabase.from("police_posts").select("*").order("name"),
       ]);
       if (residentData.data) setResidents(residentData.data);
       if (reportsData.data) setReports(reportsData.data);
+      if (postsData.data) setPolicePosts(postsData.data);
     } catch (err) {
       console.error("Realtime refresh failed:", err);
     }
@@ -623,6 +645,14 @@ export default function DashboardScreen() {
                   )}
                 </Marker>
               )}
+              {policePosts.map((post) => (
+                <Marker
+                  key={`post-${post.id}`}
+                  coordinate={{ latitude: post.latitude, longitude: post.longitude }}
+                  pinColor="#F59E0B"
+                  title={`${post.name} (Police Post)`}
+                />
+              ))}
           </MapView>
         </View>
       )}

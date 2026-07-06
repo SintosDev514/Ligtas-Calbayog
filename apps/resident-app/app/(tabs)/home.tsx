@@ -49,6 +49,7 @@ export default function HomeScreen() {
   const [mapExpanded, setMapExpanded] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [contacts, setContacts] = useState<any[]>([]);
+  const [policePosts, setPolicePosts] = useState<any[]>([]);
   const [sosIsHolding, setSosIsHolding] = useState(false);
   const [sosHoldSeconds, setSosHoldSeconds] = useState(5);
   const [weather, setWeather] = useState<any>(null);
@@ -310,14 +311,41 @@ export default function HomeScreen() {
       const userId = session?.session?.user?.id;
       if (!userId) return;
 
-      const [profileData, reportsData, announcementsData] = await Promise.all([
+      const [profileData, reportsData, announcementsData, postsData] = await Promise.all([
         fetchResidentProfile(userId),
         supabase
           .from("crime_reports")
           .select("status")
           .eq("resident_id", userId),
         fetchAnnouncements(),
+        supabase.from("police_posts").select("*").order("name"),
       ]);
+
+      const posts = postsData.data || [];
+      const postIds = posts.map((p: any) => p.id);
+      const officerMap: Record<string, string[]> = {};
+      if (postIds.length > 0) {
+        const { data: assignments } = await supabase
+          .from("police_post_assignments")
+          .select("post_id, officer_id")
+          .in("post_id", postIds);
+        const officerIds = [...new Set((assignments ?? []).map((a: any) => a.officer_id))];
+        if (officerIds.length > 0) {
+          const { data: officers } = await supabase
+            .from("police_profiles")
+            .select("id, full_name, rank")
+            .in("id", officerIds);
+          const officerNames: Record<string, string> = {};
+          for (const o of officers ?? []) {
+            officerNames[o.id] = `${o.full_name} (${o.rank})`;
+          }
+          for (const a of assignments ?? []) {
+            if (!officerMap[a.post_id]) officerMap[a.post_id] = [];
+            if (officerNames[a.officer_id]) officerMap[a.post_id].push(officerNames[a.officer_id]);
+          }
+        }
+      }
+      setPolicePosts(posts.map((p: any) => ({ ...p, officers: officerMap[p.id] || [] })));
 
       setProfile(profileData);
       const photoField = profileData?.avatar_url || profileData?.id_photo_url;
@@ -620,6 +648,21 @@ export default function HomeScreen() {
                   latitudeDelta: 0.01,
                   longitudeDelta: 0.01,
                 }}
+                onMarkerPress={(e: any) => {
+                  const coord = e?.coordinate || e?.nativeEvent?.coordinate;
+                  if (!coord) return;
+                  const post = policePosts.find(
+                    (p: any) =>
+                      Math.abs(p.latitude - coord.latitude) < 0.001 &&
+                      Math.abs(p.longitude - coord.longitude) < 0.001,
+                  );
+                  if (post) {
+                    const officers = post.officers?.length
+                      ? post.officers.join("\n")
+                      : "No officers assigned";
+                    Alert.alert(post.name, `Patrol Officers:\n${officers}`);
+                  }
+                }}
               >
                 <UrlTile urlTemplate={tileUrl} />
                 {location?.latitude ? (
@@ -668,6 +711,19 @@ export default function HomeScreen() {
                         )}
                       </View>
                     </Marker>
+                  );
+                })}
+                {policePosts.map((post) => {
+                  const officerText = post.officers?.length
+                    ? `\n\nPatrol Officers:\n• ${post.officers.join("\n• ")}`
+                    : "\n\nNo officers assigned";
+                  return (
+                    <Marker
+                      key={`post-${post.id}`}
+                      coordinate={{ latitude: post.latitude, longitude: post.longitude }}
+                      iconName="post-pin"
+                      title={`${post.name}${officerText}`}
+                    />
                   );
                 })}
               </MapView>
@@ -889,6 +945,21 @@ export default function HomeScreen() {
               latitudeDelta: 0.005,
               longitudeDelta: 0.005,
             }}
+            onMarkerPress={(e: any) => {
+              const coord = e?.coordinate || e?.nativeEvent?.coordinate;
+              if (!coord) return;
+              const post = policePosts.find(
+                (p: any) =>
+                  Math.abs(p.latitude - coord.latitude) < 0.001 &&
+                  Math.abs(p.longitude - coord.longitude) < 0.001,
+              );
+              if (post) {
+                const officers = post.officers?.length
+                  ? post.officers.join("\n")
+                  : "No officers assigned";
+                Alert.alert(post.name, `Patrol Officers:\n${officers}`);
+              }
+            }}
           >
             <UrlTile urlTemplate={tileUrl} />
             {location?.latitude && (
@@ -937,6 +1008,19 @@ export default function HomeScreen() {
                       )}
                     </View>
                   </Marker>
+                );
+              })}
+              {policePosts.map((post) => {
+                const officerText = post.officers?.length
+                  ? `\n\nPatrol Officers:\n• ${post.officers.join("\n• ")}`
+                  : "\n\nNo officers assigned";
+                return (
+                  <Marker
+                    key={`modal-post-${post.id}`}
+                    coordinate={{ latitude: post.latitude, longitude: post.longitude }}
+                    iconName="post-pin"
+                    title={`${post.name}${officerText}`}
+                  />
                 );
               })}
           </MapView>

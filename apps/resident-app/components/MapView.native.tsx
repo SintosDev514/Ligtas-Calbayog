@@ -84,6 +84,7 @@ var ICON_SVGS = {
   person: '<svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>',
   shield: '<svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z"/></svg>',
   warning: '<svg viewBox="0 0 24 24" width="18" height="18" fill="white"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>',
+  'post-pin': '<svg viewBox="0 0 24 24" width="28" height="28" fill="#fbbf24" stroke="#d97706" stroke-width="0.5"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3" fill="#fff"/></svg>',
 };
 
 function doSetMarkers(list) {
@@ -91,18 +92,23 @@ function doSetMarkers(list) {
   markers = [];
   list.forEach(function(m) {
     var el = document.createElement('div');
-    el.className = 'marker' + (m.animated ? ' marker-pulse' : '');
-    el.style.background = m.color || '#3B82F6';
-    if (m.imageUrl) {
-      el.style.background = '#17202b';
-      el.style.borderColor = '#22C55E';
-      var img = document.createElement('img');
-      img.className = 'marker-img';
-      img.src = m.imageUrl;
-      img.onerror = function() { this.parentElement.style.background = m.color || '#3B82F6'; this.remove(); };
-      el.appendChild(img);
+    if (m.iconName === 'post-pin') {
+      el.innerHTML = ICON_SVGS['post-pin'];
+      el.style.cursor = 'pointer';
     } else {
-      el.innerHTML = ICON_SVGS[m.iconName] || ICON_SVGS.pin;
+      el.className = 'marker' + (m.animated ? ' marker-pulse' : '');
+      el.style.background = m.color || '#3B82F6';
+      if (m.imageUrl) {
+        el.style.background = '#17202b';
+        el.style.borderColor = '#22C55E';
+        var img = document.createElement('img');
+        img.className = 'marker-img';
+        img.src = m.imageUrl;
+        img.onerror = function() { this.parentElement.style.background = m.color || '#3B82F6'; this.remove(); };
+        el.appendChild(img);
+      } else {
+        el.innerHTML = ICON_SVGS[m.iconName] || ICON_SVGS.pin;
+      }
     }
     var marker = new maplibregl.Marker({ element: el }).setLngLat([m.longitude, m.latitude]).addTo(map);
     el.addEventListener('click', function() {

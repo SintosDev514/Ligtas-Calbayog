@@ -14,14 +14,31 @@ export default function PoliceOfficers() {
     const channel = supabase
       .channel("admin-police-officers")
       .on("postgres_changes", { event: "*", schema: "public", table: "police_profiles" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "police_post_assignments" }, () => load())
       .subscribe();
     load();
     return () => { supabase.removeChannel(channel); };
   }, []);
 
   const load = async () => {
-    const { data } = await supabase.from("police_profiles").select("*").order("full_name");
-    if (data) setOfficers(data);
+      const { data: profiles } = await supabase.from("police_profiles").select("*").order("full_name");
+    if (profiles) {
+      const { data: assignments } = await supabase
+        .from("police_post_assignments")
+        .select("officer_id, post_id");
+      const { data: posts } = await supabase
+        .from("police_posts")
+        .select("id, name");
+      const postNameMap: Record<string, string | null> = {};
+      if (posts) for (const p of posts) postNameMap[p.id] = p.name;
+      const postMap: Record<string, string | null> = {};
+      if (assignments) {
+        for (const a of assignments) {
+          postMap[a.officer_id] = postNameMap[a.post_id] ?? null;
+        }
+      }
+      setOfficers(profiles.map((p) => ({ ...p, assigned_post: postMap[p.id] || null })));
+    }
     setLoading(false);
   };
 
@@ -31,7 +48,8 @@ export default function PoliceOfficers() {
       o.full_name?.toLowerCase().includes(q) ||
       o.badge_id?.toLowerCase().includes(q) ||
       o.rank?.toLowerCase().includes(q) ||
-      o.station?.toLowerCase().includes(q)
+      o.station?.toLowerCase().includes(q) ||
+      o.assigned_post?.toLowerCase().includes(q)
     );
   });
 
@@ -88,6 +106,7 @@ export default function PoliceOfficers() {
                     <th>Badge ID</th>
                     <th>Rank</th>
                     <th>Station</th>
+                    <th>Assigned Post</th>
                     <th>Contact</th>
                   </tr>
                 </thead>
@@ -98,6 +117,7 @@ export default function PoliceOfficers() {
                       <td><span className="badge"><Shield size={12} /> {o.badge_id}</span></td>
                       <td>{o.rank}</td>
                       <td><MapPin size={12} /> {o.station}</td>
+                      <td>{o.assigned_post ? <span className="badge"><MapPin size={12} /> {o.assigned_post}</span> : "—"}</td>
                       <td>{o.phone_number ? <><Phone size={12} /> {o.phone_number}</> : "—"}</td>
                     </tr>
                   ))}

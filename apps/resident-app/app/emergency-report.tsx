@@ -40,6 +40,7 @@ export default function EmergencyReportScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submittedId, setSubmittedId] = useState("");
+  const [nearestPost, setNearestPost] = useState<string | null>(null);
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -59,6 +60,12 @@ export default function EmergencyReportScreen() {
       useNativeDriver: true,
     }).start();
   }, []);
+
+  useEffect(() => {
+    if (location?.latitude && location?.longitude) {
+      findNearestPost(location.latitude, location.longitude);
+    }
+  }, [location?.latitude, location?.longitude]);
 
   const openCamera = async () => {
     if (!cameraPermission?.granted) {
@@ -165,6 +172,20 @@ export default function EmergencyReportScreen() {
     return data.publicUrl;
   };
 
+  const findNearestPost = async (lat: number, lng: number) => {
+    const { data: posts } = await supabase
+      .from("police_posts")
+      .select("name, latitude, longitude");
+    if (!posts || posts.length === 0) return;
+    let nearest = posts[0];
+    let minDist = Infinity;
+    for (const p of posts) {
+      const d = haversine(lat, lng, p.latitude, p.longitude);
+      if (d < minDist) { minDist = d; nearest = p; }
+    }
+    setNearestPost(nearest.name);
+  };
+
   const handleSubmit = async () => {
     try {
       setIsSubmitting(true);
@@ -239,6 +260,13 @@ export default function EmergencyReportScreen() {
             {submittedId ? (
               <Text style={styles.submittedId}>Ref: {submittedId.slice(0, 8)}...</Text>
             ) : null}
+
+            {nearestPost && (
+              <View style={styles.nearestPostSubmitted}>
+                <Ionicons name="location" size={16} color="#FCD34D" />
+                <Text style={styles.nearestPostSubmittedText}>Nearest post: {nearestPost}</Text>
+              </View>
+            )}
 
             <View style={styles.stayCalmCard}>
               <Ionicons name="information-circle" size={20} color="#FCD34D" />
@@ -316,6 +344,13 @@ export default function EmergencyReportScreen() {
                 <Text style={styles.locationLiveText}>Live GPS tracking active</Text>
               </View>
             </View>
+
+            {nearestPost && (
+              <View style={styles.nearestPostCard}>
+                <Ionicons name="location" size={16} color="#F59E0B" />
+                <Text style={styles.nearestPostText}>Nearest post: {nearestPost}</Text>
+              </View>
+            )}
           </Animated.View>
 
           {/* Evidence */}
@@ -498,6 +533,18 @@ export default function EmergencyReportScreen() {
       )}
     </View>
   );
+}
+
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 const styles = StyleSheet.create({
@@ -938,6 +985,42 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "rgba(255,255,255,0.4)",
     marginBottom: 20,
+  },
+  nearestPostSubmitted: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(252,211,77,0.1)",
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "rgba(252,211,77,0.2)",
+    marginBottom: 20,
+    width: "100%",
+  },
+  nearestPostSubmittedText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FCD34D",
+    marginLeft: 8,
+    flex: 1,
+  },
+  nearestPostCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFBEB",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    marginTop: 12,
+  },
+  nearestPostText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#92400E",
+    marginLeft: 8,
+    flex: 1,
   },
   stayCalmCard: {
     flexDirection: "row",

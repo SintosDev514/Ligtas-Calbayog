@@ -1,24 +1,11 @@
-import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { supabase } from "../supabase";
 
 const EMERGENCY_TYPES = ["emergency", "robbery", "assault", "hit-and-run", "burglary", "theft"];
-const ACTIVE_STATUSES = ["pending", "under-review", "in-progress", "needs-backup"];
-
-interface NewReportBanner {
-  id: string;
-  crime_type: string;
-  location_address?: string;
-  created_at: string;
-  status: string;
-}
 
 interface AlarmContextType {
   alarmCount: number;
   refreshAlarm: () => void;
-  newReport: NewReportBanner | null;
-  setNewReport: (report: NewReportBanner | null) => void;
-  showBanner: boolean;
-  setShowBanner: (show: boolean) => void;
 }
 
 const AlarmContext = createContext<AlarmContextType | undefined>(undefined);
@@ -31,6 +18,16 @@ let normalLoadPromise: Promise<void> | null = null;
 let loopSource: AudioBufferSourceNode | null = null;
 let loopGain: GainNode | null = null;
 let isLooping = false;
+
+// Create AudioContext immediately on module load
+try {
+  audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+  if (audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+} catch (e) {
+  console.warn("[AlarmContext] Failed to create AudioContext:", e);
+}
 
 async function ensureEmergencyLoaded(): Promise<void> {
   if (emergencyBuffer) return;
@@ -79,26 +76,37 @@ function stopLoop() {
 }
 
 function startLoop(buffer: AudioBuffer) {
-  if (isLooping || !audioCtx) return;
-  isLooping = true;
-  loopSource = audioCtx.createBufferSource();
-  loopSource.buffer = buffer;
-  loopSource.loop = true;
-  loopGain = audioCtx.createGain();
-  loopGain.gain.value = 0.5;
-  loopSource.connect(loopGain);
-  loopGain.connect(audioCtx.destination);
-  loopSource.start();
+  if (!audioCtx) return;
+  stopLoop();
+  try {
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume();
+    }
+    isLooping = true;
+    loopSource = audioCtx.createBufferSource();
+    loopSource.buffer = buffer;
+    loopSource.loop = true;
+    loopGain = audioCtx.createGain();
+    loopGain.gain.value = 0.5;
+    loopSource.connect(loopGain);
+    loopGain.connect(audioCtx.destination);
+    loopSource.start();
+  } catch (e) {
+    console.warn("[AlarmContext] startLoop failed:", e);
+    isLooping = false;
+  }
 }
 
 export function AlarmProvider({ children }: { children: React.ReactNode }) {
   const [alarmCount, setAlarmCount] = useState(0);
-  const [newReport, setNewReport] = useState<NewReportBanner | null>(null);
-  const [showBanner, setShowBanner] = useState(false);
-  const audioUnlocked = useRef(false);
-  const lastNotifiedId = useRef<string | null>(null);
 
-  const checkReports = useCallback(async (newReportPayload?: NewReportBanner) => {
+  // Preload audio files immediately
+  useEffect(() => {
+    ensureEmergencyLoaded();
+    ensureNormalLoaded();
+  }, []);
+
+  const checkReports = useCallback(async () => {
     try {
       const { data } = await supabase
         .from("crime_reports")
@@ -117,14 +125,14 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       setAlarmCount(emergencyCount);
 
       if (emergencyCount > 0) {
-        if (audioUnlocked.current && emergencyBuffer) {
+        if (emergencyBuffer) {
           if (!isLooping || (isLooping && loopSource?.buffer !== emergencyBuffer)) {
             stopLoop();
             startLoop(emergencyBuffer);
           }
         }
       } else if (normalCount > 0) {
-        if (audioUnlocked.current && normalBuffer) {
+        if (normalBuffer) {
           if (!isLooping || (isLooping && loopSource?.buffer !== normalBuffer)) {
             stopLoop();
             startLoop(normalBuffer);
@@ -133,53 +141,34 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       } else {
         stopLoop();
       }
-
-      if (newReportPayload && newReportPayload.id !== lastNotifiedId.current && ACTIVE_STATUSES.includes(newReportPayload.status)) {
-        lastNotifiedId.current = newReportPayload.id;
-        setNewReport(newReportPayload);
-        setShowBanner(true);
-      }
     } catch (e) {
       console.error("[AlarmContext] checkReports error:", e);
     }
   }, []);
 
+  // Fallback: try to resume AudioContext on any user interaction
   useEffect(() => {
-    const unlock = async () => {
-      if (audioUnlocked.current) return;
-      audioUnlocked.current = true;
-      if (!audioCtx) {
-        audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const tryResume = () => {
+      if (audioCtx?.state === "suspended") {
+        audioCtx.resume();
       }
-      if (audioCtx.state === "suspended") {
-        await audioCtx.resume();
-      }
-      await Promise.all([ensureEmergencyLoaded(), ensureNormalLoaded()]);
-      if (isLooping) {
-        stopLoop();
-        checkReports();
-      } else {
-        checkReports();
-      }
-      document.removeEventListener("click", unlock);
-      document.removeEventListener("touchstart", unlock);
     };
-    document.addEventListener("click", unlock);
-    document.addEventListener("touchstart", unlock);
+    document.addEventListener("click", tryResume);
+    document.addEventListener("touchstart", tryResume);
     return () => {
-      document.removeEventListener("click", unlock);
-      document.removeEventListener("touchstart", unlock);
+      document.removeEventListener("click", tryResume);
+      document.removeEventListener("touchstart", tryResume);
       stopLoop();
     };
-  }, [checkReports]);
+  }, []);
 
   useEffect(() => {
     checkReports();
 
     const channel = supabase
       .channel("global-alarm")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "crime_reports" }, (payload: any) => {
-        checkReports(payload.new);
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "crime_reports" }, () => {
+        checkReports();
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "crime_reports" }, () => {
         checkReports();
@@ -198,7 +187,7 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
   }, [checkReports]);
 
   return (
-    <AlarmContext.Provider value={{ alarmCount, refreshAlarm: checkReports, newReport, setNewReport, showBanner, setShowBanner }}>
+    <AlarmContext.Provider value={{ alarmCount, refreshAlarm: checkReports }}>
       {children}
     </AlarmContext.Provider>
   );
