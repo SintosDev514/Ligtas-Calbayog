@@ -245,12 +245,23 @@ export default function Dashboard() {
     }
   };
 
+  const getMapStyle = () => {
+    try {
+      const t = localStorage.getItem("admin-theme");
+      return t === "light"
+        ? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
+        : "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+    } catch {
+      return "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+    }
+  };
+
   const initMap = async () => {
     try {
       const maplibre = await import("maplibre-gl");
       const map = new maplibre.Map({
         container: mapContainer.current!,
-        style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        style: getMapStyle(),
         center: [124.6, 12.07],
         zoom: 11,
       });
@@ -484,7 +495,7 @@ export default function Dashboard() {
 
         <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
           <div className="card" style={{ padding: 0, overflow: "hidden", flex: 1, minWidth: 0 }}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 14px", borderBottom: "1px solid var(--gray-300)" }}>
               <h3 style={{ fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
                 <MapPin size={14} /> Crime Location Heatmap
               </h3>
@@ -544,7 +555,7 @@ export default function Dashboard() {
                     <div key={b.name} style={{ display: "flex", alignItems: "center", gap: 4 }}>
                       <span style={{ width: 80, fontSize: 10, color: "var(--gray-500)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.name}</span>
                       <div style={{ flex: 1, height: 8, background: "var(--gray-200)", borderRadius: 2, overflow: "hidden" }}>
-                        <div style={{ width: `${pct}%`, height: "100%", background: "#fff", borderRadius: 2 }} />
+                        <div style={{ width: `${pct}%`, height: "100%", background: "var(--gray-900)", borderRadius: 2 }} />
                       </div>
                       <span style={{ fontSize: 9, fontWeight: 600, color: "var(--gray-400)", width: 16, textAlign: "right" }}>{b.total}</span>
                     </div>
@@ -636,16 +647,16 @@ export default function Dashboard() {
                     const y = padT + (i / steps) * innerH;
                     return (
                       <g key={i}>
-                        <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth={1} />
+                        <line x1={padL} y1={y} x2={w - padR} y2={y} stroke="var(--gray-300)" strokeWidth={1} />
                         <text x={padL - 4} y={y + 3} textAnchor="end" fill="var(--gray-500)" fontSize={8}>{v}</text>
                       </g>
                     );
                   })}
-                  <polyline points={points} fill="none" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  <polyline points={points} fill="none" stroke="var(--gray-900)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
                   {timeChartData.map((d, i) => {
                     const x = padL + (i / Math.max(timeChartData.length - 1, 1)) * innerW;
                     const y = padT + innerH - (d.count / max) * innerH;
-                    return d.count > 0 ? <circle key={i} cx={x} cy={y} r={2.5} fill="white" /> : null;
+                    return d.count > 0 ? <circle key={i} cx={x} cy={y} r={2.5} fill="var(--gray-900)" /> : null;
                   })}
                   {timeChartData.filter((_, i) => {
                     const total = timeChartData.length;

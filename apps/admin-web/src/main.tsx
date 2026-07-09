@@ -7,6 +7,16 @@ import { ToastProvider } from "./context/ToastContext";
 import { AlarmProvider } from "./context/AlarmContext";
 import "./App.css";
 
+const savedTheme = (() => {
+  try {
+    const t = localStorage.getItem("admin-theme");
+    return t === "light" || t === "dark" ? t : "dark";
+  } catch {
+    return "dark";
+  }
+})();
+document.documentElement.setAttribute("data-theme", savedTheme);
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>

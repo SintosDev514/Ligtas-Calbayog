@@ -1,5 +1,18 @@
-import { useState } from "react";
-import { Settings as SettingsIcon, Save, Bell, Shield, Globe, MapPin, Users } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Settings as SettingsIcon, Save, Bell, Shield, Globe, MapPin, Sun, Moon } from "lucide-react";
+
+function getTheme(): "light" | "dark" {
+  if (typeof window !== "undefined") {
+    const stored = localStorage.getItem("admin-theme");
+    if (stored === "light" || stored === "dark") return stored;
+  }
+  return "dark";
+}
+
+function setTheme(mode: "light" | "dark") {
+  document.documentElement.setAttribute("data-theme", mode);
+  localStorage.setItem("admin-theme", mode);
+}
 
 const SETTINGS_SECTIONS = [
   {
@@ -11,6 +24,12 @@ const SETTINGS_SECTIONS = [
       { label: "Contact Email", value: "admin@ligtascalbayog.gov.ph", type: "email" },
       { label: "Contact Phone", value: "(055) 123-4567", type: "text" },
     ],
+  },
+  {
+    id: "theme",
+    label: "Theme",
+    icon: Sun,
+    fields: [],
   },
   {
     id: "notifications",
@@ -48,6 +67,15 @@ const SETTINGS_SECTIONS = [
 export default function Settings() {
   const [activeSection, setActiveSection] = useState("general");
   const [saved, setSaved] = useState(false);
+  const [theme, setThemeState] = useState<"light" | "dark">(getTheme);
+
+  useEffect(() => {
+    setTheme(theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
+  };
 
   const handleSave = () => {
     setSaved(true);
@@ -95,19 +123,61 @@ export default function Settings() {
                   </h3>
                 </div>
                 <div className="card-body">
-                  {section.fields.map((field) => (
-                    <div key={field.label} style={{
-                      display: "flex", justifyContent: "space-between", alignItems: "center",
-                      padding: "12px 0", borderBottom: "1px solid var(--gray-100)"
-                    }}>
-                      <span style={{ fontSize: 14, fontWeight: 500 }}>{field.label}</span>
-                      {field.type === "toggle" ? (
-                        <span className="badge badge-resolved" style={{ cursor: "pointer" }}>{field.value}</span>
-                      ) : (
-                        <span style={{ fontSize: 14, color: "var(--gray-500)" }}>{field.value}</span>
-                      )}
+                  {section.id === "theme" ? (
+                    <div style={{ padding: "12px 0" }}>
+                      <div style={{
+                        display: "flex", justifyContent: "space-between", alignItems: "center",
+                        marginBottom: 16,
+                      }}>
+                        <span style={{ fontSize: 14, fontWeight: 500 }}>Appearance</span>
+                        <span style={{ fontSize: 13, color: "var(--gray-500)" }}>
+                          {theme === "dark" ? "Dark Mode" : "Light Mode"}
+                        </span>
+                      </div>
+                      <button
+                        onClick={toggleTheme}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 12, width: "100%",
+                          padding: "12px 16px", border: "1.5px solid var(--gray-300)",
+                          borderRadius: "var(--radius-md)", background: "transparent",
+                          cursor: "pointer", fontSize: 14, color: "var(--gray-700)",
+                        }}
+                      >
+                        <div style={{
+                          width: 40, height: 40, borderRadius: "var(--radius-sm)",
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          background: theme === "dark" ? "var(--navy)" : "var(--gray-200)",
+                          color: theme === "dark" ? "var(--gold)" : "var(--gray-700)",
+                        }}>
+                          {theme === "dark" ? <Moon size={20} /> : <Sun size={20} />}
+                        </div>
+                        <div style={{ textAlign: "left" }}>
+                          <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                            {theme === "dark" ? "Dark Mode" : "Light Mode"}
+                          </div>
+                          <div style={{ fontSize: 12, color: "var(--gray-500)" }}>
+                            {theme === "dark"
+                              ? "Dark background with light text"
+                              : "Light background with dark text"}
+                          </div>
+                        </div>
+                      </button>
                     </div>
-                  ))}
+                  ) : (
+                    section.fields.map((field) => (
+                      <div key={field.label} style={{
+                        display: "flex", justifyContent: "space-between", alignItems: "center",
+                        padding: "12px 0", borderBottom: "1px solid var(--gray-100)"
+                      }}>
+                        <span style={{ fontSize: 14, fontWeight: 500 }}>{field.label}</span>
+                        {field.type === "toggle" ? (
+                          <span className="badge badge-resolved" style={{ cursor: "pointer" }}>{field.value}</span>
+                        ) : (
+                          <span style={{ fontSize: 14, color: "var(--gray-500)" }}>{field.value}</span>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             ))}

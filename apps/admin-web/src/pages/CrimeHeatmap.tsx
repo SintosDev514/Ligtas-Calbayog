@@ -37,12 +37,23 @@ export default function CrimeHeatmap() {
     setLoading(false);
   };
 
+  const getMapStyle = () => {
+    try {
+      const t = localStorage.getItem("admin-theme");
+      return t === "light"
+        ? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
+        : "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+    } catch {
+      return "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+    }
+  };
+
   const initMap = async () => {
     try {
       const maplibre = await import("maplibre-gl");
       const map = new maplibre.Map({
         container: mapContainer.current!,
-        style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+        style: getMapStyle(),
         center: [124.6, 12.07],
         zoom: 11,
       });
@@ -159,7 +170,7 @@ export default function CrimeHeatmap() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - var(--header-height, 64px))" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", background: "var(--gray-100)", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 20px", background: "var(--gray-100)", borderBottom: "1px solid var(--gray-300)", flexShrink: 0 }}>
         <h2 style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 16, fontWeight: 700, color: "var(--gray-900)" }}>
           <Map size={18} /> Crime Heatmap
         </h2>
