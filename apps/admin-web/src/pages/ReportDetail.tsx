@@ -256,6 +256,7 @@ export default function ReportDetail() {
         await supabase.from("action_updates").insert({
           report_id: id,
           action_type: status === NEEDS_BACKUP ? "backup_requested" : "dispatched",
+          officer_id: report?.assigned_officer_id || null,
           description:
             status === NEEDS_BACKUP
               ? "Backup has been requested for this incident"
@@ -268,6 +269,7 @@ export default function ReportDetail() {
         await supabase.from("action_updates").insert({
           report_id: id,
           action_type: "resolved",
+          officer_id: report?.assigned_officer_id || null,
           description: "Incident has been resolved",
           created_at: new Date().toISOString(),
         });
@@ -456,86 +458,93 @@ export default function ReportDetail() {
               )}
             </div>
 
-            <div className="rd-card rd-card-location" style={{ "--rd-accent": "#f59e0b" } as React.CSSProperties}>
-              <div className="rd-card-head">
-                <MapPin size={13} />
-                <span>Location Details</span>
-              </div>
-              <div className="rd-location-info">
-                {report.location_address && (
-                  <div className="rd-loc-row rd-loc-address">
-                    <span className="rd-loc-label">Address</span>
-                    <span className="rd-loc-value rd-loc-address-value">{report.location_address}</span>
-                  </div>
-                )}
-                {report.latitude != null && report.longitude != null && (
-                  <div className="rd-loc-row">
-                    <span className="rd-loc-label">Coordinates</span>
-                    <span className="rd-loc-coords">
-                      <Crosshair size={10} />
-                      {Number(report.latitude).toFixed(4)}, {Number(report.longitude).toFixed(4)}
+            <div className="rd-main-row" style={{ display: "flex", gap: 16, minHeight: 420 }}>
+              <div className="rd-card rd-card-location" style={{ flex: 1, minWidth: 0, "--rd-accent": "#f59e0b" } as React.CSSProperties}>
+                <div className="rd-card-head">
+                  <MapPin size={13} />
+                  <span>Location Details</span>
+                </div>
+                <div className="rd-location-info">
+                  {report.location_address && (
+                    <div className="rd-loc-row rd-loc-address">
+                      <span className="rd-loc-label">Address</span>
+                      <span className="rd-loc-value rd-loc-address-value">{report.location_address}</span>
+                    </div>
+                  )}
+                  {report.latitude != null && report.longitude != null && (
+                    <div className="rd-loc-row">
+                      <span className="rd-loc-label">Coordinates</span>
+                      <span className="rd-loc-coords">
+                        <Crosshair size={10} />
+                        {Number(report.latitude).toFixed(4)}, {Number(report.longitude).toFixed(4)}
+                      </span>
+                    </div>
+                  )}
+                  {report.latitude != null && report.longitude != null && (
+                    <div className="rd-loc-actions">
+                      <button className="rd-loc-btn rd-loc-btn-street" onClick={() => openStreetView(report.latitude!, report.longitude!)}>
+                        <Eye size={12} />
+                        <span>Street View</span>
+                      </button>
+                    </div>
+                  )}
+                  <div className="rd-loc-row rd-loc-live-row">
+                    <span className="rd-loc-label">Live Location</span>
+                    <span className={`rd-loc-tag ${report.share_live_location ? "on" : ""}`}>
+                      {report.share_live_location ? "Enabled" : "Disabled"}
                     </span>
                   </div>
-                )}
+                </div>
                 {report.latitude != null && report.longitude != null && (
-                  <div className="rd-loc-actions">
-                    <button className="rd-loc-btn rd-loc-btn-street" onClick={() => openStreetView(report.latitude!, report.longitude!)}>
-                      <Eye size={12} />
-                      <span>Street View</span>
-                    </button>
+                  <div className="rd-map-box">
+                    <MapView
+                      latitude={report.latitude}
+                      longitude={report.longitude}
+                      label={report.crime_type?.replace(/-/g, " ")}
+                    />
                   </div>
                 )}
-                <div className="rd-loc-row rd-loc-live-row">
-                  <span className="rd-loc-label">Live Location</span>
-                  <span className={`rd-loc-tag ${report.share_live_location ? "on" : ""}`}>
-                    {report.share_live_location ? "Enabled" : "Disabled"}
-                  </span>
-                </div>
               </div>
-              {report.latitude != null && report.longitude != null && (
-                <div className="rd-map-box">
-                  <MapView
-                    latitude={report.latitude}
-                    longitude={report.longitude}
-                    label={report.crime_type?.replace(/-/g, " ")}
-                  />
+
+              {actionUpdates.length > 0 && (
+                <div className="rd-card rd-card-timeline" style={{ flex: "0 0 320px", minWidth: 0, "--rd-accent": "#8b5cf6" } as React.CSSProperties}>
+                  <div className="rd-card-head">
+                    <Clock size={13} />
+                    <span>Action Timeline</span>
+                    <span className="rd-card-badge">{actionUpdates.length}</span>
+                  </div>
+                  <div className="rd-timeline">
+                    {actionUpdates.map((u: any, i: number) => {
+                      const Icon = getTimelineIcon(u.action_type);
+                      const color = getTimelineColor(u.action_type);
+                      const isLast = i === actionUpdates.length - 1;
+                      return (
+                        <div key={u.id} className="rd-tl-item">
+                          <div className="rd-tl-track">
+                            <div className="rd-tl-dot" style={{ borderColor: color }} />
+                            {!isLast && <div className="rd-tl-line" style={{ background: color }} />}
+                          </div>
+                          <div className="rd-tl-body">
+                            <div className="rd-tl-top">
+                              <span className="rd-tl-action">{u.action_type?.replace(/_/g, " ")}</span>
+                              <span className="rd-tl-time">
+                                {formatDateShort(u.created_at)} at {formatTime(u.created_at)}
+                              </span>
+                            </div>
+                            {u.description && <p className="rd-tl-desc">{u.description}</p>}
+                            {u.officer && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, fontSize: 11, color: "var(--gray-400)" }}>
+                                <Shield size={10} /> {u.officer.full_name} ({u.officer.rank})
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
-
-            {actionUpdates.length > 0 && (
-              <div className="rd-card rd-card-timeline" style={{ "--rd-accent": "#8b5cf6" } as React.CSSProperties}>
-                <div className="rd-card-head">
-                  <Clock size={13} />
-                  <span>Action Timeline</span>
-                  <span className="rd-card-badge">{actionUpdates.length}</span>
-                </div>
-                <div className="rd-timeline">
-                  {actionUpdates.map((u: any, i: number) => {
-                    const Icon = getTimelineIcon(u.action_type);
-                    const color = getTimelineColor(u.action_type);
-                    const isLast = i === actionUpdates.length - 1;
-                    return (
-                      <div key={u.id} className="rd-tl-item">
-                        <div className="rd-tl-track">
-                          <div className="rd-tl-dot" style={{ borderColor: color }} />
-                          {!isLast && <div className="rd-tl-line" style={{ background: color }} />}
-                        </div>
-                        <div className="rd-tl-body">
-                          <div className="rd-tl-top">
-                            <span className="rd-tl-action">{u.action_type?.replace(/_/g, " ")}</span>
-                            <span className="rd-tl-time">
-                              {formatDateShort(u.created_at)} at {formatTime(u.created_at)}
-                            </span>
-                          </div>
-                          {u.description && <p className="rd-tl-desc">{u.description}</p>}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="rd-side">

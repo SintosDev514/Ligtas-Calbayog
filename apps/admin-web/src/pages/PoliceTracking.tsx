@@ -86,7 +86,29 @@ interface PolicePost {
   officers: { id: string; full_name: string; badge_id: string; rank: string }[];
 }
 
+interface OfficerRoute {
+  officer_id: string;
+  coordinates: [number, number][];
+}
+
 const REPORT_EMERGENCY_TYPES = ["emergency", "robbery", "assault", "hit-and-run", "burglary", "theft"];
+
+const CRIME_COLORS: Record<string, string> = {
+  emergency: "#ef4444",
+  robbery: "#f97316",
+  assault: "#dc2626",
+  "hit-and-run": "#f59e0b",
+  burglary: "#a855f7",
+  theft: "#3b82f6",
+  fire: "#ff6b35",
+  accident: "#f43f5e",
+};
+
+const ACTIVE_STATUSES = ["pending", "under-review", "in-progress", "dispatched"];
+
+function getCrimeColor(type: string): string {
+  return CRIME_COLORS[type?.toLowerCase()] || "#6b7280";
+}
 
 export default function PoliceTracking() {
   const { alarmCount } = useAlarm();
@@ -141,6 +163,9 @@ export default function PoliceTracking() {
   const [selectedOfficers, setSelectedOfficers] = useState<Set<string>>(new Set());
   const [officerSearch, setOfficerSearch] = useState("");
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [officerRoutes, setOfficerRoutes] = useState<OfficerRoute[]>([]);
+  const officerRoutesRef = useRef<OfficerRoute[]>([]);
+  const [showRoutes, setShowRoutes] = useState(true);
 
   const loadAllReports = useCallback(async () => {
     try {
@@ -213,6 +238,7 @@ export default function PoliceTracking() {
       setAllOfficers(aData);
       loadAllReports();
       initMap();
+      loadOfficerRoutes();
     });
 
     const channel = supabase
@@ -224,6 +250,10 @@ export default function PoliceTracking() {
           if (mapRef.current) addAllMarkers();
           loadAllReports();
         });
+        loadOfficerRoutes();
+      })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "police_location_history" }, () => {
+        loadOfficerRoutes();
       })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "crime_reports" }, (payload: any) => {
         loadAllReports();
@@ -318,6 +348,7 @@ export default function PoliceTracking() {
         .select("id, resident_id, latitude, longitude, location_address, crime_type, status, share_live_location, created_at")
         .not("latitude", "is", null)
         .not("longitude", "is", null)
+        .in("status", ACTIVE_STATUSES)
         .order("created_at", { ascending: false });
 
       const residentIds = [...new Set((reports ?? []).map((r: any) => r.resident_id))];
@@ -390,6 +421,84 @@ export default function PoliceTracking() {
       console.error("Failed to load officers:", err);
       return [];
     }
+  }
+
+  async function loadOfficerRoutes() {
+    try {
+      const recent = new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString();
+      const { data } = await supabase
+        .from("police_location_history")
+        .select("officer_id, latitude, longitude, created_at")
+        .gte("created_at", recent)
+        .order("created_at", { ascending: true });
+
+      const grouped: Record<string, [number, number][]> = {};
+      for (const row of data ?? []) {
+        if (!grouped[row.officer_id]) grouped[row.officer_id] = [];
+        grouped[row.officer_id].push([row.longitude, row.latitude]);
+      }
+
+      const routes: OfficerRoute[] = Object.entries(grouped)
+        .filter(([, coords]) => coords.length >= 2)
+        .map(([officer_id, coords]) => ({
+          officer_id,
+          coordinates: coords.slice(-200),
+        }));
+
+      officerRoutesRef.current = routes;
+      setOfficerRoutes(routes);
+      updateRouteLines();
+    } catch (err) {
+      console.error("Failed to load officer routes:", err);
+    }
+  }
+
+  function updateRouteLines() {
+    const map = mapRef.current;
+    if (!map || !map.getSource) return;
+
+    try {
+      if (map.getLayer("officer-routes-glow")) map.removeLayer("officer-routes-glow");
+      if (map.getLayer("officer-routes-line")) map.removeLayer("officer-routes-line");
+      if (map.getSource("officer-routes")) map.removeSource("officer-routes");
+    } catch {}
+
+    const routes = officerRoutesRef.current;
+    if (routes.length === 0) return;
+
+    const features = routes.map((r) => ({
+      type: "Feature" as const,
+      properties: { officer_id: r.officer_id },
+      geometry: { type: "LineString" as const, coordinates: r.coordinates },
+    }));
+
+    map.addSource("officer-routes", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features },
+    });
+
+    map.addLayer({
+      id: "officer-routes-glow",
+      type: "line",
+      source: "officer-routes",
+      paint: {
+        "line-color": "#22c55e",
+        "line-width": 8,
+        "line-opacity": 0.15,
+        "line-blur": 3,
+      },
+    });
+
+    map.addLayer({
+      id: "officer-routes-line",
+      type: "line",
+      source: "officer-routes",
+      paint: {
+        "line-color": "#22c55e",
+        "line-width": 2.5,
+        "line-opacity": 0.7,
+      },
+    });
   }
 
   function openEditPost(post: PolicePost) {
@@ -491,7 +600,10 @@ export default function PoliceTracking() {
 
       mapRef.current = map;
 
-      map.on("load", () => addAllMarkers());
+      map.on("load", () => {
+        addAllMarkers();
+        updateRouteLines();
+      });
 
       map.on("click", (e: any) => {
         if (placingPostRef.current) {
@@ -514,13 +626,26 @@ export default function PoliceTracking() {
     setMapStyle(next);
     if (mapRef.current) {
       const s = mapStyles.find((s) => s.id === next);
-      if (s) mapRef.current.setStyle(s.url);
+      if (s) {
+        mapRef.current.setStyle(s.url);
+        mapRef.current.once("style.load", () => {
+          updateRouteLines();
+          addAllMarkers();
+        });
+      }
     }
   }
 
   useEffect(() => {
     activeTabRef.current = activeTab;
     addAllMarkers();
+    const map = mapRef.current;
+    if (map && map.getLayer) {
+      const visible = activeTab !== "residents";
+      ["officer-routes-glow", "officer-routes-line"].forEach((id) => {
+        if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", visible ? "visible" : "none");
+      });
+    }
   }, [activeTab]);
 
   useEffect(() => {
@@ -634,19 +759,19 @@ export default function PoliceTracking() {
       if (focus && r.id !== focus) continue;
 
       const isRecent = Date.now() - new Date(r.created_at).getTime() < 24 * 60 * 60 * 1000;
+      const crimeColor = getCrimeColor(r.crime_type);
+      const initial = (r.crime_type || "?").charAt(0).toUpperCase();
 
       const el = document.createElement("div");
       el.className = `resident-marker${isRecent ? " active" : ""}`;
-
-      const picUrl = r.resident?.photo_url || r.resident?.avatar_url;
-      if (picUrl) {
-        const img = document.createElement("img");
-        img.src = picUrl;
-        img.alt = r.resident?.full_name?.charAt(0) || "R";
-        img.style.cssText = "width:100%;height:100%;border-radius:50%;object-fit:cover;";
-        el.appendChild(img);
-      } else {
-        el.textContent = r.resident?.full_name?.charAt(0) || "?";
+      el.style.background = `${crimeColor}22`;
+      el.style.border = `2px solid ${crimeColor}`;
+      el.style.color = crimeColor;
+      el.style.fontWeight = "700";
+      el.style.fontSize = "14px";
+      el.textContent = initial;
+      if (isRecent) {
+        el.style.setProperty("--crime-pulse", `${crimeColor}66`);
       }
 
       const marker = new maplibregl.Marker({ element: el })
@@ -843,6 +968,21 @@ export default function PoliceTracking() {
         </div>
         <div className="left-bar-divider" />
         <div className="left-bar-item">
+          <button className={`left-bar-btn${showRoutes ? " active" : ""}`} onClick={() => {
+            const next = !showRoutes;
+            setShowRoutes(next);
+            const map = mapRef.current;
+            if (map && map.getLayer) {
+              ["officer-routes-glow", "officer-routes-line"].forEach((id) => {
+                if (map.getLayer(id)) map.setLayoutProperty(id, "visibility", next ? "visible" : "none");
+              });
+            }
+          }} title="Toggle route lines">
+            <Navigation size={16} />
+          </button>
+          <span className="left-bar-item-label">Routes</span>
+        </div>
+        <div className="left-bar-item">
           <button className="left-bar-btn" onClick={() => setShowSidebar(!showSidebar)} title="Toggle directory">
             {showSidebar ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
           </button>
@@ -1016,13 +1156,15 @@ export default function PoliceTracking() {
                     return (
                       <div key={r.id} className="officer-card" onClick={() => flyTo(r.latitude, r.longitude)}>
                         <div className="officer-card-content">
-                          <div className={`resident-avatar${isRecent ? " active" : ""}`}>
-                            {(() => {
-                              const picUrl = r.resident?.photo_url || r.resident?.avatar_url;
-                              return picUrl
-                                ? <img src={picUrl} alt="" style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }} />
-                                : (r.resident?.full_name?.charAt(0) || "?");
-                            })()}
+                          <div style={{
+                            width: 34, height: 34, borderRadius: "50%", flexShrink: 0,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            background: `${getCrimeColor(r.crime_type)}22`,
+                            border: `2px solid ${getCrimeColor(r.crime_type)}`,
+                            color: getCrimeColor(r.crime_type),
+                            fontWeight: 700, fontSize: 12,
+                          }}>
+                            {(r.crime_type || "?").charAt(0).toUpperCase()}
                           </div>
                           <div className="officer-info">
                             <div className="officer-name">

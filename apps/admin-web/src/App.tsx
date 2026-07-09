@@ -12,7 +12,6 @@ import ActiveIncidents from "./pages/ActiveIncidents";
 import ResolvedCases from "./pages/ResolvedCases";
 import PatrolUnits from "./pages/PatrolUnits";
 import PatrolHistory from "./pages/PatrolHistory";
-import ShiftSchedule from "./pages/ShiftSchedule";
 import PoliceOfficers from "./pages/PoliceOfficers";
 import DutyAssignment from "./pages/DutyAssignment";
 import Performance from "./pages/Performance";
@@ -106,7 +105,6 @@ export default function App() {
         <Route path="resolved-cases" element={<ResolvedCases />} />
         <Route path="patrol-units" element={<PatrolUnits />} />
         <Route path="patrol-history" element={<PatrolHistory />} />
-        <Route path="shift-schedule" element={<ShiftSchedule />} />
         <Route path="police-officers" element={<PoliceOfficers />} />
         <Route path="duty-assignment" element={<DutyAssignment />} />
         <Route path="performance" element={<Performance />} />
