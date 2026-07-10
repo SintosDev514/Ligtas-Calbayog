@@ -7,7 +7,7 @@ import {
   Users, ClipboardList, TrendingUp,
   BarChart3, Map, Timer,
   Megaphone, MessageSquare,
-  FolderOpen, MapPin as MapPinIcon, Bell,
+  FolderOpen, Bell,
   UserCog, ShieldCheck, ClipboardList as AuditIcon, Settings,
   LogOut, ChevronLeft, X
 } from "lucide-react";
@@ -59,7 +59,7 @@ const navGroups = [
     label: "MANAGEMENT",
     items: [
       { path: "/evidence", label: "Evidence", icon: FolderOpen },
-      { path: "/barangays", label: "Barangays", icon: MapPinIcon },
+
       { path: "/notifications", label: "Notifications", icon: Bell },
     ],
   },

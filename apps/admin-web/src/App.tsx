@@ -20,7 +20,7 @@ import CrimeHeatmap from "./pages/CrimeHeatmap";
 import ResponseTime from "./pages/ResponseTime";
 import ResidentFeedback from "./pages/ResidentFeedback";
 import Evidence from "./pages/Evidence";
-import Barangays from "./pages/Barangays";
+
 import Notifications from "./pages/Notifications";
 import Users from "./pages/Users";
 import Roles from "./pages/Roles";
@@ -113,7 +113,7 @@ export default function App() {
         <Route path="response-time" element={<ResponseTime />} />
         <Route path="resident-feedback" element={<ResidentFeedback />} />
         <Route path="evidence" element={<Evidence />} />
-        <Route path="barangays" element={<Barangays />} />
+
         <Route path="notifications" element={<Notifications />} />
         <Route path="users" element={<Users />} />
         <Route path="roles" element={<Roles />} />
