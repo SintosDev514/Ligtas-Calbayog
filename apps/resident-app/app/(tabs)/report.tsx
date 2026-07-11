@@ -130,6 +130,15 @@ export default function ReportScreen() {
   const timerRef = useRef<any>(null);
 
   useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -250,7 +259,6 @@ export default function ReportScreen() {
     if (!cameraRef.current) return;
 
     if (isRecording) {
-      // Stop recording
       cameraRef.current.stopRecording();
       setIsRecording(false);
       if (timerRef.current) {
@@ -258,15 +266,13 @@ export default function ReportScreen() {
         timerRef.current = null;
       }
     } else {
-      // Start recording
       try {
         setIsRecording(true);
         setRecordTimer(0);
 
         timerRef.current = setInterval(() => {
           setRecordTimer((prev) => {
-            if (prev >= 14) {
-              // Auto stop recording at 15s limit
+            if (prev >= 29) {
               if (cameraRef.current) {
                 cameraRef.current.stopRecording();
               }
@@ -274,14 +280,14 @@ export default function ReportScreen() {
                 clearInterval(timerRef.current);
                 timerRef.current = null;
               }
-              return 15;
+              return 30;
             }
             return prev + 1;
           });
         }, 1000);
 
         const video = await cameraRef.current.recordAsync({
-          maxDuration: 15,
+          maxDuration: 30,
           quality: "720p",
         });
 
@@ -293,14 +299,16 @@ export default function ReportScreen() {
         }
       } catch {
         Alert.alert("Recording Error", "Unable to start video recording.");
+      } finally {
         setIsRecording(false);
         if (timerRef.current) {
           clearInterval(timerRef.current);
           timerRef.current = null;
         }
-      } finally {
-        setIsCameraOpen(false);
+        setRecordTimer(0);
       }
+    }
+  };
     }
   };
 

@@ -17,13 +17,14 @@ import {
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import MapView, { Marker, UrlTile } from "@/components/MapView";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import {
   fetchResidentProfile,
   fetchEmergencyContact,
   fetchAnnouncements,
+  fetchStationSettings,
 } from "../../../../shared/services/reportService";
 import { useLocation } from "../../context/LocationContext";
 import { useMapStyle } from "../../context/MapStyleContext";
@@ -31,6 +32,7 @@ import { styles } from "./styles/HomeScreen.styles";
 import { getUnreadCount, fetchContactLocations } from "../../../../shared/services/messageService";
 
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const {
     location,
@@ -43,7 +45,7 @@ export default function HomeScreen() {
 
   const [profile, setProfile] = useState<any>(null);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
-  const [policeNumber, setPoliceNumber] = useState<string | null>("23131");
+  const [policeNumber, setPoliceNumber] = useState<string | null>("117");
   const [stats, setStats] = useState({ total: 0, pending: 0, resolved: 0 });
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [mapExpanded, setMapExpanded] = useState(false);
@@ -361,8 +363,8 @@ export default function HomeScreen() {
         }
       }
       setAnnouncements(announcementsData || []);
-      const contact = await fetchEmergencyContact("police");
-      if (contact?.phone) setPoliceNumber(contact.phone);
+      const stationSettings = await fetchStationSettings().catch(() => null);
+      if (stationSettings?.police_phone) setPoliceNumber(stationSettings.police_phone);
 
       if (reportsData.data) {
       setStats({
@@ -450,7 +452,7 @@ export default function HomeScreen() {
   const handleReport = () => router.push("/(tabs)/report-picker" as any);
   const handleAnnouncements = () => router.push("/(tabs)/announcements" as any);
   const handleCallPolice = async () => {
-    const url = `tel:${policeNumber ?? "23131"}`;
+    const url = `tel:${policeNumber ?? "117"}`;
     const supported = await Linking.canOpenURL(url);
     if (supported) await Linking.openURL(url);
     else
@@ -901,10 +903,11 @@ export default function HomeScreen() {
         style={[
           styles.bottomBar,
           {
+            paddingBottom: 8 + insets.bottom,
             transform: [{
               translateY: bottomBarAnim.interpolate({
                 inputRange: [0, 1],
-                outputRange: [0, 80],
+                outputRange: [0, 150],
               }),
             }],
           },

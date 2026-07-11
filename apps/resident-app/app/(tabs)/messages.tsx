@@ -25,6 +25,7 @@ import {
   sendContactRequest,
   fetchPendingRequests,
 } from "../../../../shared/services/messageService";
+import { fetchStationSettings } from "../../../../shared/services/reportService";
 
 const RELATIONSHIPS = ["Family", "Friend", "Relative", "Spouse", "Neighbor"];
 
@@ -47,6 +48,8 @@ export default function MessagesScreen() {
   const [pendingCount, setPendingCount] = useState(0);
   const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [stationName, setStationName] = useState("PNP CALBAYOG");
+  const [policePhone, setPolicePhone] = useState("117");
 
   const loadData = useCallback(async () => {
     try {
@@ -98,6 +101,12 @@ export default function MessagesScreen() {
 
   useEffect(() => {
     loadData();
+    fetchStationSettings().then((s) => {
+      if (s) {
+        setStationName(s.station_name?.toUpperCase() || "PNP CALBAYOG");
+        setPolicePhone(s.police_phone || "117");
+      }
+    }).catch(() => {});
   }, [loadData]);
 
   const handleAddContact = async () => {
@@ -242,14 +251,14 @@ export default function MessagesScreen() {
           </View>
         </View>
         <View style={styles.pnpInfo}>
-          <Text style={styles.pnpLabel}>PNP CALBAYOG</Text>
-          <Text style={styles.pnpNumber}>117</Text>
+          <Text style={styles.pnpLabel}>{stationName}</Text>
+          <Text style={styles.pnpNumber}>{policePhone}</Text>
           <Text style={styles.pnpHint}>Emergency Hotline · 24/7</Text>
         </View>
         <View style={styles.pnpDivider} />
         <TouchableOpacity
           style={styles.pnpCallBtn}
-          onPress={() => Linking.openURL("tel:117")}
+          onPress={() => Linking.openURL(`tel:${policePhone}`)}
         >
           <Ionicons name="call" size={24} color="#fff" />
           <Text style={styles.pnpCallText}>Call</Text>

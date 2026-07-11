@@ -51,6 +51,15 @@ export default function EmergencyReportScreen() {
   const cameraRef = useRef<CameraView>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -111,31 +120,31 @@ export default function EmergencyReportScreen() {
 
         timerRef.current = setInterval(() => {
           setRecordTimer((prev) => {
-            if (prev >= 14) {
+            if (prev >= 29) {
               if (cameraRef.current) cameraRef.current.stopRecording();
               if (timerRef.current) {
                 clearInterval(timerRef.current);
                 timerRef.current = null;
               }
-              return 15;
+              return 30;
             }
             return prev + 1;
           });
         }, 1000);
 
-        const video = await cameraRef.current.recordAsync({ maxDuration: 15, quality: "720p" });
+        const video = await cameraRef.current.recordAsync({ maxDuration: 30, quality: "720p" });
         if (video?.uri) {
           setCapturedMedia((prev) => [...prev, { uri: video.uri, type: "video" }]);
         }
       } catch {
         Alert.alert("Recording Error", "Unable to start video recording.");
+      } finally {
         setIsRecording(false);
         if (timerRef.current) {
           clearInterval(timerRef.current);
           timerRef.current = null;
         }
-      } finally {
-        setIsCameraOpen(false);
+        setRecordTimer(0);
       }
     }
   };

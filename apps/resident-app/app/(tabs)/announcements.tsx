@@ -27,6 +27,7 @@ import {
   fetchBatchAnnouncementLikes,
   addAnnouncementComment,
   fetchAnnouncementComments,
+  fetchStationSettings,
 } from "../../../../shared/services/reportService";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import { fetchContacts, sendMessage } from "../../../../shared/services/messageService";
@@ -279,6 +280,8 @@ function AnnouncementCard({
   item,
   index,
   fadeAnim,
+  stationName,
+  stationProfileUrl,
   onOpenMap,
   onShare,
   onLike,
@@ -290,6 +293,8 @@ function AnnouncementCard({
   item: any;
   index: number;
   fadeAnim: Animated.Value;
+  stationName: string;
+  stationProfileUrl: string | null;
   onOpenMap: () => void;
   onShare: () => void;
   onLike: () => void;
@@ -321,12 +326,16 @@ function AnnouncementCard({
       ]}
     >
       <View style={cardStyles.header}>
-        <View style={cardStyles.avatar}>
-          <Ionicons name="shield-checkmark" size={20} color="#fff" />
-        </View>
+        {stationProfileUrl ? (
+          <Image source={{ uri: stationProfileUrl }} style={cardStyles.avatarImage} />
+        ) : (
+          <View style={cardStyles.avatar}>
+            <Ionicons name="shield-checkmark" size={20} color="#fff" />
+          </View>
+        )}
         <View style={cardStyles.headerInfo}>
           <View style={cardStyles.nameRow}>
-            <Text style={cardStyles.pageName}>PNP Calbayog</Text>
+            <Text style={cardStyles.pageName}>{stationName}</Text>
             <View style={[cardStyles.badge, { backgroundColor: meta.bg }]}>
               <Ionicons name={meta.icon as any} size={8} color={meta.text} />
               <Text style={[cardStyles.badgeText, { color: meta.text }]}>{meta.label}</Text>
@@ -424,6 +433,10 @@ const cardStyles = StyleSheet.create({
     backgroundColor: "#0F204B",
     justifyContent: "center", alignItems: "center",
   },
+  avatarImage: {
+    width: 38, height: 38, borderRadius: 19,
+    backgroundColor: "#0F204B",
+  },
   headerInfo: { flex: 1, marginLeft: 10 },
   nameRow: {
     flexDirection: "row",
@@ -511,10 +524,19 @@ export default function AnnouncementsScreen() {
   const [comments, setComments] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
   const [sendingComment, setSendingComment] = useState(false);
+  const [stationName, setStationName] = useState("PNP Calbayog");
+  const [stationProfileUrl, setStationProfileUrl] = useState<string | null>(null);
 
   useEffect(() => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
     loadAnnouncements();
+
+    fetchStationSettings().then((settings) => {
+      if (settings) {
+        setStationName(settings.station_name || "PNP Calbayog");
+        setStationProfileUrl(settings.profile_image_url || null);
+      }
+    }).catch(() => {});
 
     const channelName = `announcements-${Date.now()}`;
     const channel = supabase.channel(channelName);
@@ -673,6 +695,8 @@ export default function AnnouncementsScreen() {
       item={item}
       index={index}
       fadeAnim={fadeAnim}
+      stationName={stationName}
+      stationProfileUrl={stationProfileUrl}
       onOpenMap={() =>
         router.push({
           pathname: "/fullscreen-map",
@@ -698,7 +722,7 @@ export default function AnnouncementsScreen() {
         <Ionicons name="megaphone-outline" size={36} color="#94A3B8" />
       </View>
       <Text style={styles.emptyTitle}>No Announcements Yet</Text>
-      <Text style={styles.emptyText}>Check back later for news and advisories from PNP Calbayog.</Text>
+      <Text style={styles.emptyText}>Check back later for news and advisories from {stationName}.</Text>
     </View>
   );
 
@@ -733,7 +757,7 @@ export default function AnnouncementsScreen() {
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Text style={styles.headerTitle}>Announcements</Text>
-              <Text style={styles.headerSub}>PNP Calbayog Police Station</Text>
+              <Text style={styles.headerSub}>{stationName} Police Station</Text>
             </View>
             <TouchableOpacity onPress={handleRefresh} style={styles.headerBtn}>
               <Ionicons name="refresh" size={18} color="#fff" />
@@ -903,8 +927,6 @@ const styles = StyleSheet.create({
   headerSafe: { backgroundColor: "#0F204B" },
   header: {
     borderBottomWidth: 1, borderBottomColor: "rgba(244,181,26,0.2)",
-    shadowColor: "#000", shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2, shadowRadius: 8, elevation: 6,
   },
   headerRow: {
     flexDirection: "row", alignItems: "center", justifyContent: "space-between",

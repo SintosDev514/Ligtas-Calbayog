@@ -10,8 +10,8 @@ export const styles = StyleSheet.create({
   },
 
   scrollContent: {
-    paddingTop: Platform.OS === "ios" ? 105 : 90,
-    paddingBottom: 110,
+    paddingTop: Platform.OS === "ios" ? 115 : 100,
+    paddingBottom: 140,
   },
 
   /* ==========================================
@@ -110,12 +110,11 @@ export const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    height: 70,
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
-    paddingBottom: 8,
+    paddingTop: 8,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.08,

@@ -10,7 +10,6 @@ import CreateAnnouncement from "./pages/CreateAnnouncement";
 import PoliceTracking from "./pages/PoliceTracking";
 import ActiveIncidents from "./pages/ActiveIncidents";
 import ResolvedCases from "./pages/ResolvedCases";
-import PatrolUnits from "./pages/PatrolUnits";
 import PatrolHistory from "./pages/PatrolHistory";
 import PoliceOfficers from "./pages/PoliceOfficers";
 import DutyAssignment from "./pages/DutyAssignment";
@@ -103,7 +102,6 @@ export default function App() {
         <Route path="police-tracking" element={<PoliceTracking />} />
         <Route path="active-incidents" element={<ActiveIncidents />} />
         <Route path="resolved-cases" element={<ResolvedCases />} />
-        <Route path="patrol-units" element={<PatrolUnits />} />
         <Route path="patrol-history" element={<PatrolHistory />} />
         <Route path="police-officers" element={<PoliceOfficers />} />
         <Route path="duty-assignment" element={<DutyAssignment />} />

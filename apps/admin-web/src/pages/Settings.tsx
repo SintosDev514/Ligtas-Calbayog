@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Save, Bell, Shield, Globe, MapPin, Sun, Moon } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Settings as SettingsIcon, Save, Bell, Shield, Globe, MapPin, Sun, Moon, Camera } from "lucide-react";
+import { supabase } from "../supabase";
 
 function getTheme(): "light" | "dark" {
   if (typeof window !== "undefined") {
@@ -15,6 +16,12 @@ function setTheme(mode: "light" | "dark") {
 }
 
 const SETTINGS_SECTIONS = [
+  {
+    id: "profile",
+    label: "Station Profile",
+    icon: Camera,
+    fields: [],
+  },
   {
     id: "general",
     label: "General",
@@ -64,22 +71,153 @@ const SETTINGS_SECTIONS = [
   },
 ];
 
+const BUCKET = "profile-photos";
+const STORAGE_PATH = "station-profile/profile.png";
+
 export default function Settings() {
   const [activeSection, setActiveSection] = useState("general");
   const [saved, setSaved] = useState(false);
   const [theme, setThemeState] = useState<"light" | "dark">(getTheme);
+  const [stationName, setStationName] = useState("PNP Calbayog");
+  const [policePhone, setPolicePhone] = useState("117");
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setTheme(theme);
   }, [theme]);
 
+  useEffect(() => {
+    loadStationSettings();
+  }, []);
+
+  const loadStationSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("station_settings")
+        .select("*")
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Failed to load station settings:", error.message);
+        return;
+      }
+      if (data) {
+        setStationName(data.station_name || "PNP Calbayog");
+        setPolicePhone(data.police_phone || "117");
+        setProfileImage(data.profile_image_url || null);
+      }
+    } catch (err: any) {
+      console.error("loadStationSettings error:", err.message);
+    }
+  };
+
   const toggleTheme = () => {
     setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    setUploadError("");
+
+    try {
+      // Convert file to ArrayBuffer for reliable upload
+      const arrayBuffer = await file.arrayBuffer();
+
+      const { error: uploadError } = await supabase.storage
+        .from(BUCKET)
+        .upload(STORAGE_PATH, arrayBuffer, {
+          contentType: file.type || "image/png",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError);
+        throw new Error(uploadError.message || "Storage upload failed");
+      }
+
+      // Build public URL with cache buster
+      const { data: urlData } = supabase.storage
+        .from(BUCKET)
+        .getPublicUrl(STORAGE_PATH);
+
+      const publicUrl = urlData?.publicUrl;
+      if (!publicUrl) {
+        throw new Error("Failed to get public URL");
+      }
+
+      const cacheBustedUrl = `${publicUrl}?t=${Date.now()}`;
+
+      // Save to station_settings table
+      const { data: existing } = await supabase
+        .from("station_settings")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        const { error: updateError } = await supabase
+          .from("station_settings")
+          .update({ profile_image_url: cacheBustedUrl, updated_at: new Date().toISOString() })
+          .eq("id", existing.id);
+        if (updateError) {
+          console.error("Update error:", updateError);
+          throw new Error(updateError.message || "Failed to save settings");
+        }
+      } else {
+        const { error: insertError } = await supabase
+          .from("station_settings")
+          .insert({ station_name: stationName, profile_image_url: cacheBustedUrl });
+        if (insertError) {
+          console.error("Insert error:", insertError);
+          throw new Error(insertError.message || "Failed to create settings");
+        }
+      }
+
+      setProfileImage(cacheBustedUrl);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err: any) {
+      console.error("Upload failed:", err);
+      setUploadError(err.message || "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      const { data: existing } = await supabase
+        .from("station_settings")
+        .select("id")
+        .limit(1)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase
+          .from("station_settings")
+          .update({ station_name: stationName, police_phone: policePhone, updated_at: new Date().toISOString() })
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("station_settings")
+          .insert({ station_name: stationName, police_phone: policePhone, profile_image_url: profileImage });
+        if (error) throw error;
+      }
+
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err: any) {
+      console.error("Save failed:", err.message);
+      alert("Failed to save: " + err.message);
+    }
   };
 
   return (
@@ -115,7 +253,107 @@ export default function Settings() {
           </div>
 
           <div style={{ flex: 1 }}>
-            {SETTINGS_SECTIONS.filter((s) => s.id === activeSection).map((section) => (
+            {activeSection === "profile" && (
+              <div className="card">
+                <div className="card-header">
+                  <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <Camera size={18} /> Station Profile
+                  </h3>
+                </div>
+                <div className="card-body">
+                  <p style={{ fontSize: 13, color: "var(--gray-500)", marginBottom: 20 }}>
+                    This profile will be displayed on all announcement cards in the resident app.
+                  </p>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 24, marginBottom: 24 }}>
+                    <div
+                      style={{
+                        width: 100, height: 100, borderRadius: "50%",
+                        background: "var(--gray-100)", border: "3px dashed var(--gray-300)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        overflow: "hidden", flexShrink: 0, cursor: "pointer",
+                      }}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {profileImage ? (
+                        <img
+                          src={profileImage}
+                          alt="Station Profile"
+                          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                        />
+                      ) : (
+                        <Camera size={32} color="var(--gray-400)" />
+                      )}
+                    </div>
+                    <div>
+                      <button
+                        className="btn-primary"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={uploading}
+                        style={{ marginBottom: 8 }}
+                      >
+                        {uploading ? "Uploading..." : profileImage ? "Change Photo" : "Upload Photo"}
+                      </button>
+                      {uploadError && (
+                        <div style={{ fontSize: 12, color: "#EF4444", marginBottom: 4 }}>
+                          {uploadError}
+                        </div>
+                      )}
+                      <div style={{ fontSize: 12, color: "var(--gray-500)" }}>
+                        Recommended: 200x200px, JPG or PNG
+                      </div>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={handleImageUpload}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: "1px solid var(--gray-100)", paddingTop: 16 }}>
+                    <label style={{ fontSize: 14, fontWeight: 500, display: "block", marginBottom: 8 }}>
+                      Station Name
+                    </label>
+                    <input
+                      type="text"
+                      value={stationName}
+                      onChange={(e) => setStationName(e.target.value)}
+                      style={{
+                        width: "100%", padding: "10px 14px", fontSize: 14,
+                        border: "1.5px solid var(--gray-300)", borderRadius: "var(--radius-md)",
+                        background: "transparent", color: "var(--gray-700)",
+                      }}
+                    />
+                    <div style={{ fontSize: 12, color: "var(--gray-500)", marginTop: 6 }}>
+                      This name appears on every announcement card in the resident app.
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: "1px solid var(--gray-100)", paddingTop: 16, marginTop: 16 }}>
+                    <label style={{ fontSize: 14, fontWeight: 500, display: "block", marginBottom: 8 }}>
+                      Emergency Phone Number
+                    </label>
+                    <input
+                      type="text"
+                      value={policePhone}
+                      onChange={(e) => setPolicePhone(e.target.value)}
+                      style={{
+                        width: "100%", padding: "10px 14px", fontSize: 14,
+                        border: "1.5px solid var(--gray-300)", borderRadius: "var(--radius-md)",
+                        background: "transparent", color: "var(--gray-700)",
+                      }}
+                    />
+                    <div style={{ fontSize: 12, color: "var(--gray-500)", marginTop: 6 }}>
+                      This number appears on the messages screen PNP card for emergency calls.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {SETTINGS_SECTIONS.filter((s) => s.id === activeSection && s.id !== "profile").map((section) => (
               <div className="card" key={section.id}>
                 <div className="card-header">
                   <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>

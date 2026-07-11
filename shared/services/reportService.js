@@ -493,3 +493,41 @@ export const fetchPoliceLocation = async (reportId) => {
   if (error && error.code !== "PGRST116") throw new Error(error.message);
   return data ?? null;
 };
+
+/**
+ * Fetch station settings (singleton - returns the single row)
+ */
+export const fetchStationSettings = async () => {
+  const { data, error } = await supabase
+    .from("station_settings")
+    .select("*")
+    .limit(1)
+    .maybeSingle();
+
+  if (error && error.code !== "PGRST116") throw new Error(error.message);
+  return data ?? { station_name: "PNP Calbayog", profile_image_url: null, police_phone: "117" };
+};
+
+/**
+ * Update station settings (admin only)
+ */
+export const updateStationSettings = async (updates) => {
+  const { data: existing } = await supabase
+    .from("station_settings")
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from("station_settings")
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq("id", existing.id);
+    if (error) throw new Error(error.message);
+  } else {
+    const { error } = await supabase
+      .from("station_settings")
+      .insert(updates);
+    if (error) throw new Error(error.message);
+  }
+};

@@ -3,7 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import { useAlarm } from "../context/AlarmContext";
 import {
   LayoutDashboard, FileText, AlertTriangle, CheckCircle,
-  MapPin, Shield, History,
+  MapPin, History,
   Users, ClipboardList, TrendingUp,
   BarChart3, Map, Timer,
   Megaphone, MessageSquare,
@@ -25,7 +25,6 @@ const navGroups = [
     label: "OPERATIONS",
     items: [
       { path: "/police-tracking", label: "Operations Map", icon: MapPin },
-      { path: "/patrol-units", label: "Patrol Units", icon: Shield },
       { path: "/patrol-history", label: "Patrol History", icon: History },
     ],
   },
