@@ -256,7 +256,7 @@ export default function Settings() {
             {activeSection === "profile" && (
               <div className="card">
                 <div className="card-header">
-                  <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <h3 style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--gray-900)" }}>
                     <Camera size={18} /> Station Profile
                   </h3>
                 </div>
@@ -313,7 +313,7 @@ export default function Settings() {
                   </div>
 
                   <div style={{ borderTop: "1px solid var(--gray-100)", paddingTop: 16 }}>
-                    <label style={{ fontSize: 14, fontWeight: 500, display: "block", marginBottom: 8 }}>
+                    <label style={{ fontSize: 14, fontWeight: 500, display: "block", marginBottom: 8, color: "var(--gray-800)" }}>
                       Station Name
                     </label>
                     <input
@@ -332,7 +332,7 @@ export default function Settings() {
                   </div>
 
                   <div style={{ borderTop: "1px solid var(--gray-100)", paddingTop: 16, marginTop: 16 }}>
-                    <label style={{ fontSize: 14, fontWeight: 500, display: "block", marginBottom: 8 }}>
+                    <label style={{ fontSize: 14, fontWeight: 500, display: "block", marginBottom: 8, color: "var(--gray-800)" }}>
                       Emergency Phone Number
                     </label>
                     <input
@@ -356,7 +356,7 @@ export default function Settings() {
             {SETTINGS_SECTIONS.filter((s) => s.id === activeSection && s.id !== "profile").map((section) => (
               <div className="card" key={section.id}>
                 <div className="card-header">
-                  <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <h3 style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--gray-900)" }}>
                     <section.icon size={18} /> {section.label}
                   </h3>
                 </div>
@@ -367,7 +367,7 @@ export default function Settings() {
                         display: "flex", justifyContent: "space-between", alignItems: "center",
                         marginBottom: 16,
                       }}>
-                        <span style={{ fontSize: 14, fontWeight: 500 }}>Appearance</span>
+                        <span style={{ fontSize: 14, fontWeight: 500, color: "var(--gray-800)" }}>Appearance</span>
                         <span style={{ fontSize: 13, color: "var(--gray-500)" }}>
                           {theme === "dark" ? "Dark Mode" : "Light Mode"}
                         </span>
@@ -390,7 +390,7 @@ export default function Settings() {
                           {theme === "dark" ? <Moon size={20} /> : <Sun size={20} />}
                         </div>
                         <div style={{ textAlign: "left" }}>
-                          <div style={{ fontWeight: 600, marginBottom: 2 }}>
+                          <div style={{ fontWeight: 600, marginBottom: 2, color: "var(--gray-800)" }}>
                             {theme === "dark" ? "Dark Mode" : "Light Mode"}
                           </div>
                           <div style={{ fontSize: 12, color: "var(--gray-500)" }}>
@@ -407,7 +407,7 @@ export default function Settings() {
                         display: "flex", justifyContent: "space-between", alignItems: "center",
                         padding: "12px 0", borderBottom: "1px solid var(--gray-100)"
                       }}>
-                        <span style={{ fontSize: 14, fontWeight: 500 }}>{field.label}</span>
+                        <span style={{ fontSize: 14, fontWeight: 500, color: "var(--gray-800)" }}>{field.label}</span>
                         {field.type === "toggle" ? (
                           <span className="badge badge-resolved" style={{ cursor: "pointer" }}>{field.value}</span>
                         ) : (

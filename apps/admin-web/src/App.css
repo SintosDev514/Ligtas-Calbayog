@@ -3974,6 +3974,7 @@ tr.clickable-row:hover td {
 }
 
 [data-theme="light"] .btn-primary {
+  background: #111111;
   color: #fff;
   border-color: var(--gray-300);
 }
