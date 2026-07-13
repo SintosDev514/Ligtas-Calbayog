@@ -1,5 +1,13 @@
 import React, { useCallback, useRef, useEffect, forwardRef } from "react";
 import { View, Platform } from "react-native";
+let WebView: any = null;
+if (Platform.OS !== "web") {
+  try {
+    WebView = require("react-native-webview").WebView;
+  } catch (e) {
+    console.warn("react-native-webview not available");
+  }
+}
 
 const MAP_HTML = `
 <!DOCTYPE html>
@@ -304,10 +312,21 @@ const MapView = forwardRef<any, any>(({ style, children, mapStyle, initialRegion
     );
   }
 
-  const WebView = require("react-native-webview").WebView;
+  const WV = WebView;
+  
+  if (!WV && Platform.OS !== "web") {
+    return (
+      <View style={[{ flex: 1, overflow: "hidden", backgroundColor: "#F1F5F9" }, style]}>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <View>Map unavailable</View>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={[{ flex: 1, overflow: "hidden", backgroundColor: "#F1F5F9" }, style]}>
-      <WebView
+      <WV
         ref={webViewRef}
         source={{ html: MAP_HTML }}
         style={{ flex: 1, backgroundColor: "transparent" }}

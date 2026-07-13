@@ -22,11 +22,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   CameraView,
   useCameraPermissions,
-  useMicrophonePermissions,
 } from "expo-camera";
 import MapView, { Marker, UrlTile } from "@/components/MapView";
 
 import * as FileSystem from "expo-file-system/legacy";
+import * as ImagePicker from "expo-image-picker";
 
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import {
@@ -114,9 +114,6 @@ export default function ReportScreen() {
     { uri: string; type: "image" | "video" }[]
   >([]);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [cameraMode, setCameraMode] = useState<"picture" | "video">("picture");
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordTimer, setRecordTimer] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
   const [submittedReportId, setSubmittedReportId] = useState<string>("");
   const [nearestPost, setNearestPost] = useState<string | null>(null);
@@ -126,16 +123,10 @@ export default function ReportScreen() {
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const successAnim = useRef(new Animated.Value(0)).current;
 
-  const cameraRef = useRef<any>(null);
-  const timerRef = useRef<any>(null);
+  const photoCameraRef = useRef<any>(null);
 
   useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    };
+    return () => {};
   }, []);
 
   useEffect(() => {
@@ -215,7 +206,6 @@ export default function ReportScreen() {
   };
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const [micPermission, requestMicPermission] = useMicrophonePermissions();
 
   const openCamera = async () => {
     if (!cameraPermission?.granted) {
@@ -227,18 +217,14 @@ export default function ReportScreen() {
       }
     }
 
-    if (!micPermission?.granted) {
-      await requestMicPermission();
-    }
-
     setIsCameraOpen(true);
   };
 
   const takePhoto = async () => {
-    if (!cameraRef.current) return;
+    if (!photoCameraRef.current) return;
 
     try {
-      const photo = await cameraRef.current.takePictureAsync({
+      const photo = await photoCameraRef.current.takePictureAsync({
         quality: 0.7,
       });
 
@@ -255,60 +241,24 @@ export default function ReportScreen() {
     }
   };
 
-  const toggleRecording = async () => {
-    if (!cameraRef.current) return;
-
-    if (isRecording) {
-      cameraRef.current.stopRecording();
-      setIsRecording(false);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    } else {
-      try {
-        setIsRecording(true);
-        setRecordTimer(0);
-
-        timerRef.current = setInterval(() => {
-          setRecordTimer((prev) => {
-            if (prev >= 29) {
-              if (cameraRef.current) {
-                cameraRef.current.stopRecording();
-              }
-              if (timerRef.current) {
-                clearInterval(timerRef.current);
-                timerRef.current = null;
-              }
-              return 30;
-            }
-            return prev + 1;
-          });
-        }, 1000);
-
-        const video = await cameraRef.current.recordAsync({
-          maxDuration: 30,
-          quality: "720p",
-        });
-
-        if (video?.uri) {
-          setCapturedMedia((prev) => [
-            ...prev,
-            { uri: video.uri, type: "video" },
-          ]);
-        }
-      } catch {
-        Alert.alert("Recording Error", "Unable to start video recording.");
-      } finally {
-        setIsRecording(false);
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-          timerRef.current = null;
-        }
-        setRecordTimer(0);
-      }
+  const recordVideo = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Permission Required", "Camera permission is needed to record video.");
+      return;
     }
-  };
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["videos"],
+      videoMaxDuration: 30,
+      quality: 0.7,
+    });
+
+    if (!result.canceled && result.assets?.[0]) {
+      setCapturedMedia((prev) => [
+        ...prev,
+        { uri: result.assets[0].uri, type: "video" },
+      ]);
     }
   };
 
@@ -454,10 +404,6 @@ export default function ReportScreen() {
     }
   };
 
-  const formatTimer = (secs: number) => {
-    const s = secs % 60;
-    return `00:${s < 10 ? "0" : ""}${s}`;
-  };
 
   return (
     <View style={styles.container}>
@@ -894,94 +840,50 @@ export default function ReportScreen() {
 
       <Modal visible={isCameraOpen} animationType="slide">
         <View style={styles.cameraModal}>
-          {/* Recording Status Header */}
-          {isRecording && (
-            <View style={styles.recordingHeader}>
-              <View style={styles.recordingDot} />
-              <Text style={styles.recordingTimerText}>
-                REC {formatTimer(recordTimer)} (15s Max)
-              </Text>
-            </View>
-          )}
-
           <CameraView
-            ref={cameraRef}
+            ref={photoCameraRef}
             style={styles.camera}
             facing="back"
-            mode={cameraMode}
+            mode="picture"
           />
 
           <View style={styles.cameraBottomControls}>
-            {/* PHOTO / VIDEO Mode Tabs */}
-            {!isRecording && (
-              <View style={styles.modeTabsRow}>
-                <TouchableOpacity
-                  onPress={() => setCameraMode("picture")}
-                  style={[
-                    styles.modeTab,
-                    cameraMode === "picture" && styles.modeTabActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.modeTabText,
-                      cameraMode === "picture" && styles.modeTabTextActive,
-                    ]}
-                  >
-                    PHOTO
-                  </Text>
-                </TouchableOpacity>
+            <View style={styles.modeTabsRow}>
+              <TouchableOpacity
+                style={[styles.modeTab, styles.modeTabActive]}
+              >
+                <Text style={[styles.modeTabText, styles.modeTabTextActive]}>
+                  PHOTO
+                </Text>
+              </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={() => setCameraMode("video")}
-                  style={[
-                    styles.modeTab,
-                    cameraMode === "video" && styles.modeTabActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.modeTabText,
-                      cameraMode === "video" && styles.modeTabTextActive,
-                    ]}
-                  >
-                    VIDEO
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
+              <TouchableOpacity
+                onPress={() => {
+                  setIsCameraOpen(false);
+                  recordVideo();
+                }}
+                style={styles.modeTab}
+              >
+                <Text style={styles.modeTabText}>
+                  VIDEO
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.cameraControlsRow}>
               <TouchableOpacity
                 style={styles.cameraClose}
                 onPress={() => setIsCameraOpen(false)}
-                disabled={isRecording}
               >
                 <Ionicons name="close" size={24} color="#fff" />
               </TouchableOpacity>
 
-              {cameraMode === "picture" ? (
-                <TouchableOpacity
-                  style={styles.captureButton}
-                  onPress={takePhoto}
-                >
-                  <View style={styles.captureInner} />
-                </TouchableOpacity>
-              ) : (
-                <TouchableOpacity
-                  style={[styles.captureButton, { borderColor: "#EF4444" }]}
-                  onPress={toggleRecording}
-                >
-                  <View
-                    style={[
-                      styles.captureInner,
-                      isRecording
-                        ? styles.captureInnerVideoRecording
-                        : { backgroundColor: "#EF4444" },
-                    ]}
-                  />
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity
+                style={styles.captureButton}
+                onPress={takePhoto}
+              >
+                <View style={styles.captureInner} />
+              </TouchableOpacity>
 
               <View style={{ width: 50 }} />
             </View>
