@@ -25,6 +25,7 @@ import {
   fetchAnnouncements,
   toggleAnnouncementLike,
   fetchBatchAnnouncementLikes,
+  fetchBatchAnnouncementCommentCounts,
   addAnnouncementComment,
   fetchAnnouncementComments,
   fetchStationSettings,
@@ -518,6 +519,7 @@ export default function AnnouncementsScreen() {
   const [loadingContacts, setLoadingContacts] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [likesMap, setLikesMap] = useState<Record<string, { liked: boolean; count: number }>>({});
+  const [commentCountsMap, setCommentCountsMap] = useState<Record<string, number>>({});
   const [commentItem, setCommentItem] = useState<any>(null);
   const [showCommentModal, setShowCommentModal] = useState(false);
   const [commentText, setCommentText] = useState("");
@@ -579,6 +581,8 @@ export default function AnnouncementsScreen() {
       if (ids.length > 0) {
         const likes = await fetchBatchAnnouncementLikes(ids, userId);
         setLikesMap(likes);
+        const counts = await fetchBatchAnnouncementCommentCounts(ids);
+        setCommentCountsMap(counts);
       }
 
       if (!cached) {
@@ -682,6 +686,10 @@ export default function AnnouncementsScreen() {
       if (!user) return;
       const newComment = await addAnnouncementComment(commentItem.id, user.id, commentText.trim());
       setComments((prev) => [...prev, newComment]);
+      setCommentCountsMap((m) => ({
+        ...m,
+        [commentItem.id]: (m[commentItem.id] ?? 0) + 1,
+      }));
       setCommentText("");
     } catch (e: any) {
       Alert.alert("Error", e.message || "Failed to send comment");
@@ -712,7 +720,7 @@ export default function AnnouncementsScreen() {
       onComment={() => handleComment(item)}
       liked={likesMap[item.id]?.liked ?? false}
       likesCount={likesMap[item.id]?.count ?? 0}
-      commentsCount={0}
+      commentsCount={commentCountsMap[item.id] ?? 0}
     />
   );
 

@@ -481,6 +481,29 @@ export const fetchAnnouncementCommentCount = async (announcementId) => {
   return count ?? 0;
 };
 
+/**
+ * Fetch comment counts for multiple announcements
+ */
+export const fetchBatchAnnouncementCommentCounts = async (announcementIds) => {
+  if (!announcementIds || announcementIds.length === 0) return {};
+
+  const countMap = {};
+  for (const id of announcementIds) {
+    countMap[id] = 0;
+  }
+
+  const { data } = await supabase
+    .from("announcement_comments")
+    .select("announcement_id")
+    .in("announcement_id", announcementIds);
+
+  for (const c of data ?? []) {
+    countMap[c.announcement_id] = (countMap[c.announcement_id] ?? 0) + 1;
+  }
+
+  return countMap;
+};
+
 export const fetchPoliceLocation = async (reportId) => {
   const { data, error } = await supabase
     .from("police_locations")
