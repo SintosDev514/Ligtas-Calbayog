@@ -9,7 +9,7 @@ import {
   Megaphone, MessageSquare,
   FolderOpen, Bell,
   UserCog, ShieldCheck, ClipboardList as AuditIcon, Settings,
-  LogOut, ChevronLeft, X
+  LogOut, X
 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../supabase";
@@ -18,57 +18,57 @@ const navGroups = [
   {
     label: null,
     items: [
-      { path: "/", label: "Dashboard", icon: LayoutDashboard },
+      { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     ],
   },
   {
     label: "OPERATIONS",
     items: [
-      { path: "/police-tracking", label: "Operations Map", icon: MapPin },
-      { path: "/patrol-history", label: "Patrol History", icon: History },
+      { path: "/dashboard/police-tracking", label: "Operations Map", icon: MapPin },
+      { path: "/dashboard/patrol-history", label: "Patrol History", icon: History },
     ],
   },
   {
     label: "INCIDENTS",
     items: [
-      { path: "/reports", label: "Reports", icon: FileText },
-      { path: "/active-incidents", label: "Active Incidents", icon: AlertTriangle },
-      { path: "/resolved-cases", label: "Resolved Cases", icon: CheckCircle },
-      { path: "/crime-statistics", label: "Crime Statistics", icon: BarChart3 },
-      { path: "/crime-heatmap", label: "Crime Heatmap", icon: Map },
-      { path: "/response-time", label: "Response Time", icon: Timer },
+      { path: "/dashboard/reports", label: "Reports", icon: FileText },
+      { path: "/dashboard/active-incidents", label: "Active Incidents", icon: AlertTriangle },
+      { path: "/dashboard/resolved-cases", label: "Resolved Cases", icon: CheckCircle },
+      { path: "/dashboard/crime-statistics", label: "Crime Statistics", icon: BarChart3 },
+      { path: "/dashboard/crime-heatmap", label: "Crime Heatmap", icon: Map },
+      { path: "/dashboard/response-time", label: "Response Time", icon: Timer },
     ],
   },
   {
     label: "PERSONNEL",
     items: [
-      { path: "/police-officers", label: "Police Officers", icon: Users },
-      { path: "/duty-assignment", label: "Duty Assignment", icon: ClipboardList },
-      { path: "/performance", label: "Performance", icon: TrendingUp },
+      { path: "/dashboard/police-officers", label: "Police Officers", icon: Users },
+      { path: "/dashboard/duty-assignment", label: "Duty Assignment", icon: ClipboardList },
+      { path: "/dashboard/performance", label: "Performance", icon: TrendingUp },
     ],
   },
   {
     label: "COMMUNITY",
     items: [
-      { path: "/announcements", label: "Announcements", icon: Megaphone },
-      { path: "/resident-feedback", label: "Resident Feedback", icon: MessageSquare },
+      { path: "/dashboard/announcements", label: "Announcements", icon: Megaphone },
+      { path: "/dashboard/resident-feedback", label: "Resident Feedback", icon: MessageSquare },
     ],
   },
   {
     label: "MANAGEMENT",
     items: [
-      { path: "/evidence", label: "Evidence", icon: FolderOpen },
+      { path: "/dashboard/evidence", label: "Evidence", icon: FolderOpen },
 
-      { path: "/notifications", label: "Notifications", icon: Bell },
+      { path: "/dashboard/notifications", label: "Notifications", icon: Bell },
     ],
   },
   {
     label: "SYSTEM",
     items: [
-      { path: "/users", label: "Users", icon: UserCog },
-      { path: "/roles", label: "Roles", icon: ShieldCheck },
-      { path: "/audit-logs", label: "Audit Logs", icon: AuditIcon },
-      { path: "/settings", label: "Settings", icon: Settings },
+      { path: "/dashboard/users", label: "Users", icon: UserCog },
+      { path: "/dashboard/roles", label: "Roles", icon: ShieldCheck },
+      { path: "/dashboard/audit-logs", label: "Audit Logs", icon: AuditIcon },
+      { path: "/dashboard/settings", label: "Settings", icon: Settings },
     ],
   },
 ];
@@ -78,7 +78,7 @@ export default function Layout() {
   const { refreshAlarm } = useAlarm();
   const navigate = useNavigate();
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [bannerReport, setBannerReport] = useState<any | null>(null);
   const lastBannerId = useRef<string | null>(null);
@@ -234,7 +234,7 @@ export default function Layout() {
                     <item.icon size={18} />
                   </span>
                   <span className="nav-label">{item.label}</span>
-                  {(item.path === "/reports" || item.path === "/police-tracking") && pendingCount > 0 && (
+                  {(item.path === "/dashboard/reports" || item.path === "/dashboard/police-tracking") && pendingCount > 0 && (
                     <span className="nav-badge">{pendingCount > 99 ? "99+" : pendingCount}</span>
                   )}
                 </NavLink>
@@ -242,14 +242,6 @@ export default function Layout() {
             </div>
           ))}
         </nav>
-
-        <button
-          className="sidebar-toggle"
-          onClick={() => setCollapsed(!collapsed)}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          <ChevronLeft size={14} />
-        </button>
 
         <div className="sidebar-footer">
           <div className="sidebar-footer-text">
@@ -261,7 +253,7 @@ export default function Layout() {
           </button>
         </div>
       </aside>
-      <main className={`main-content${collapsed ? " sidebar-collapsed" : ""}`}>
+      <main className="main-content sidebar-collapsed">
         <Outlet />
       </main>
     </div>

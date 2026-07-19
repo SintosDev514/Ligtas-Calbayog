@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { useAuth } from "./context/AuthContext";
 import Layout from "./components/Layout";
+import Hero from "./pages/Hero";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Reports from "./pages/Reports";
@@ -81,12 +82,13 @@ export default function App() {
 
   return (
     <Routes>
+      <Route path="/" element={<Hero />} />
       <Route
         path="/login"
-        element={isAdmin ? <Navigate to="/" replace /> : <Login />}
+        element={isAdmin ? <Navigate to="/dashboard" replace /> : <Login />}
       />
       <Route
-        path="/"
+        path="/dashboard"
         element={
           <ProtectedRoute>
             <Layout />
