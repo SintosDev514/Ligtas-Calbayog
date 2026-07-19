@@ -125,28 +125,17 @@ export default function PoliceTracking() {
   const [showReportPanel, setShowReportPanel] = useState(false);
   const [reports, setReports] = useState<ReportDetail[]>([]);
   const [focusedReportId, setFocusedReportId] = useState<string | null>(null);
-  const [mapStyle, setMapStyle] = useState("liberty");
-  const satelliteStyle: any = {
-    version: 8,
-    sources: {
-      "satellite": {
-        type: "raster",
-        tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
-        tileSize: 256,
-        attribution: "Esri",
-      },
-    },
-    layers: [{ id: "satellite-layer", type: "raster", source: "satellite" }],
-  };
+  const [mapStyle, setMapStyle] = useState("mapbox-dark");
 
   const mapStyles = [
-    { id: "dark", label: "Dark", url: "https://tiles.openfreemap.org/styles/dark", icon: Moon },
-    { id: "liberty", label: "Light", url: "https://tiles.openfreemap.org/styles/liberty", icon: Sun },
-    { id: "satellite", label: "Satellite", url: satelliteStyle, icon: MapPin },
+    { id: "mapbox-dark", label: "Dark", url: "mapbox://styles/mapbox/dark-v11", icon: Moon },
+    { id: "mapbox-streets", label: "Streets", url: "mapbox://styles/mapbox/streets-v12", icon: Sun },
+    { id: "mapbox-satellite", label: "Satellite", url: "mapbox://styles/mapbox/satellite-streets-v12", icon: MapPin },
+    { id: "mapbox-navigation-night", label: "Navigation", url: "mapbox://styles/mapbox/navigation-night-v1", icon: Navigation },
   ];
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
-  const maplibreglRef = useRef<any>(null);
+  const mapboxglRef = useRef<any>(null);
   const officersRef = useRef<OfficerData[]>([]);
   const residentsRef = useRef<ResidentData[]>([]);
   const activeTabRef = useRef<"all" | "police" | "residents">("all");
@@ -584,23 +573,35 @@ export default function PoliceTracking() {
 
   async function initMap() {
     try {
-      const maplibregl = await import("maplibre-gl");
-      maplibreglRef.current = maplibregl;
+      const mapboxgl = await import("mapbox-gl");
+      mapboxglRef.current = mapboxgl;
+      const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string;
+      if (!token) {
+        console.error("Mapbox token is missing — check .env file");
+        setMapError(true);
+        return;
+      }
+      mapboxgl.accessToken = token;
 
       const container = document.getElementById("tracking-map");
       if (!container) return;
 
       const initialStyle = mapStyles.find((s) => s.id === mapStyle);
-      const map = new maplibregl.Map({
+      const map = new mapboxgl.Map({
         container,
-        style: initialStyle ? initialStyle.url : "https://tiles.openfreemap.org/styles/liberty",
+        style: initialStyle ? initialStyle.url : "mapbox://styles/mapbox/dark-v11",
         center: [124.6, 12.066],
-        zoom: 12,
+        zoom: 14,
+        pitch: 45,
+        bearing: -17.6,
+        antialias: true,
+        accessToken: token,
       });
 
       mapRef.current = map;
 
       map.on("load", () => {
+        add3DBuildings(map);
         addAllMarkers();
         updateRouteLines();
       });
@@ -613,10 +614,64 @@ export default function PoliceTracking() {
         }
       });
 
-      map.on("error", () => setMapError(true));
-    } catch {
+      map.on("error", (e: any) => {
+        console.error("Mapbox error:", e?.error?.message || e);
+        setMapError(true);
+      });
+    } catch (e) {
+      console.error("Mapbox init error:", e);
       setMapError(true);
     }
+  }
+
+  function add3DBuildings(map: any) {
+    const layers = map.getStyle().layers;
+    let labelLayerId: string | undefined;
+    for (const layer of layers) {
+      if (layer.type === "symbol" && layer.layout?.["text-field"]) {
+        labelLayerId = layer.id;
+        break;
+      }
+    }
+
+    if (map.getLayer("3d-buildings")) return;
+
+    map.addLayer(
+      {
+        id: "3d-buildings",
+        source: "composite",
+        "source-layer": "building",
+        type: "fill-extrusion",
+        minzoom: 12,
+        paint: {
+          "fill-extrusion-color": [
+            "interpolate",
+            ["linear"],
+            ["get", "height"],
+            0, "#1a1a2e",
+            50, "#16213e",
+            100, "#0f3460",
+            200, "#533483",
+          ],
+          "fill-extrusion-height": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            12, 0,
+            12.05, ["get", "height"],
+          ],
+          "fill-extrusion-base": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            12, 0,
+            12.05, ["get", "min_height"],
+          ],
+          "fill-extrusion-opacity": 0.7,
+        },
+      },
+      labelLayerId
+    );
   }
 
   function toggleMapStyle() {
@@ -629,6 +684,7 @@ export default function PoliceTracking() {
       if (s) {
         mapRef.current.setStyle(s.url);
         mapRef.current.once("style.load", () => {
+          add3DBuildings(mapRef.current);
           updateRouteLines();
           addAllMarkers();
         });
@@ -654,8 +710,8 @@ export default function PoliceTracking() {
   }, [focusedReportId]);
 
   function addAllMarkers() {
-    const maplibregl = maplibreglRef.current;
-    if (!maplibregl || !mapRef.current) return;
+    const mapboxgl = mapboxglRef.current;
+    if (!mapboxgl || !mapRef.current) return;
 
     for (const m of markersRef.current) m.remove();
     markersRef.current = [];
@@ -686,7 +742,7 @@ export default function PoliceTracking() {
           el.textContent = off.officer?.full_name?.charAt(0) || "?";
         }
 
-        const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
+        const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
           <div class="popup-content">
             <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
               <span style="width:8px;height:8px;border-radius:50%;background:${isActive ? "#22c55e" : "#d97706"}"></span>
@@ -702,7 +758,7 @@ export default function PoliceTracking() {
           </div>
         `);
 
-        const marker = new maplibregl.Marker({ element: el })
+        const marker = new mapboxgl.Marker({ element: el })
           .setLngLat([off.longitude, off.latitude])
           .setPopup(popup)
           .addTo(mapRef.current);
@@ -730,7 +786,7 @@ export default function PoliceTracking() {
         el.textContent = off.officer?.full_name?.charAt(0) || "?";
       }
 
-      const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
+      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
         <div class="popup-content">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
             <span style="width:8px;height:8px;border-radius:50%;background:${isActive ? "#22c55e" : "#d97706"}"></span>
@@ -746,7 +802,7 @@ export default function PoliceTracking() {
         </div>
       `);
 
-      const marker = new maplibregl.Marker({ element: el })
+      const marker = new mapboxgl.Marker({ element: el })
         .setLngLat([off.longitude, off.latitude])
         .setPopup(popup)
         .addTo(mapRef.current);
@@ -774,7 +830,7 @@ export default function PoliceTracking() {
         el.style.setProperty("--crime-pulse", `${crimeColor}66`);
       }
 
-      const marker = new maplibregl.Marker({ element: el })
+      const marker = new mapboxgl.Marker({ element: el })
         .setLngLat([r.longitude, r.latitude])
         .addTo(mapRef.current);
 
@@ -801,7 +857,7 @@ export default function PoliceTracking() {
            </div>`
         : "";
 
-      const popup = new maplibregl.Popup({ offset: 25 }).setHTML(`
+      const popup = new mapboxgl.Popup({ offset: 25 }).setHTML(`
         <div class="popup-content">
           <h4 style="display:flex;align-items:center;gap:6px;">
             <svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" style="width:16px;height:16px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -812,7 +868,7 @@ export default function PoliceTracking() {
         </div>
       `);
 
-      const marker = new maplibregl.Marker({ element: el })
+      const marker = new mapboxgl.Marker({ element: el })
         .setLngLat([post.longitude, post.latitude])
         .setPopup(popup)
         .addTo(mapRef.current);

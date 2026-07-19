@@ -2642,6 +2642,24 @@ tr.clickable-row:hover td {
 .maplibregl-popup-close-button:hover {
   color: var(--gray-700) !important;
 }
+.mapboxgl-popup-content {
+  padding: 14px !important;
+  border-radius: var(--radius-md) !important;
+  min-width: 220px;
+  box-shadow: var(--shadow-lg) !important;
+  background: var(--gray-100) !important;
+  color: var(--gray-600);
+}
+.mapboxgl-popup-tip {
+  border-top-color: var(--gray-100) !important;
+}
+.mapboxgl-popup-close-button {
+  color: var(--gray-500) !important;
+  font-size: 18px !important;
+}
+.mapboxgl-popup-close-button:hover {
+  color: var(--gray-700) !important;
+}
 
 .popup-content h4 {
   font-size: 15px;

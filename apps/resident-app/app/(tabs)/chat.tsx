@@ -104,6 +104,21 @@ export default function ChatScreen() {
           setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const updated = payload.new as any;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m))
+          );
+        }
+      )
       .subscribe();
 
     return () => {
@@ -194,11 +209,12 @@ export default function ChatScreen() {
     ]);
   };
 
-  const handleReact = (emoji: string) => {
+  const handleReact = async (emoji: string) => {
     if (!contextMsg) return;
     const existing = contextMsg.reaction || "";
     const newReaction = existing === emoji ? "" : emoji;
-    updateMessage(contextMsg.id, { reaction: newReaction }).catch(() => {});
+    const prevReaction = existing;
+
     setMessages((prev) =>
       prev.map((m) =>
         m.id === contextMsg.id ? { ...m, reaction: newReaction } : m
@@ -207,6 +223,16 @@ export default function ChatScreen() {
     setShowEmojiPicker(false);
     setShowContext(false);
     setContextMsg(null);
+
+    try {
+      await updateMessage(contextMsg.id, { reaction: newReaction });
+    } catch {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === contextMsg.id ? { ...m, reaction: prevReaction } : m
+        )
+      );
+    }
   };
 
   const EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"];
