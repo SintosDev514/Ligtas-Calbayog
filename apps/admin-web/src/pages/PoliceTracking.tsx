@@ -5,7 +5,7 @@ import { useAlarm } from "../context/AlarmContext";
 import {
   MapPin, Clock, Shield, Navigation, Search, User,
   Plus, Minus, Maximize2, PanelRightClose, PanelRightOpen,
-  FileText, Phone, PhoneCall, Bell, AlertTriangle, X, Sun, Moon
+  FileText, Phone, PhoneCall, Bell, AlertTriangle, X, Sun, Moon, Globe
 } from "lucide-react";
 
 interface OfficerData {
@@ -129,9 +129,8 @@ export default function PoliceTracking() {
 
   const mapStyles = [
     { id: "mapbox-dark", label: "Dark", url: "mapbox://styles/mapbox/dark-v11", icon: Moon },
-    { id: "mapbox-streets", label: "Streets", url: "mapbox://styles/mapbox/streets-v12", icon: Sun },
-    { id: "mapbox-satellite", label: "Satellite", url: "mapbox://styles/mapbox/satellite-streets-v12", icon: MapPin },
-    { id: "mapbox-navigation-night", label: "Navigation", url: "mapbox://styles/mapbox/navigation-night-v1", icon: Navigation },
+    { id: "mapbox-light", label: "Light", url: "mapbox://styles/mapbox/light-v11", icon: Sun },
+    { id: "mapbox-satellite-streets", label: "Satellite", url: "mapbox://styles/mapbox/satellite-streets-v12", icon: Globe },
   ];
   const mapRef = useRef<any>(null);
   const markersRef = useRef<any[]>([]);
@@ -836,7 +835,7 @@ export default function PoliceTracking() {
 
       el.style.cursor = "pointer";
       el.addEventListener("click", () => {
-        navigateRef.current(`/reports/${r.id}`);
+        navigateRef.current(`/dashboard/reports/${r.id}`);
       });
 
       markersRef.current.push(marker);

@@ -139,7 +139,7 @@ export default function Announcements() {
     <>
       <div className="page-header">
         <h2>Announcements</h2>
-        <button className="btn btn-gold" onClick={() => navigate("/announcements/create")}>
+        <button className="btn btn-gold" onClick={() => navigate("/dashboard/announcements/create")}>
           <Plus size={16} /> New Announcement
         </button>
       </div>
@@ -223,7 +223,7 @@ export default function Announcements() {
                   )}
 
                   <div className="card-actions">
-                    <button className="btn btn-sm btn-ghost" onClick={() => navigate(`/announcements/edit/${a.id}`)}>
+                    <button className="btn btn-sm btn-ghost" onClick={() => navigate(`/dashboard/announcements/edit/${a.id}`)}>
                       <Edit3 size={14} /> Edit
                     </button>
                     <button className="btn btn-sm btn-danger" onClick={() => setDeleteTarget(a)}>
@@ -240,7 +240,7 @@ export default function Announcements() {
             <div className="empty-icon"><Megaphone size={24} /></div>
             <h3>No Announcements Yet</h3>
             <p>Create your first announcement to inform residents</p>
-            <button className="btn btn-gold" style={{ marginTop: 16 }} onClick={() => navigate("/announcements/create")}>
+            <button className="btn btn-gold" style={{ marginTop: 16 }} onClick={() => navigate("/dashboard/announcements/create")}>
               <Plus size={16} /> Create Announcement
             </button>
           </div>

@@ -81,7 +81,7 @@ export default function DutyAssignment() {
                 </thead>
                 <tbody>
                   {paginated.map((a: any) => (
-                    <tr key={a.id} className="clickable-row" onClick={() => navigate(`/reports/${a.report_id}`)}>
+                    <tr key={a.id} className="clickable-row" onClick={() => navigate(`/dashboard/reports/${a.report_id}`)}>
                       <td style={{ fontWeight: 500 }}>{a.officer?.full_name || "Unknown"}</td>
                       <td><span className="badge">{a.report?.crime_type || "—"}</span></td>
                       <td>{a.action_type || "Update"}</td>

@@ -221,7 +221,7 @@ export default function CrimeHeatmap() {
 
         map.on("click", "points", (e: any) => {
           const feature = e.features[0];
-          navigate(`/reports/${feature.properties.id}`);
+          navigate(`/dashboard/reports/${feature.properties.id}`);
         });
       });
 

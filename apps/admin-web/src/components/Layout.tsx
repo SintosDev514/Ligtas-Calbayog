@@ -126,7 +126,7 @@ export default function Layout() {
   }, [checkNewReport]);
 
   useEffect(() => {
-    if (/^\/reports\/[^/]+$/.test(location.pathname)) {
+    if (/^\/dashboard\/reports\/[^/]+$/.test(location.pathname)) {
       setBannerReport(null);
     }
   }, [location.pathname]);
@@ -135,7 +135,7 @@ export default function Layout() {
     if (bannerReport?.id) {
       const id = bannerReport.id;
       setBannerReport(null);
-      navigate(`/reports/${id}`);
+      navigate(`/dashboard/reports/${id}`);
     }
   };
 

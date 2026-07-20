@@ -351,7 +351,7 @@ export default function ReportDetail() {
           <div className="empty-state">
             <div className="empty-icon"><AlertTriangle size={24} /></div>
             <h3>Report not found</h3>
-            <button className="btn btn-outline" onClick={() => navigate("/reports")} style={{ marginTop: 16 }}>
+            <button className="btn btn-outline" onClick={() => navigate("/dashboard/reports")} style={{ marginTop: 16 }}>
               Back to Reports
             </button>
           </div>
@@ -373,7 +373,7 @@ export default function ReportDetail() {
     <>
       <div className="page-header">
         <div className="rd-header-left">
-          <button className="btn btn-sm btn-outline" onClick={() => navigate("/reports")}>
+          <button className="btn btn-sm btn-outline" onClick={() => navigate("/dashboard/reports")}>
             <ArrowLeft size={15} /> Back
           </button>
           <h2 className="rd-title">{report.crime_type?.replace(/-/g, " ")}</h2>

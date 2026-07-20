@@ -214,7 +214,7 @@ export default function Reports() {
                       className="clickable-row"
                       onClick={(e) => {
                         if ((e.target as HTMLElement).closest("button")) return;
-                        navigate(`/reports/${r.id}`);
+                        navigate(`/dashboard/reports/${r.id}`);
                       }}
                     >
                       <td style={{ textTransform: "capitalize", fontWeight: 600 }}>

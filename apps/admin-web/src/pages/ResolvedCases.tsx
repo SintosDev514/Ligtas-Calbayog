@@ -111,7 +111,7 @@ export default function ResolvedCases() {
                 </thead>
                 <tbody>
                   {paginated.map((r) => (
-                    <tr key={r.id} className="clickable-row" onClick={() => navigate(`/reports/${r.id}`)}>
+                    <tr key={r.id} className="clickable-row" onClick={() => navigate(`/dashboard/reports/${r.id}`)}>
                       <td><span className="badge">{r.crime_type}</span></td>
                       <td>{r.resident?.full_name || "Unknown"}</td>
                       <td>{r.location_address || r.latitude?.toFixed(4) + ", " + r.longitude?.toFixed(4)}</td>

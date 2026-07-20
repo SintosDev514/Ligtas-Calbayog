@@ -199,7 +199,7 @@ export default function CreateAnnouncement() {
         toast("Announcement published", "success");
       }
 
-      navigate("/announcements");
+      navigate("/dashboard/announcements");
     } catch (err: any) {
       setError(err.message || "Failed to save announcement");
     } finally {
@@ -211,7 +211,7 @@ export default function CreateAnnouncement() {
     <>
       <div className="page-header">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <button className="btn btn-sm btn-outline" onClick={() => navigate("/announcements")}>
+          <button className="btn btn-sm btn-outline" onClick={() => navigate("/dashboard/announcements")}>
             <ArrowLeft size={16} /> Back
           </button>
           <h2>{isEditing ? "Edit Announcement" : "Create Announcement"}</h2>
@@ -314,7 +314,7 @@ export default function CreateAnnouncement() {
                 <Save size={16} />
                 {submitting ? "Saving..." : isEditing ? "Update Announcement" : "Publish Announcement"}
               </button>
-              <button type="button" className="btn btn-outline" onClick={() => navigate("/announcements")}>Cancel</button>
+              <button type="button" className="btn btn-outline" onClick={() => navigate("/dashboard/announcements")}>Cancel</button>
             </div>
           </form>
         </div>

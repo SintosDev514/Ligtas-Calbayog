@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Settings as SettingsIcon, Save, Bell, Shield, Globe, MapPin, Sun, Moon, Camera } from "lucide-react";
+import { Settings as SettingsIcon, Save, Bell, Shield, Globe, MapPin, Sun, Moon, Camera, Key, Eye, EyeOff } from "lucide-react";
 import { supabase } from "../supabase";
 
 function getTheme(): "light" | "dark" {
@@ -59,6 +59,12 @@ const SETTINGS_SECTIONS = [
     ],
   },
   {
+    id: "password",
+    label: "Change Password",
+    icon: Key,
+    fields: [],
+  },
+  {
     id: "maps",
     label: "Map Configuration",
     icon: MapPin,
@@ -84,6 +90,12 @@ export default function Settings() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordMsg, setPasswordMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   useEffect(() => {
     setTheme(theme);
@@ -220,6 +232,40 @@ export default function Settings() {
     }
   };
 
+  const handleChangePassword = async () => {
+    setPasswordMsg(null);
+
+    if (!newPassword || !confirmPassword) {
+      setPasswordMsg({ type: "error", text: "All fields are required." });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordMsg({ type: "error", text: "New password must be at least 6 characters." });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordMsg({ type: "error", text: "New password and confirmation do not match." });
+      return;
+    }
+
+    setChangingPassword(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        setPasswordMsg({ type: "error", text: error.message });
+        return;
+      }
+
+      setPasswordMsg({ type: "success", text: "Password changed successfully!" });
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      setPasswordMsg({ type: "error", text: err.message || "Failed to change password." });
+    } finally {
+      setChangingPassword(false);
+    }
+  };
+
   return (
     <>
       <div className="page-header">
@@ -347,6 +393,104 @@ export default function Settings() {
                     />
                     <div style={{ fontSize: 12, color: "var(--gray-500)", marginTop: 6 }}>
                       This number appears on the messages screen PNP card for emergency calls.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeSection === "password" && (
+              <div className="card">
+                <div className="card-header">
+                  <h3 style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--gray-900)" }}>
+                    <Key size={18} /> Change Password
+                  </h3>
+                </div>
+                <div className="card-body">
+                  <p style={{ fontSize: 13, color: "var(--gray-500)", marginBottom: 20 }}>
+                    You are logged in. Choose a new password below.
+                  </p>
+
+                  {passwordMsg && (
+                    <div style={{
+                      padding: "10px 14px", borderRadius: "var(--radius-md)", marginBottom: 16,
+                      fontSize: 13, fontWeight: 500,
+                      background: passwordMsg.type === "success" ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)",
+                      color: passwordMsg.type === "success" ? "#10b981" : "#ef4444",
+                      border: `1px solid ${passwordMsg.type === "success" ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)"}`,
+                    }}>
+                      {passwordMsg.text}
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 400 }}>
+                    <div>
+                      <label style={{ fontSize: 14, fontWeight: 500, display: "block", marginBottom: 8, color: "var(--gray-800)" }}>
+                        New Password
+                      </label>
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Enter new password"
+                          style={{
+                            width: "100%", padding: "10px 40px 10px 14px", fontSize: 14,
+                            border: "1.5px solid var(--gray-300)", borderRadius: "var(--radius-md)",
+                            background: "transparent", color: "var(--gray-700)",
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          style={{
+                            position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                            background: "none", border: "none", cursor: "pointer",
+                            color: "var(--gray-500)", padding: 4, display: "flex",
+                          }}
+                        >
+                          {showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 14, fontWeight: 500, display: "block", marginBottom: 8, color: "var(--gray-800)" }}>
+                        Confirm New Password
+                      </label>
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type={showConfirmPassword ? "text" : "password"}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Confirm new password"
+                          style={{
+                            width: "100%", padding: "10px 40px 10px 14px", fontSize: 14,
+                            border: "1.5px solid var(--gray-300)", borderRadius: "var(--radius-md)",
+                            background: "transparent", color: "var(--gray-700)",
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          style={{
+                            position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)",
+                            background: "none", border: "none", cursor: "pointer",
+                            color: "var(--gray-500)", padding: 4, display: "flex",
+                          }}
+                        >
+                          {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <button
+                        className="btn-primary"
+                        onClick={handleChangePassword}
+                        disabled={changingPassword}
+                        style={{ display: "flex", alignItems: "center", gap: 6 }}
+                      >
+                        <Key size={16} /> {changingPassword ? "Changing..." : "Change Password"}
+                      </button>
                     </div>
                   </div>
                 </div>
