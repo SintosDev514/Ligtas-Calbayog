@@ -214,7 +214,7 @@ const MapView: React.FC<MapViewProps> = ({
     }
 
     if (onPress) {
-      map.on("click", (e) => {
+      map.on("click", (e: any) => {
         onPress({
           nativeEvent: {
             coordinate: {

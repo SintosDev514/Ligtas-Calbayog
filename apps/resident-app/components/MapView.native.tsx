@@ -243,7 +243,7 @@ const MapView = forwardRef<any, any>(({ style, children, mapStyle, initialRegion
   const webViewRef = useRef<any>(null);
   const readyRef = useRef(false);
 
-  const markers = extractMarkers(children, onMarkerPress);
+  const markers = extractMarkers(children);
   const polylines = extractPolylines(children);
   const tileUrl = extractTileUrl(children);
 

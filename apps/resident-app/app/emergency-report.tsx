@@ -43,6 +43,7 @@ export default function EmergencyReportScreen() {
   const [nearestPost, setNearestPost] = useState<string | null>(null);
 
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const photoCameraRef = useRef<CameraView>(null);
 
@@ -102,6 +103,7 @@ export default function EmergencyReportScreen() {
       mediaTypes: ["videos"],
       videoMaxDuration: 30,
       quality: 0.7,
+      cameraType: cameraFacing === "front" ? ImagePicker.CameraType.front : ImagePicker.CameraType.back,
     });
 
     if (!result.canceled && result.assets?.[0]) {
@@ -425,7 +427,7 @@ export default function EmergencyReportScreen() {
           <CameraView
             ref={photoCameraRef}
             style={StyleSheet.absoluteFill}
-            facing="back"
+            facing={cameraFacing}
             mode="picture"
           />
           <View style={styles.cameraBottomControls}>
@@ -459,11 +461,19 @@ export default function EmergencyReportScreen() {
                 <Ionicons name="close" size={24} color="#fff" />
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.captureButton} onPress={takePhoto}>
+              <TouchableOpacity
+                style={styles.captureButton}
+                onPress={takePhoto}
+              >
                 <View style={styles.captureInner} />
               </TouchableOpacity>
 
-              <View style={{ width: 50 }} />
+              <TouchableOpacity
+                style={styles.cameraClose}
+                onPress={() => setCameraFacing((prev) => (prev === "back" ? "front" : "back"))}
+              >
+                <Ionicons name="camera-reverse" size={24} color="#fff" />
+              </TouchableOpacity>
             </View>
           </View>
         </View>

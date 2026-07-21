@@ -13,13 +13,13 @@ import {
   Image,
   Linking,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import {
   fetchContacts,
-  fetchLatestMessagePerContact,
   addContact,
   searchUsers,
   sendContactRequest,
@@ -49,6 +49,7 @@ export default function MessagesScreen() {
   const [showRequestsModal, setShowRequestsModal] = useState(false);
   const [pendingRequests, setPendingRequests] = useState<any[]>([]);
   const [stationName, setStationName] = useState("PNP CALBAYOG");
+  const [stationProfileUrl, setStationProfileUrl] = useState<string | null>(null);
   const [policePhone, setPolicePhone] = useState("117");
 
   const loadData = useCallback(async () => {
@@ -57,13 +58,10 @@ export default function MessagesScreen() {
       const user = session?.session?.user;
       if (!user) return;
 
-      const [contactsData, msgs, reqs] = await Promise.all([
-        fetchContacts(user.id),
-        fetchLatestMessagePerContact(user.id),
-        fetchPendingRequests(user.id).catch(() => []),
-      ]);
-
+      const contactsData = await fetchContacts(user.id);
       setContacts(contactsData);
+
+      const reqs = await fetchPendingRequests(user.id).catch(() => []);
       setPendingRequests(reqs);
       setPendingCount(reqs.length);
 
@@ -87,10 +85,34 @@ export default function MessagesScreen() {
         setContactPhotos(photoMap);
       }
 
+      const contactUserIds = contactsData
+        .filter((c: any) => c.contact_user_id)
+        .map((c: any) => c.contact_user_id as string);
+
       const map: Record<string, any> = {};
-      for (const m of msgs) {
-        map[m.contact_id] = m;
+
+      if (contactUserIds.length > 0) {
+        const { data: allMsgs } = await supabase
+          .from("messages")
+          .select("*")
+          .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+          .order("created_at", { ascending: false });
+
+        for (const c of contactsData) {
+          const cuid = c.contact_user_id;
+          if (!cuid) continue;
+          const found = (allMsgs ?? []).find(
+            (m: any) =>
+              (m.sender_id === cuid && m.receiver_id === user.id) ||
+              (m.receiver_id === cuid && m.sender_id === user.id)
+          );
+          if (found) {
+            map[c.id] = found;
+            if (cuid) map[cuid] = found;
+          }
+        }
       }
+
       setLatestMessages(map);
     } catch (e) {
       console.error("Failed to load messages data:", e);
@@ -105,9 +127,52 @@ export default function MessagesScreen() {
       if (s) {
         setStationName(s.station_name?.toUpperCase() || "PNP CALBAYOG");
         setPolicePhone(s.police_phone || "117");
+        setStationProfileUrl(s.profile_image_url || null);
       }
     }).catch(() => {});
   }, [loadData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const refreshLatest = async () => {
+        try {
+          const { data: session } = await supabase.auth.getSession();
+          const user = session?.session?.user;
+          if (!user) return;
+
+          const contactsData = await fetchContacts(user.id);
+          const contactUserIds = contactsData
+            .filter((c: any) => c.contact_user_id)
+            .map((c: any) => c.contact_user_id as string);
+
+          const map: Record<string, any> = {};
+          if (contactUserIds.length > 0) {
+            const { data: allMsgs } = await supabase
+              .from("messages")
+              .select("*")
+              .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+              .order("created_at", { ascending: false });
+
+            for (const c of contactsData) {
+              const cuid = c.contact_user_id;
+              if (!cuid) continue;
+              const found = (allMsgs ?? []).find(
+                (m: any) =>
+                  (m.sender_id === cuid && m.receiver_id === user.id) ||
+                  (m.receiver_id === cuid && m.sender_id === user.id)
+              );
+              if (found) {
+                map[c.id] = found;
+                if (cuid) map[cuid] = found;
+              }
+            }
+          }
+          setLatestMessages(map);
+        } catch {}
+      };
+      refreshLatest();
+    }, [])
+  );
 
   const handleAddContact = async () => {
     if (!newContact.name.trim() || !newContact.phoneNumber.trim()) {
@@ -173,11 +238,28 @@ export default function MessagesScreen() {
       .join("")
       .toUpperCase();
 
-  const getLastMessagePreview = (contactId: string) => {
-    const msg = latestMessages[contactId];
+  const getLatestMsg = (contact: any) => {
+    return latestMessages[contact.id] || latestMessages[contact.contact_user_id] || null;
+  };
+
+  const getLastMessagePreview = (contact: any) => {
+    const msg = getLatestMsg(contact);
     if (!msg) return "No messages yet";
-    if (msg.message_type === "location") return "📍 Shared a location";
+    if (msg.message_type === "location") return "\uD83D\uDCCD Shared a location";
     return msg.content || "No messages yet";
+  };
+
+  const getLastMessageTime = (contact: any) => {
+    const msg = getLatestMsg(contact);
+    if (!msg?.created_at) return "";
+    const d = new Date(msg.created_at);
+    const now = new Date();
+    const diff = Math.floor((now.getTime() - d.getTime()) / 1000);
+    if (diff < 60) return "Just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+    if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
+    return d.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
   };
 
   const filteredContacts = contacts.filter((c) =>
@@ -186,6 +268,12 @@ export default function MessagesScreen() {
       : c.name?.toLowerCase().includes(contactSearch.toLowerCase().trim()) ||
         c.phone_number?.includes(contactSearch.trim())
   );
+
+  const uniqueContacts = filteredContacts.reduce((acc: any[], c: any) => {
+    const key = c.contact_user_id || c.id;
+    if (!acc.some((x) => (x.contact_user_id || x.id) === key)) acc.push(c);
+    return acc;
+  }, []);
 
   if (loading) {
     return (
@@ -246,9 +334,13 @@ export default function MessagesScreen() {
       <View style={styles.pnpCard}>
         <View style={styles.pnpAccentBar} />
         <View style={styles.pnpBadge}>
-          <View style={styles.pnpShieldInner}>
-            <Ionicons name="shield-checkmark" size={22} color="#0F204B" />
-          </View>
+          {stationProfileUrl ? (
+            <Image source={{ uri: stationProfileUrl }} style={[styles.pnpShieldInner, { backgroundColor: "transparent" }]} resizeMode="cover" />
+          ) : (
+            <View style={styles.pnpShieldInner}>
+              <Ionicons name="shield-checkmark" size={22} color="#0F204B" />
+            </View>
+          )}
         </View>
         <View style={styles.pnpInfo}>
           <Text style={styles.pnpLabel}>{stationName}</Text>
@@ -280,7 +372,7 @@ export default function MessagesScreen() {
             <Text style={styles.emptyBtnText}>Add Contact</Text>
           </TouchableOpacity>
         </View>
-      ) : filteredContacts.length === 0 ? (
+      ) : uniqueContacts.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="search-outline" size={48} color="#CBD5E1" />
           <Text style={styles.emptyTitle}>No Results</Text>
@@ -293,9 +385,9 @@ export default function MessagesScreen() {
           style={styles.list}
           contentContainerStyle={{ paddingBottom: 40 }}
         >
-          {filteredContacts.map((contact) => (
+          {uniqueContacts.map((contact, idx) => (
             <TouchableOpacity
-              key={contact.id}
+              key={`${contact.contact_user_id || contact.id}-${idx}`}
               style={styles.contactItem}
               activeOpacity={0.7}
               onPress={() =>
@@ -328,9 +420,16 @@ export default function MessagesScreen() {
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.lastMessage} numberOfLines={1}>
-                  {getLastMessagePreview(contact.id)}
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Text style={[styles.lastMessage, { flex: 1 }]} numberOfLines={1}>
+                    {getLastMessagePreview(contact)}
+                  </Text>
+                  {latestMessages[contact.id]?.created_at || latestMessages[contact.contact_user_id]?.created_at ? (
+                    <Text style={{ fontSize: 11, color: "#94A3B8", marginLeft: 8, fontWeight: "500", flexShrink: 0 }}>
+                      {getLastMessageTime(contact)}
+                    </Text>
+                  ) : null}
+                </View>
               </View>
               <TouchableOpacity
                 style={styles.deleteContactBtn}
@@ -811,6 +910,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F4B51A",
     justifyContent: "center",
     alignItems: "center",
+    overflow: "hidden",
   },
   pnpInfo: { flex: 1 },
   pnpLabel: {

@@ -65,7 +65,7 @@ export const sendMessage = async (userId, contactId, { content, type = "text", l
     ? [userId, receiverId].sort().join("_")
     : userId;
 
-  const { data, error } = await supabase
+  const { data: newMsg, error } = await supabase
     .from("messages")
     .insert({
       user_id: userId,
@@ -82,7 +82,26 @@ export const sendMessage = async (userId, contactId, { content, type = "text", l
     .single();
 
   if (error) throw new Error(error.message);
-  return data;
+
+  if (receiverId && content) {
+    const { data: senderProfile } = await supabase
+      .from("resident_profiles")
+      .select("full_name")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const senderName = senderProfile?.full_name || "Someone";
+
+    await supabase.from("notifications").insert({
+      user_id: receiverId,
+      type: "message",
+      title: `Message from ${senderName}`,
+      body: content.length > 100 ? content.substring(0, 100) + "..." : content,
+      data: { sender_id: userId, contact_id: contactId },
+    });
+  }
+
+  return newMsg;
 };
 
 export const fetchLatestMessagePerContact = async (userId) => {

@@ -17,6 +17,7 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from "../../../shared/supabase/supabaseClient";
 
 type Step = "email" | "otp" | "password" | "success";
@@ -102,6 +103,7 @@ export default function ForgotPasswordScreen() {
     try {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
+      await AsyncStorage.removeItem("@ligtas_login_timestamp");
       await supabase.auth.signOut();
       setStep("success");
     } catch (err: any) {

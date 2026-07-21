@@ -9,10 +9,12 @@ import {
   StatusBar,
   Linking,
   Image,
+  ImageBackground,
   Alert,
   ActivityIndicator,
   Modal,
   Vibration,
+  StyleSheet,
 } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -54,7 +56,8 @@ export default function HomeScreen() {
   const [contacts, setContacts] = useState<any[]>([]);
   const [policePosts, setPolicePosts] = useState<any[]>([]);
   const [sosIsHolding, setSosIsHolding] = useState(false);
-  const [sosHoldSeconds, setSosHoldSeconds] = useState(5);
+  const [sosHoldSeconds, setSosHoldSeconds] = useState(3);
+  const [isConnected, setIsConnected] = useState(true);
   const [weather, setWeather] = useState<any>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -113,9 +116,6 @@ export default function HomeScreen() {
           (payload) => {
             const msg = payload.new as any;
             loadData();
-            if (msg?.content) {
-              Alert.alert("New Message", msg.content);
-            }
           },
         )
         .subscribe();
@@ -234,6 +234,17 @@ export default function HomeScreen() {
       .catch(() => {});
   }, [location?.latitude, location?.longitude]);
 
+  useEffect(() => {
+    const check = () => {
+      fetch("https://www.google.com", { method: "HEAD", cache: "no-store" })
+        .then(() => setIsConnected(true))
+        .catch(() => setIsConnected(false));
+    };
+    check();
+    const interval = setInterval(check, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   const getWeatherInfo = () => {
     if (!weather) return { label: "", icon: "partly-sunny-outline" as any, temp: "" };
     const info = weatherCodes[weather.weathercode] || { label: "Unknown", icon: "cloud-outline" };
@@ -270,7 +281,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     const listener = sosRingAnim.addListener(({ value }) => {
-      const remaining = Math.ceil(5 - value * 5);
+      const remaining = Math.ceil(3 - value * 3);
       setSosHoldSeconds(Math.max(0, remaining));
     });
     return () => sosRingAnim.removeListener(listener);
@@ -283,7 +294,7 @@ export default function HomeScreen() {
     sosRingAnim.setValue(0);
     sosHoldAnimRef.current = Animated.timing(sosRingAnim, {
       toValue: 1,
-      duration: 5000,
+      duration: 3000,
       useNativeDriver: false,
     });
     sosHoldAnimRef.current.start(({ finished }) => {
@@ -483,19 +494,20 @@ export default function HomeScreen() {
 
   const getTimeGreeting = () => {
     const hour = new Date().getHours();
+    const safetyTips = ["Keep safe!", "Stay alert!", "Keep your GPS on", "Be careful out there!", "Stay safe!"];
     if (hour >= 5 && hour < 12) return "Good morning";
     if (hour >= 12 && hour < 17) return "Good afternoon";
     if (hour >= 17 && hour < 21) return "Good evening";
-    return "Hello";
+    return safetyTips[new Date().getMinutes() % safetyTips.length];
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#1e293b" />
+      <StatusBar barStyle="light-content" backgroundColor="#0F204B" />
 
       {/* Header */}
       <SafeAreaView edges={["top"]} style={styles.header}>
-        <View style={styles.headerContent}>
+        <LinearGradient colors={["#0F204B", "#0F204B"]} style={styles.headerContent}>
           <View style={styles.headerLeft}>
             <View style={styles.logoContainer}>
               <Image
@@ -513,7 +525,7 @@ export default function HomeScreen() {
               </View>
             )}
           </TouchableOpacity>
-        </View>
+        </LinearGradient>
       </SafeAreaView>
 
       <ScrollView
@@ -532,10 +544,12 @@ export default function HomeScreen() {
             },
           ]}
         >
-          <LinearGradient
-            colors={["#1e293b", "#0f172a"]}
-            style={styles.welcomeTopRow}
-          >
+        <ImageBackground
+              source={require("../../assets/images/calbayog.jpg")}
+              style={styles.welcomeTopRow}
+              imageStyle={{ borderRadius: 20 }}
+            >
+            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "#0F204B", opacity: 0.75 }} />
             <View style={styles.welcomeLeft}>
               <View style={styles.avatarContainer}>
                 {profilePhoto ? (
@@ -547,16 +561,16 @@ export default function HomeScreen() {
                 )}
               </View>
 
-              <View>
-                <Text style={styles.greeting}>{getTimeGreeting()}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.greeting} numberOfLines={1} ellipsizeMode="tail">{getTimeGreeting()}</Text>
 
-                <Text style={styles.userName} numberOfLines={1}>
+                <Text style={styles.userName} numberOfLines={1} ellipsizeMode="tail">
                   {firstName} {lastName}
                 </Text>
 
                 <View style={styles.badge}>
-                  <Ionicons name="shield-checkmark" size={10} color="#4ADE80" />
-                  <Text style={styles.badgeText}>Verified</Text>
+                  <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: isConnected ? "#4ADE80" : "#F87171", marginRight: 5 }} />
+                  <Text style={[styles.badgeText, { color: "#F4B51A" }]}>{isConnected ? "Online" : "Offline — No internet"}</Text>
                 </View>
               </View>
             </View>
@@ -592,16 +606,16 @@ export default function HomeScreen() {
                   </Animated.View>
                 </TouchableOpacity>
               </View>
-              <Text style={styles.sosHoldHint}>Hold 5s to report</Text>
+              <Text style={styles.sosHoldHint}>Hold 3s to report</Text>
             </View>
-          </LinearGradient>
+          </ImageBackground>
         </Animated.View>
 
         {/* Report Stats */}
         <View style={styles.statsSection}>
           <View style={styles.statsRow}>
             <LinearGradient
-              colors={["#1e293b", "#0f172a"]}
+              colors={["#0F204B", "#0F204B"]}
               style={styles.weatherCard}
             >
               <Ionicons name={getWeatherInfo().icon} size={18} color="#FFFFFF" />

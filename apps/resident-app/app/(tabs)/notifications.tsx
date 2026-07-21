@@ -22,6 +22,7 @@ import {
 } from "../../../../shared/services/messageService";
 import { getCached, setCache } from "../../../../shared/services/cacheService";
 import { setupPushNotifications, showLocalNotification } from "../../../../shared/services/pushService";
+import { useFocusEffect } from "@react-navigation/native";
 
 const TYPE_META: Record<string, { icon: string; color: string }> = {
   contact_request: { icon: "person-add", color: "#3B82F6" },
@@ -90,6 +91,16 @@ export default function NotificationsScreen() {
   useEffect(() => {
     loadNotifications();
   }, [loadNotifications]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      if (currentUserId) {
+        markAllNotificationsRead(currentUserId).then(() => {
+          setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+        });
+      }
+    }, [currentUserId])
+  );
 
   useEffect(() => {
     if (!currentUserId) return;
@@ -162,6 +173,18 @@ export default function NotificationsScreen() {
             handleMarkRead(item.id);
             if (item.type === "announcement") {
               router.push("/(tabs)/announcements");
+            } else if (item.type === "message" && item.data?.sender_id) {
+              router.push({
+                pathname: "/(tabs)/chat",
+                params: {
+                  contact_user_id: item.data.sender_id,
+                  id: item.data.contact_id || "",
+                  name: item.title?.replace("Message from ", "") || "",
+                  phone: "",
+                },
+              });
+            } else if (item.type === "contact_request" || item.type === "contact_request_accepted") {
+              router.push("/(tabs)/messages");
             }
           }}
           style={[styles.card, !item.read && styles.cardUnread]}

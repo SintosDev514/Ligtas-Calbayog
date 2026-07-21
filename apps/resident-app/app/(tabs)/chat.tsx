@@ -53,6 +53,7 @@ export default function ChatScreen() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const subscriptionRef = useRef<any>(null);
+  const sentMessageIds = useRef(new Set<string>());
 
   const loadMessages = useCallback(async () => {
     if (!contactId && !contactUserId) return;
@@ -97,6 +98,10 @@ export default function ChatScreen() {
         },
         (payload) => {
           const newMsg = payload.new as any;
+          if (sentMessageIds.current.has(newMsg.id)) {
+            sentMessageIds.current.delete(newMsg.id);
+            return;
+          }
           setMessages((prev) => {
             if (prev.some((m) => m.id === newMsg.id)) return prev;
             return [...prev, newMsg];
@@ -145,6 +150,7 @@ export default function ChatScreen() {
         content: inputText.trim(),
         receiverId: contactUserId || undefined,
       });
+      sentMessageIds.current.add(newMsg.id);
       setMessages((prev) => [...prev, newMsg]);
       setInputText("");
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
@@ -261,6 +267,7 @@ export default function ChatScreen() {
         longitude: location.longitude,
         receiverId: contactUserId || undefined,
       });
+      sentMessageIds.current.add(newMsg.id);
       setMessages((prev) => [...prev, newMsg]);
       setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 50);
     } catch (e: any) {
@@ -408,6 +415,11 @@ export default function ChatScreen() {
     );
   };
 
+  const dedupedMessages = messages.reduce((acc: any[], m: any) => {
+    if (!acc.some((x) => x.id === m.id)) acc.push(m);
+    return acc;
+  }, []);
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -439,7 +451,7 @@ export default function ChatScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
-        {messages.length === 0 ? (
+        {dedupedMessages.length === 0 ? (
           <View style={styles.emptyChat}>
             <Ionicons name="chatbubble-ellipses-outline" size={56} color="#CBD5E1" />
             <Text style={styles.emptyChatTitle}>No Messages Yet</Text>
@@ -450,7 +462,7 @@ export default function ChatScreen() {
         ) : (
           <FlatList
             ref={flatListRef}
-            data={messages}
+            data={dedupedMessages}
             keyExtractor={(item) => item.id}
             renderItem={renderMessage}
             contentContainerStyle={styles.messagesList}

@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.4",
-    "expo-image-picker": "^56.0.14"
+    "@supabase/supabase-js": "^2.110.7",
+    "expo-image-picker": "^56.0.21"
   }
 }

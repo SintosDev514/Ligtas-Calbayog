@@ -272,13 +272,10 @@ export default function MyReportsScreen() {
           style={styles.card}
         >
           <View style={styles.cardInner}>
-            {/* Accent stripe */}
-            <View style={[styles.accentStripe, { backgroundColor: statusMeta.accent }]} />
-
             {/* Card Header */}
             <View style={styles.cardHeader}>
-              <View style={[styles.crimeIconCircle, { backgroundColor: crimeColor + "15" }]}>
-                <Ionicons name={crimeIcon as any} size={22} color={crimeColor} />
+              <View style={[styles.crimeIconCircle, { backgroundColor: statusMeta.accent }]}>
+                <Ionicons name={crimeIcon as any} size={22} color="#fff" />
               </View>
 
               <View style={styles.headerContent}>
@@ -822,8 +819,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
   },
   statItem: {
     flex: 1,
@@ -861,8 +856,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 1,
   },
   filterPillActive: {
     backgroundColor: "#0F204B",
@@ -981,22 +979,16 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: "#F1F5F9",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.18,
+    shadowRadius: 24,
+    elevation: 8,
   },
   cardInner: {
     padding: 16,
   },
   accentStripe: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 3,
+    height: 0,
   },
   cardHeader: {
     flexDirection: "row",
@@ -1063,8 +1055,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 12,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.2)",
   },
   liveDot: {
     width: 8,
@@ -1084,8 +1074,8 @@ const styles = StyleSheet.create({
     marginTop: 14,
   },
   divider: {
-    height: 1,
-    backgroundColor: "#F1F5F9",
+    height: 0,
+    backgroundColor: "transparent",
     marginBottom: 14,
   },
   expandedBlock: {
@@ -1107,8 +1097,6 @@ const styles = StyleSheet.create({
   imageFrame: {
     borderRadius: 12,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
     height: 180,
   },
   evidenceImage: {
@@ -1123,8 +1111,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     padding: 10,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
   },
   locationAddressText: {
     fontSize: 12,
@@ -1136,8 +1122,6 @@ const styles = StyleSheet.create({
     height: 160,
     borderRadius: 12,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
   },
   map: {
     flex: 1,
@@ -1146,8 +1130,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#F0FDF4",
     borderRadius: 12,
     padding: 14,
-    borderWidth: 1,
-    borderColor: "#BBF7D0",
     borderLeftWidth: 3,
     borderLeftColor: "#10B981",
     marginBottom: 16,
@@ -1247,8 +1229,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     padding: 10,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
     marginBottom: 12,
   },
   refText: {
@@ -1293,8 +1273,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 10,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#FECACA",
     backgroundColor: "#FEF2F2",
     gap: 6,
   },
@@ -1305,8 +1283,6 @@ const styles = StyleSheet.create({
   },
   expandIndicator: {
     alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
     paddingTop: 8,
     marginTop: 12,
   },
@@ -1360,8 +1336,7 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
+    backgroundColor: "#F1F5F9",
     alignItems: "center",
   },
   modalCancelText: {
@@ -1389,8 +1364,6 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 13,
     color: "#0F172A",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
     marginBottom: 16,
     lineHeight: 20,
   },

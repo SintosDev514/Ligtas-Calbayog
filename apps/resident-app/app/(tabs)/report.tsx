@@ -114,6 +114,7 @@ export default function ReportScreen() {
     { uri: string; type: "image" | "video" }[]
   >([]);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
   const [showSuccess, setShowSuccess] = useState(false);
   const [submittedReportId, setSubmittedReportId] = useState<string>("");
   const [nearestPost, setNearestPost] = useState<string | null>(null);
@@ -252,6 +253,7 @@ export default function ReportScreen() {
       mediaTypes: ["videos"],
       videoMaxDuration: 30,
       quality: 0.7,
+      cameraType: cameraFacing === "front" ? ImagePicker.CameraType.front : ImagePicker.CameraType.back,
     });
 
     if (!result.canceled && result.assets?.[0]) {
@@ -843,7 +845,7 @@ export default function ReportScreen() {
           <CameraView
             ref={photoCameraRef}
             style={styles.camera}
-            facing="back"
+            facing={cameraFacing}
             mode="picture"
           />
 
@@ -885,7 +887,12 @@ export default function ReportScreen() {
                 <View style={styles.captureInner} />
               </TouchableOpacity>
 
-              <View style={{ width: 50 }} />
+              <TouchableOpacity
+                style={styles.cameraClose}
+                onPress={() => setCameraFacing((prev) => (prev === "back" ? "front" : "back"))}
+              >
+                <Ionicons name="camera-reverse" size={24} color="#fff" />
+              </TouchableOpacity>
             </View>
           </View>
         </View>

@@ -24,9 +24,9 @@ export const styles = StyleSheet.create({
     left: 0,
     right: 0,
     zIndex: 20,
-    backgroundColor: "#1e293b",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    backgroundColor: "#0F204B",
+    paddingHorizontal: 0,
+    paddingVertical: 0,
     justifyContent: "center",
     shadowColor: "#000",
     shadowOffset: {
@@ -42,6 +42,8 @@ export const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
 
   headerLeft: {
@@ -214,7 +216,7 @@ export const styles = StyleSheet.create({
 
   greeting: {
     fontSize: 11,
-    color: "rgba(255,255,255,0.5)",
+    color: "#94A3B8",
     marginBottom: 2,
     fontWeight: "600",
     textTransform: "uppercase",
@@ -224,7 +226,7 @@ export const styles = StyleSheet.create({
   userName: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#FFFFFF",
+    color: "#F4B51A",
     marginBottom: 6,
   },
 
