@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
@@ -413,6 +414,7 @@ export default function ProfileScreen() {
         text: "Sign Out",
         style: "destructive",
         onPress: async () => {
+          await AsyncStorage.removeItem("@ligtas_login_timestamp");
           await supabase.auth.signOut();
           router.replace("/(tabs)/login" as any);
         },

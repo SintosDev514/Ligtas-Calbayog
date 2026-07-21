@@ -18,33 +18,19 @@ export default function Hero() {
 
   return (
     <div className="hero-page">
-      <video
-        className="hero-video"
-        src="/0719.mp4"
-        autoPlay
-        muted
-        loop
-        playsInline
-      />
+      <img className="hero-video" src="/0719.mp4" />
       <div className="hero-overlay" />
       <div className="hero-content">
-        <div className="hero-badge">
-          <Shield size={14} />
-          <span>PNP Administration</span>
-        </div>
-
         <h1 className="hero-title">
           Ligtas
           <span className="hero-title-highlight"> Calbayog</span>
         </h1>
 
-        <p className="hero-subtitle">
-          Police Administration Portal — Real-time crime monitoring,
-          patrol tracking, and emergency response management for the city of Calbayog.
-        </p>
-
         <div className="hero-actions">
-          <button className="hero-btn hero-btn-primary" onClick={() => navigate("/login")}>
+          <button
+            className="hero-btn hero-btn-primary"
+            onClick={() => navigate("/login")}
+          >
             <LogIn size={18} />
             Admin Login
           </button>

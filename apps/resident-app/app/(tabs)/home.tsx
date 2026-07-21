@@ -15,6 +15,7 @@ import {
   Vibration,
 } from "react-native";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -436,6 +437,7 @@ export default function HomeScreen() {
         text: "Logout",
         style: "destructive",
         onPress: async () => {
+          await AsyncStorage.removeItem("@ligtas_login_timestamp");
           await supabase.auth.signOut();
           router.replace("/(tabs)/login" as any);
         },

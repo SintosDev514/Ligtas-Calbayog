@@ -12,6 +12,7 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
@@ -50,6 +51,7 @@ export default function Register() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [street, setStreet] = useState("");
@@ -65,6 +67,11 @@ export default function Register() {
 
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   const [locationStatus, setLocationStatus] = useState<"idle" | "loading" | "got" | "denied">("idle");
+
+  const [pinnedLocation, setPinnedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [pinnedAddress, setPinnedAddress] = useState<string>("");
+  const [isPinValid, setIsPinValid] = useState<boolean | null>(null);
+  const [isPinning, setIsPinning] = useState(false);
 
   const [idPhotoUri, setIdPhotoUri] = useState<string | null>(null);
   const [idPhotoUploaded, setIdPhotoUploaded] = useState(false);
@@ -92,6 +99,68 @@ export default function Register() {
       longitude: loc.coords.longitude,
     });
     setLocationStatus("got");
+  };
+
+  const CALBAYOG_BOUNDS = {
+    minLat: 11.95,
+    maxLat: 12.25,
+    minLng: 124.45,
+    maxLng: 124.85,
+  };
+
+  const isWithinCalbayog = (lat: number, lng: number) => {
+    return (
+      lat >= CALBAYOG_BOUNDS.minLat &&
+      lat <= CALBAYOG_BOUNDS.maxLat &&
+      lng >= CALBAYOG_BOUNDS.minLng &&
+      lng <= CALBAYOG_BOUNDS.maxLng
+    );
+  };
+
+  const reverseGeocodePinned = async (lat: number, lng: number) => {
+    try {
+      const geo = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+      if (geo.length > 0) {
+        const g = geo[0];
+        const addr = [g.street, g.district, g.city, g.region].filter(Boolean).join(", ");
+        setPinnedAddress(addr);
+        const valid = isWithinCalbayog(lat, lng);
+        setIsPinValid(valid);
+        return { address: addr, valid };
+      }
+    } catch {}
+    setPinnedAddress("Unable to resolve address");
+    setIsPinValid(false);
+    return { address: "Unable to resolve address", valid: false };
+  };
+
+  const handleMapPress = async (e: any) => {
+    const coord = e?.nativeEvent?.coordinate || e?.coordinate;
+    if (!coord) return;
+    setPinnedLocation({ latitude: coord.latitude, longitude: coord.longitude });
+    await reverseGeocodePinned(coord.latitude, coord.longitude);
+  };
+
+  const handleMarkerDragEnd = async (e: any) => {
+    const coord = e?.nativeEvent?.coordinate;
+    if (!coord) return;
+    setPinnedLocation({ latitude: coord.latitude, longitude: coord.longitude });
+    await reverseGeocodePinned(coord.latitude, coord.longitude);
+  };
+
+  const usePinnedLocation = () => {
+    if (pinnedLocation && isPinValid) {
+      setLocation(pinnedLocation);
+      setIsPinning(false);
+      Alert.alert("Location Updated", "Your pinned location has been set.");
+    }
+  };
+
+  const startPinning = () => {
+    setIsPinning(true);
+    setPinnedLocation(location ? { ...location } : null);
+    setPinnedAddress("");
+    setIsPinValid(null);
   };
 
   const pickIdPhoto = async () => {
@@ -391,15 +460,42 @@ export default function Register() {
                       {...inputCommon}
                       style={inputStyle}
                     />
-                    <InputField
-                      label="Password"
-                      placeholder="Create a password (min 6 characters)"
-                      secureTextEntry
-                      value={password}
-                      onChangeText={setPassword}
-                      {...inputCommon}
-                      style={inputStyle}
-                    />
+                    <View style={{ marginBottom: 16 }}>
+                      <Text style={{ fontSize: 14, color: "#888", marginBottom: 6, fontWeight: "600" }}>
+                        Password
+                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <TextInput
+                          placeholder="Create a password (min 6 characters)"
+                          placeholderTextColor="#666"
+                          secureTextEntry={!showPassword}
+                          value={password}
+                          onChangeText={setPassword}
+                          style={{
+                            flex: 1,
+                            backgroundColor: "transparent",
+                            borderWidth: 0,
+                            borderBottomWidth: 1,
+                            borderBottomColor: "#475569",
+                            borderRadius: 0,
+                            color: "#FFFFFF",
+                            paddingHorizontal: 0,
+                            paddingVertical: 12,
+                            fontSize: 16,
+                          }}
+                        />
+                        <TouchableOpacity
+                          onPress={() => setShowPassword(!showPassword)}
+                          style={{ paddingLeft: 10, paddingVertical: 12 }}
+                        >
+                          <Ionicons
+                            name={showPassword ? "eye-off" : "eye"}
+                            size={20}
+                            color="#888"
+                          />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
                   </>
                 )}
 
@@ -631,18 +727,53 @@ export default function Register() {
                               latitudeDelta: 0.005,
                               longitudeDelta: 0.005,
                             }}
+                            onPress={isPinning ? handleMapPress : undefined}
                           >
                             <UrlTile urlTemplate={tileUrl} />
                             <Marker
                               coordinate={{
-                                latitude: location.latitude,
-                                longitude: location.longitude,
+                                latitude: (isPinning ? pinnedLocation : location)?.latitude ?? location.latitude,
+                                longitude: (isPinning ? pinnedLocation : location)?.longitude ?? location.longitude,
                               }}
-                              title="Your Location"
-                              pinColor="#1565C0"
+                              title={isPinning ? "Drag to adjust" : "Your Location"}
+                              pinColor={isPinning ? "#F59E0B" : "#1565C0"}
+                              draggable={isPinning}
+                              onDragEnd={handleMarkerDragEnd}
                             />
                           </MapView>
                         </View>
+
+                        {isPinning && (
+                          <View style={[styles.locationBox, { backgroundColor: "#2e2a1a", borderColor: "#F59E0B", marginTop: 12 }]}>
+                            <Ionicons name="finger-print" size={20} color="#F59E0B" />
+                            <Text style={{ marginLeft: 8, color: "#F59E0B", flex: 1, fontSize: 13 }}>
+                              Tap the map or drag the pin to set your exact location.
+                            </Text>
+                          </View>
+                        )}
+
+                        {isPinning && pinnedLocation && pinnedAddress ? (
+                          <View style={[styles.locationBox, {
+                            backgroundColor: isPinValid ? "#1a2e1a" : "#2e1a1a",
+                            borderColor: isPinValid ? "#2ecc71" : "#e74c3c",
+                            marginTop: 8,
+                          }]}>
+                            <Ionicons
+                              name={isPinValid ? "checkmark-circle" : "alert-circle"}
+                              size={20}
+                              color={isPinValid ? "#2ecc71" : "#e74c3c"}
+                            />
+                            <View style={{ marginLeft: 8, flex: 1 }}>
+                              <Text style={{ color: isPinValid ? "#2ecc71" : "#e74c3c", fontSize: 12, fontWeight: "600" }}>
+                                {isPinValid ? "Location is within Calbayog City" : "Location is outside Calbayog City"}
+                              </Text>
+                              <Text style={{ color: "#94A3B8", fontSize: 11, marginTop: 2 }}>
+                                {pinnedAddress}
+                              </Text>
+                            </View>
+                          </View>
+                        ) : null}
+
                         <Text style={[styles.inputLabel, { marginTop: 12 }]}>
                           Registered Address
                         </Text>
@@ -652,10 +783,57 @@ export default function Register() {
                             {street}, Brgy. {barangay}, Calbayog City, Samar
                           </Text>
                         </View>
+
+                        {!isPinning ? (
+                          <TouchableOpacity
+                            style={[styles.locationBox, { backgroundColor: "#1a2a2e", borderColor: "#3B82F6", marginTop: 12 }]}
+                            onPress={startPinning}
+                          >
+                            <Ionicons name="finger-print" size={20} color="#3B82F6" />
+                            <Text style={{ marginLeft: 8, color: "#3B82F6", flex: 1, fontSize: 13, fontWeight: "600" }}>
+                              Pin Exact Location (if GPS is inaccurate)
+                            </Text>
+                            <Ionicons name="chevron-forward" size={18} color="#3B82F6" />
+                          </TouchableOpacity>
+                        ) : (
+                          <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
+                            <TouchableOpacity
+                              style={{
+                                flex: 1,
+                                paddingVertical: 14,
+                                borderRadius: 12,
+                                borderWidth: 1,
+                                borderColor: "#475569",
+                                alignItems: "center",
+                              }}
+                              onPress={() => { setIsPinning(false); setPinnedLocation(null); setPinnedAddress(""); setIsPinValid(null); }}
+                            >
+                              <Text style={{ color: "#888", fontSize: 14, fontWeight: "600" }}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={{
+                                flex: 1,
+                                paddingVertical: 14,
+                                borderRadius: 12,
+                                backgroundColor: isPinValid ? "#2ecc71" : "#334155",
+                                alignItems: "center",
+                              }}
+                              onPress={usePinnedLocation}
+                              disabled={!isPinValid}
+                            >
+                              <Text style={{ color: isPinValid ? "#FFFFFF" : "#666", fontSize: 14, fontWeight: "600" }}>
+                                Confirm Pin
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+
                         <View style={[styles.locationBox, { backgroundColor: "#1a2e1a", borderColor: "#2ecc71", marginTop: 12 }]}>
                           <Ionicons name="information-circle" size={20} color="#2ecc71" />
                           <Text style={{ marginLeft: 8, color: "#2ecc71", flex: 1, fontSize: 13 }}>
-                            Verify that the map pin matches your address above.
+                            {isPinning
+                              ? "Ensure the pin is at your exact address within Calbayog City."
+                              : "Verify that the map pin matches your address above. You can pin manually if GPS is inaccurate."}
                           </Text>
                         </View>
                       </>

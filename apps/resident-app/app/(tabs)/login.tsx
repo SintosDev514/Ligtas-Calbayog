@@ -10,8 +10,10 @@ import {
   StatusBar,
   Image,
   Text,
+  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { loginUser } from "../../../../shared/services/authService";
 import { InputField } from "../../components/ui/InputField";
 import { Button } from "../../components/ui/Button";
@@ -23,6 +25,7 @@ export default function Login() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -93,6 +96,7 @@ export default function Login() {
         Alert.alert("Account Suspended", "Your account has been temporarily suspended.");
         return;
       }
+      await AsyncStorage.setItem("@ligtas_login_timestamp", Date.now().toString());
       router.replace("/(tabs)/home" as any);
     } catch (err: any) {
       Alert.alert("Login Failed", err.message || "Try again.");
@@ -208,26 +212,47 @@ export default function Login() {
                 }}
               />
 
-              <InputField
-                label="Password"
-                placeholder="Enter your password"
-                placeholderTextColor="#666"
-                secureTextEntry
-                value={password}
-                onChangeText={handlePasswordChange}
-                error={passwordError}
-                labelStyle={{ color: "#888" }}
-                style={{
-                  backgroundColor: "transparent",
-                  borderWidth: 0,
-                  borderBottomWidth: 1,
-                  borderBottomColor: "#475569",
-                  borderRadius: 0,
-                  color: "#FFFFFF",
-                  paddingHorizontal: 0,
-                  paddingVertical: 12,
-                }}
-              />
+              <View style={{ marginBottom: 16 }}>
+                <Text style={{ fontSize: 14, color: "#888", marginBottom: 6, fontWeight: "600" }}>
+                  Password
+                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <TextInput
+                    placeholder="Enter your password"
+                    placeholderTextColor="#666"
+                    secureTextEntry={!showPassword}
+                    value={password}
+                    onChangeText={handlePasswordChange}
+                    style={{
+                      flex: 1,
+                      backgroundColor: "transparent",
+                      borderWidth: 0,
+                      borderBottomWidth: 1,
+                      borderBottomColor: passwordError ? "#C1121F" : "#475569",
+                      borderRadius: 0,
+                      color: "#FFFFFF",
+                      paddingHorizontal: 0,
+                      paddingVertical: 12,
+                      fontSize: 16,
+                    }}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={{ paddingLeft: 10, paddingVertical: 12 }}
+                  >
+                    <Ionicons
+                      name={showPassword ? "eye-off" : "eye"}
+                      size={20}
+                      color="#888"
+                    />
+                  </TouchableOpacity>
+                </View>
+                {passwordError ? (
+                  <Text style={{ color: "#C1121F", fontSize: 12, marginTop: 4 }}>
+                    {passwordError}
+                  </Text>
+                ) : null}
+              </View>
 
               <TouchableOpacity
                 onPress={() => router.push("/forgot-password")}

@@ -118,10 +118,18 @@ function doSetMarkers(list) {
         el.innerHTML = ICON_SVGS[m.iconName] || ICON_SVGS.pin;
       }
     }
-    var marker = new maplibregl.Marker({ element: el }).setLngLat([m.longitude, m.latitude]).addTo(map);
+    var markerOpts = { element: el };
+    if (m.draggable) markerOpts.draggable = true;
+    var marker = new maplibregl.Marker(markerOpts).setLngLat([m.longitude, m.latitude]).addTo(map);
     el.addEventListener('click', function() {
       postMsg('markerPress', { id: m.id, latitude: m.latitude, longitude: m.longitude });
     });
+    if (m.draggable) {
+      marker.on('dragend', function() {
+        var lngLat = marker.getLngLat();
+        postMsg('markerDragEnd', { id: m.id, latitude: lngLat.lat, longitude: lngLat.lng });
+      });
+    }
     markers.push(marker);
   });
 }
@@ -188,7 +196,7 @@ function extractMarkers(children: any) {
   let idCounter = 0;
   React.Children.forEach(children, (child: any) => {
     if (child?.type?.displayName === "Marker") {
-      const { coordinate, pinColor, title, animated, iconName, children: mc } = child.props;
+      const { coordinate, pinColor, title, animated, iconName, draggable, children: mc } = child.props;
       const imageUrl = mc ? findImageUri(mc) : null;
       markers.push({
         id: idCounter++,
@@ -199,6 +207,7 @@ function extractMarkers(children: any) {
         imageUrl,
         animated: !!animated,
         iconName: iconName || "pin",
+        draggable: !!draggable,
       });
     }
   });
@@ -230,7 +239,7 @@ function extractTileUrl(children: any): string | null {
   return url;
 }
 
-const MapView = forwardRef<any, any>(({ style, children, mapStyle, initialRegion, region, onMarkerPress, scrollEnabled = true, zoomEnabled = true, pointerEvents, ...props }: any, ref) => {
+const MapView = forwardRef<any, any>(({ style, children, mapStyle, initialRegion, region, onMarkerPress, onMarkerDragEnd, onPress, scrollEnabled = true, zoomEnabled = true, pointerEvents, ...props }: any, ref) => {
   const webViewRef = useRef<any>(null);
   const readyRef = useRef(false);
 
@@ -278,8 +287,22 @@ const MapView = forwardRef<any, any>(({ style, children, mapStyle, initialRegion
           coordinate: { latitude: msg.data.latitude, longitude: msg.data.longitude },
         });
       }
+      if (msg.type === "mapPress") {
+        onPress?.({
+          nativeEvent: {
+            coordinate: { latitude: msg.data.latitude, longitude: msg.data.longitude },
+          },
+        });
+      }
+      if (msg.type === "markerDragEnd") {
+        onMarkerDragEnd?.({
+          nativeEvent: {
+            coordinate: { latitude: msg.data.latitude, longitude: msg.data.longitude },
+          },
+        });
+      }
     } catch {}
-  }, [activeRegion, zoom, tileUrl, markers, polylines, onMarkerPress, sendToWebView]);
+  }, [activeRegion, zoom, tileUrl, markers, polylines, onMarkerPress, onMarkerDragEnd, onPress, sendToWebView]);
 
   useEffect(() => {
     if (readyRef.current) {

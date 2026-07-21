@@ -35,6 +35,8 @@ interface MapViewProps {
   showsCompass?: boolean;
   loadingEnabled?: boolean;
   onPress?: (e: any) => void;
+  onMarkerPress?: (e: any) => void;
+  onMarkerDragEnd?: (e: any) => void;
   onUserLocationChange?: (e: any) => void;
   onRegionChangeComplete?: (region: Region) => void;
 }
@@ -44,6 +46,7 @@ interface MarkerProps {
   title?: string;
   pinColor?: string;
   iconName?: string;
+  draggable?: boolean;
   children?: React.ReactNode;
 }
 
@@ -115,6 +118,8 @@ const MapView: React.FC<MapViewProps> = ({
   showsUserLocation,
   showsCompass,
   onPress,
+  onMarkerPress,
+  onMarkerDragEnd,
   onUserLocationChange,
   onRegionChangeComplete,
 }) => {
@@ -132,6 +137,7 @@ const MapView: React.FC<MapViewProps> = ({
       title?: string;
       pinColor?: string;
       iconName?: string;
+      draggable?: boolean;
     }[] = [];
     React.Children.forEach(children, (child) => {
       if (
@@ -144,6 +150,7 @@ const MapView: React.FC<MapViewProps> = ({
           title: props.title,
           pinColor: props.pinColor,
           iconName: props.iconName,
+          draggable: props.draggable,
         });
       }
     });
@@ -283,16 +290,30 @@ const MapView: React.FC<MapViewProps> = ({
         el.style.background = m.pinColor || "#EF4444";
         el.style.border = "3px solid #fff";
         el.style.boxShadow = "0 2px 4px rgba(0,0,0,0.3)";
-        el.style.cursor = "pointer";
+        el.style.cursor = m.draggable ? "grab" : "pointer";
       }
 
-      const marker = new maplibregl.Marker({ element: el })
+      const markerOpts: any = { element: el };
+      if (m.draggable) markerOpts.draggable = true;
+
+      const marker = new maplibregl.Marker(markerOpts)
         .setLngLat([m.coordinate.longitude, m.coordinate.latitude])
         .addTo(mapRef.current!);
 
       if (m.title) {
         const popup = new maplibregl.Popup().setText(m.title);
         marker.setPopup(popup);
+      }
+
+      if (m.draggable && onMarkerDragEnd) {
+        marker.on("dragend", () => {
+          const lngLat = marker.getLngLat();
+          onMarkerDragEnd({
+            nativeEvent: {
+              coordinate: { latitude: lngLat.lat, longitude: lngLat.lng },
+            },
+          });
+        });
       }
 
       markersRef.current.push(marker);
