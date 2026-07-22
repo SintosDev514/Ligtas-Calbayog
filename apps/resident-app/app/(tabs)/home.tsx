@@ -16,7 +16,7 @@ import {
   Vibration,
   StyleSheet,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -59,10 +59,12 @@ export default function HomeScreen() {
   const [sosHoldSeconds, setSosHoldSeconds] = useState(3);
   const [isConnected, setIsConnected] = useState(true);
   const [weather, setWeather] = useState<any>(null);
+  const [showPhoneTip, setShowPhoneTip] = useState(true);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const bottomBarAnim = useRef(new Animated.Value(0)).current;
+  const phoneTipAnim = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   const isBarVisible = useRef(true);
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -86,6 +88,18 @@ export default function HomeScreen() {
     getLocation();
     loadData();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      setShowPhoneTip(true);
+      phoneTipAnim.setValue(0);
+      Animated.timing(phoneTipAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
+      const tipTimeout = setTimeout(() => {
+        Animated.timing(phoneTipAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => setShowPhoneTip(false));
+      }, 5000);
+      return () => clearTimeout(tipTimeout);
+    }, [])
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -570,7 +584,7 @@ export default function HomeScreen() {
 
                 <View style={styles.badge}>
                   <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: isConnected ? "#4ADE80" : "#F87171", marginRight: 5 }} />
-                  <Text style={[styles.badgeText, { color: "#F4B51A" }]}>{isConnected ? "Online" : "Offline — No internet"}</Text>
+                  <Text style={[styles.badgeText, { color: "#FFFFFF" }]}>{isConnected ? "Online" : "Offline — No internet"}</Text>
                 </View>
               </View>
             </View>
@@ -929,22 +943,42 @@ export default function HomeScreen() {
           },
         ]}
       >
-        <TouchableOpacity style={styles.bottomBarItem} onPress={handleReport}>
-          <Ionicons name="add-circle-outline" size={24} color="#DC2626" />
-          <Text style={styles.bottomBarLabel}>Report</Text>
+        <View style={styles.bottomBarCenterRing} />
+        <TouchableOpacity style={styles.bottomBarCenterCircle} onPress={handleCallPolice} activeOpacity={0.7}>
+          <Ionicons name="call" size={20} color="#F4B51A" />
+          <Text style={{ fontSize: 6, fontWeight: "800", color: "#F4B51A", marginTop: 2, letterSpacing: 0.5 }}>PNP</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.bottomBarItem} onPress={handleMessages}>
-          <Ionicons name="chatbubbles-outline" size={22} color="#64748B" />
-          <Text style={styles.bottomBarLabel}>Messages</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.bottomBarItem} onPress={handleAnnouncements}>
-          <Ionicons name="megaphone-outline" size={22} color="#64748B" />
-          <Text style={styles.bottomBarLabel}>Announcements</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.bottomBarItem} onPress={handleProfile}>
-          <Ionicons name="person-outline" size={22} color="#64748B" />
-          <Text style={styles.bottomBarLabel}>Profile</Text>
-        </TouchableOpacity>
+        {showPhoneTip && (
+          <Animated.View style={[styles.phoneTipContainer, { opacity: phoneTipAnim, transform: [{ translateY: phoneTipAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>
+            <View style={styles.phoneTipBubble}>
+              <Ionicons name="wifi-off-outline" size={12} color="#EF4444" />
+              <Text style={styles.phoneTipText}>No internet?</Text>
+              <View style={styles.phoneTipDivider} />
+              <Ionicons name="call-outline" size={12} color="#F4B51A" />
+              <Text style={styles.phoneTipText2}>You can still call PNP!</Text>
+            </View>
+            <View style={styles.phoneTipArrow} />
+          </Animated.View>
+        )}
+        <View style={styles.bottomBarRow}>
+          <TouchableOpacity style={styles.bottomBarItem} onPress={handleReport}>
+            <Ionicons name="add-circle-outline" size={24} color="#DC2626" />
+            <Text style={styles.bottomBarLabel} numberOfLines={1}>Report</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.bottomBarItem} onPress={handleMessages}>
+            <Ionicons name="chatbubbles-outline" size={22} color="#64748B" />
+            <Text style={styles.bottomBarLabel} numberOfLines={1}>Messages</Text>
+          </TouchableOpacity>
+          <View style={{ width: 48 }} />
+          <TouchableOpacity style={styles.bottomBarItem} onPress={handleAnnouncements}>
+            <Ionicons name="megaphone-outline" size={22} color="#64748B" />
+            <Text style={styles.bottomBarLabel} numberOfLines={1}>Announcements</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.bottomBarItem} onPress={handleProfile}>
+            <Ionicons name="person-outline" size={22} color="#64748B" />
+            <Text style={styles.bottomBarLabel} numberOfLines={1}>Profile</Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
 
       {/* MAP MODAL */}

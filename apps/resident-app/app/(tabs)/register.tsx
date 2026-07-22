@@ -349,9 +349,9 @@ export default function Register() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#17202b" }}>
-      <StatusBar barStyle="light-content" backgroundColor="#17202b" />
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#17202b" }}>
+    <View style={{ flex: 1, backgroundColor: "#0F204B" }}>
+      <StatusBar barStyle="light-content" backgroundColor="#0F204B" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#0F204B" }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
@@ -382,7 +382,7 @@ export default function Register() {
                 style={{ width: 56, height: 56 }}
                 resizeMode="contain"
               />
-              <Text style={{ fontSize: 16, fontWeight: "800", color: "#17202b", marginTop: 4, letterSpacing: 0.5 }}>
+              <Text style={{ fontSize: 16, fontWeight: "800", color: "#0F204B", marginTop: 4, letterSpacing: 0.5 }}>
                 Ligtas Calbayog
               </Text>
               <Text style={{ fontSize: 11, color: "#888", marginTop: 1, letterSpacing: 0.3 }}>
@@ -967,7 +967,7 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
   },
   stepNumberActive: {
-    color: "#17202b",
+    color: "#0F204B",
   },
   stepLine: {
     width: 28,

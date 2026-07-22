@@ -304,6 +304,17 @@ export default function MyReportsScreen() {
               </Text>
             )}
 
+            {/* Evidence thumbnail when collapsed */}
+            {!isExpanded && !!item.photo_url && (
+              <View style={styles.collapsedEvidenceThumb}>
+                <Image source={{ uri: item.photo_url }} style={styles.collapsedEvidenceImage} resizeMode="cover" />
+                <View style={styles.collapsedEvidenceOverlay}>
+                  <Ionicons name="image-outline" size={14} color="#fff" />
+                  <Text style={styles.collapsedEvidenceLabel}>Evidence</Text>
+                </View>
+              </View>
+            )}
+
             {/* Live tracking badge when collapsed */}
             {!isExpanded && status === "in-progress" && (
               <TouchableOpacity
@@ -1046,6 +1057,34 @@ const styles = StyleSheet.create({
     color: "#64748B",
     marginTop: 12,
     lineHeight: 18,
+  },
+  collapsedEvidenceThumb: {
+    marginTop: 10,
+    height: 100,
+    borderRadius: 10,
+    overflow: "hidden",
+    position: "relative",
+  },
+  collapsedEvidenceImage: {
+    width: "100%",
+    height: "100%",
+  },
+  collapsedEvidenceOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  collapsedEvidenceLabel: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: "#fff",
   },
   liveBadgeRow: {
     flexDirection: "row",

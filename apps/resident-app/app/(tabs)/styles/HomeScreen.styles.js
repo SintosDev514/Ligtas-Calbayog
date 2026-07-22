@@ -81,17 +81,13 @@ export const styles = StyleSheet.create({
   },
 
   logoContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.08)",
     justifyContent: "center",
     alignItems: "center",
   },
 
   logo: {
-    width: 20,
-    height: 20,
+    width: 36,
+    height: 36,
     resizeMode: "contain",
     tintColor: "#FFFFFF",
   },
@@ -112,11 +108,12 @@ export const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: "#FFFFFF",
     borderTopWidth: 1,
     borderTopColor: "#E2E8F0",
-    paddingTop: 8,
+    paddingTop: 18,
+    paddingBottom: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.08,
@@ -124,18 +121,108 @@ export const styles = StyleSheet.create({
     elevation: 8,
   },
 
+  bottomBarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+  },
+
   bottomBarItem: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingTop: 8,
+    paddingVertical: 2,
+  },
+
+  bottomBarCenterCircle: {
+    position: "absolute",
+    top: -26,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: "#0F204B",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#0F204B",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+
+  bottomBarCenterRing: {
+    position: "absolute",
+    top: -30,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: "#F4B51A",
+    backgroundColor: "transparent",
+  },
+
+  phoneTipContainer: {
+    position: "absolute",
+    bottom: 90,
+    left: "50%",
+    marginLeft: -90,
+    alignItems: "center",
+    width: 180,
+    zIndex: 999,
+  },
+
+  phoneTipBubble: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0F204B",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    gap: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+
+  phoneTipText: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#EF4444",
+  },
+
+  phoneTipDivider: {
+    width: 1,
+    height: 12,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    marginHorizontal: 2,
+  },
+
+  phoneTipText2: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#F4B51A",
+  },
+
+  phoneTipArrow: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 6,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+    borderTopColor: "#0F204B",
   },
 
   bottomBarLabel: {
     fontSize: 10,
     fontWeight: "600",
     color: "#64748B",
-    marginTop: 2,
+    marginTop: 1,
+    textAlign: "center",
+    overflow: "hidden",
   },
 
   bottomBarBadge: {
@@ -298,9 +385,9 @@ export const styles = StyleSheet.create({
   },
 
   sosHoldHint: {
-    fontSize: 8,
-    fontWeight: "600",
-    color: "rgba(255,255,255,0.4)",
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#FFFFFF",
     marginTop: 6,
     letterSpacing: 0.5,
     textAlign: "center",

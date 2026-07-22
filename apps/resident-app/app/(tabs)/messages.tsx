@@ -331,32 +331,6 @@ export default function MessagesScreen() {
         ) : null}
       </View>
 
-      <View style={styles.pnpCard}>
-        <View style={styles.pnpAccentBar} />
-        <View style={styles.pnpBadge}>
-          {stationProfileUrl ? (
-            <Image source={{ uri: stationProfileUrl }} style={[styles.pnpShieldInner, { backgroundColor: "transparent" }]} resizeMode="cover" />
-          ) : (
-            <View style={styles.pnpShieldInner}>
-              <Ionicons name="shield-checkmark" size={22} color="#0F204B" />
-            </View>
-          )}
-        </View>
-        <View style={styles.pnpInfo}>
-          <Text style={styles.pnpLabel}>{stationName}</Text>
-          <Text style={styles.pnpNumber}>{policePhone}</Text>
-          <Text style={styles.pnpHint}>Emergency Hotline · 24/7</Text>
-        </View>
-        <View style={styles.pnpDivider} />
-        <TouchableOpacity
-          style={styles.pnpCallBtn}
-          onPress={() => Linking.openURL(`tel:${policePhone}`)}
-        >
-          <Ionicons name="call" size={24} color="#fff" />
-          <Text style={styles.pnpCallText}>Call</Text>
-        </TouchableOpacity>
-      </View>
-
       {contacts.length === 0 ? (
         <View style={styles.emptyState}>
           <Ionicons name="chatbubbles-outline" size={64} color="#CBD5E1" />
