@@ -21,6 +21,19 @@ export default function Index() {
           return;
         }
 
+        const { data: userData } = await supabase
+          .from("users")
+          .select("status")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        if (userData?.status === "banned" || userData?.status === "suspended") {
+          await supabase.auth.signOut();
+          await AsyncStorage.removeItem(LOGIN_TIMESTAMP_KEY);
+          setRoute("login");
+          return;
+        }
+
         const timestampStr = await AsyncStorage.getItem(LOGIN_TIMESTAMP_KEY);
 
         if (!timestampStr) {

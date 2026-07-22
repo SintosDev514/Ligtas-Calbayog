@@ -30,6 +30,8 @@ const TYPE_META: Record<string, { icon: string; color: string }> = {
   message: { icon: "chatbubble", color: "#8B5CF6" },
   alert: { icon: "warning", color: "#DC2626" },
   announcement: { icon: "megaphone", color: "#D97706" },
+  admin_message: { icon: "shield-checkmark", color: "#0F204B" },
+  report_update: { icon: "document-text", color: "#3B82F6" },
   default: { icon: "notifications", color: "#64748B" },
 };
 
@@ -185,6 +187,8 @@ export default function NotificationsScreen() {
               });
             } else if (item.type === "contact_request" || item.type === "contact_request_accepted") {
               router.push("/(tabs)/messages");
+            } else if (item.type === "report_update" && item.data?.report_id) {
+              router.push({ pathname: "/(tabs)/my-reports" as any, params: { filter: "all" } });
             }
           }}
           style={[styles.card, !item.read && styles.cardUnread]}

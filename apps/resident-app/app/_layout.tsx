@@ -11,6 +11,7 @@ import "react-native-reanimated";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { LocationProvider } from "@/context/LocationContext";
 import { MapStyleProvider } from "@/context/MapStyleContext";
+import { useAutoLogout } from "../hooks/useAutoLogout";
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -18,6 +19,7 @@ export const unstable_settings = {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  useAutoLogout();
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

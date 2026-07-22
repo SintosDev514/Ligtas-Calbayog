@@ -15,6 +15,7 @@ import {
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { loginUser } from "../../../../shared/services/authService";
+import { supabase } from "../../../../shared/supabase/supabaseClient";
 import { InputField } from "../../components/ui/InputField";
 import { Button } from "../../components/ui/Button";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -89,10 +90,12 @@ export default function Login() {
         return;
       }
       if (user.status === "banned") {
+        await supabase.auth.signOut();
         Alert.alert("Account Banned", "Your account has been permanently banned.");
         return;
       }
       if (user.status === "suspended") {
+        await supabase.auth.signOut();
         Alert.alert("Account Suspended", "Your account has been temporarily suspended.");
         return;
       }
