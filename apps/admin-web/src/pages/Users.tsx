@@ -519,18 +519,23 @@ export default function Users() {
                       <div>
                         <div style={{ fontSize: 13, fontWeight: 600, color: "var(--gray-700)" }}>Government ID</div>
                         <div style={{ fontSize: 12, color: "var(--gray-500)", marginTop: 2 }}>Uploaded during registration</div>
-                        <a
-                          href={selectedUser.id_photo_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (selectedUser.id_photo_url) {
+                              window.open(selectedUser.id_photo_url, "_blank", "noopener,noreferrer");
+                            }
+                          }}
                           style={{
                             display: "inline-flex", alignItems: "center", gap: 4,
                             fontSize: 12, fontWeight: 600, color: "var(--blue)",
                             marginTop: 6, textDecoration: "none",
+                            background: "none", border: "none", padding: 0,
+                            cursor: "pointer",
                           }}
                         >
                           <Eye size={12} /> View Full Size
-                        </a>
+                        </button>
                       </div>
                     </div>
                   </div>

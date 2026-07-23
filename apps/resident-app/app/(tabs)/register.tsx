@@ -334,24 +334,24 @@ export default function Register() {
   ];
 
   const inputCommon = {
-    placeholderTextColor: "#666" as string,
-    labelStyle: { color: "#888" } as object,
+    placeholderTextColor: "#94A3B8" as string,
+    labelStyle: { color: "#64748B" } as object,
   };
   const inputStyle = {
     backgroundColor: "transparent",
     borderWidth: 0,
     borderBottomWidth: 1,
-    borderBottomColor: "#475569",
+    borderBottomColor: "#E5E5EA",
     borderRadius: 0,
-    color: "#FFFFFF",
+    color: "#11181C",
     paddingHorizontal: 0,
     paddingVertical: 12,
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0F204B" }}>
+    <View style={{ flex: 1, backgroundColor: "#F5F7FA" }}>
       <StatusBar barStyle="light-content" backgroundColor="#0F204B" />
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#0F204B" }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: "#F5F7FA" }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
           style={{ flex: 1 }}
@@ -361,57 +361,50 @@ export default function Register() {
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* White header section with curved bottom */}
+            {/* Navy header with logo */}
             <View style={{
-              backgroundColor: "#FFFFFF",
+              backgroundColor: "#0F204B",
               justifyContent: "center",
               alignItems: "center",
               paddingTop: 24,
-              paddingBottom: 20,
+              paddingBottom: 24,
               borderBottomLeftRadius: 40,
               borderBottomRightRadius: 40,
               shadowColor: "#000",
               shadowOffset: { width: 0, height: 4 },
-              shadowOpacity: 0.1,
+              shadowOpacity: 0.15,
               shadowRadius: 12,
               elevation: 8,
               zIndex: 1,
             }}>
               <Image
-                source={require("../../assets/images/logo-black.png")}
+                source={require("../../assets/images/logo-white.png")}
                 style={{ width: 56, height: 56 }}
                 resizeMode="contain"
               />
-              <Text style={{ fontSize: 16, fontWeight: "800", color: "#0F204B", marginTop: 4, letterSpacing: 0.5 }}>
+              <Text style={{ fontSize: 16, fontWeight: "800", color: "#FFFFFF", marginTop: 4, letterSpacing: 0.5 }}>
                 Ligtas Calbayog
               </Text>
-              <Text style={{ fontSize: 11, color: "#888", marginTop: 1, letterSpacing: 0.3 }}>
+              <Text style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 1, letterSpacing: 0.3 }}>
                 Your Safety, Our Priority
               </Text>
             </View>
 
-            {/* Floating dark card */}
+            {/* Floating white card */}
             <View style={{
-              backgroundColor: "#1E293B",
+              backgroundColor: "#FFFFFF",
               borderRadius: 24,
               padding: 28,
               marginTop: 20,
               marginHorizontal: 16,
               shadowColor: "#000",
-              shadowOffset: { width: 0, height: 10 },
-              shadowOpacity: 0.5,
-              shadowRadius: 24,
-              elevation: 16,
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.12,
+              shadowRadius: 14,
+              elevation: 8,
+              borderWidth: 1,
+              borderColor: "#E8EEF5",
             }}>
-              {/* Logo inside card */}
-              <View style={{ alignItems: "center", marginBottom: 16 }}>
-                <Image
-                  source={require("../../assets/images/logo-white.png")}
-                  style={{ width: 48, height: 48 }}
-                  resizeMode="contain"
-                />
-              </View>
-
               {/* Step indicator */}
               <View style={styles.stepRow}>
                 {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
@@ -439,10 +432,10 @@ export default function Register() {
               </View>
 
               <View style={{ marginBottom: 24 }}>
-                <Text style={{ fontSize: 18, fontWeight: "700", color: "#FFFFFF" }}>
+                <Text style={{ fontSize: 18, fontWeight: "700", color: "#17202b" }}>
                   {stepTitles[step - 1]}
                 </Text>
-                <Text style={{ fontSize: 13, color: "#888", marginTop: 4 }}>
+                <Text style={{ fontSize: 13, color: "#64748B", marginTop: 4 }}>
                   {stepSubtitles[step - 1]}
                 </Text>
               </View>
@@ -461,13 +454,13 @@ export default function Register() {
                       style={inputStyle}
                     />
                     <View style={{ marginBottom: 16 }}>
-                      <Text style={{ fontSize: 14, color: "#888", marginBottom: 6, fontWeight: "600" }}>
+                      <Text style={{ fontSize: 14, color: "#64748B", marginBottom: 6, fontWeight: "600" }}>
                         Password
                       </Text>
                       <View style={{ flexDirection: "row", alignItems: "center" }}>
                         <TextInput
                           placeholder="Create a password (min 6 characters)"
-                          placeholderTextColor="#666"
+                          placeholderTextColor="#94A3B8"
                           secureTextEntry={!showPassword}
                           value={password}
                           onChangeText={setPassword}
@@ -476,9 +469,9 @@ export default function Register() {
                             backgroundColor: "transparent",
                             borderWidth: 0,
                             borderBottomWidth: 1,
-                            borderBottomColor: "#475569",
+                            borderBottomColor: "#E5E5EA",
                             borderRadius: 0,
-                            color: "#FFFFFF",
+                            color: "#11181C",
                             paddingHorizontal: 0,
                             paddingVertical: 12,
                             fontSize: 16,
@@ -491,7 +484,7 @@ export default function Register() {
                           <Ionicons
                             name={showPassword ? "eye-off" : "eye"}
                             size={20}
-                            color="#888"
+                            color="#94A3B8"
                           />
                         </TouchableOpacity>
                       </View>
@@ -541,10 +534,10 @@ export default function Register() {
                       style={styles.pickerButton}
                       onPress={() => setShowBarangayPicker(true)}
                     >
-                      <Text style={[styles.pickerText, !barangay && { color: "#666" }]}>
+                      <Text style={[styles.pickerText, !barangay && { color: "#94A3B8" }]}>
                         {barangay ? `Brgy. ${barangay}` : "Select your barangay"}
                       </Text>
-                      <Ionicons name="chevron-down" size={20} color="#666" />
+                      <Ionicons name="chevron-down" size={20} color="#94A3B8" />
                     </TouchableOpacity>
 
                     <InputField
@@ -559,30 +552,30 @@ export default function Register() {
                       <Text style={styles.inputLabel}>Current Location</Text>
                       {locationStatus === "loading" && (
                         <View style={styles.locationBox}>
-                          <Ionicons name="locate" size={20} color="#888" />
-                          <Text style={{ marginLeft: 8, color: "#888" }}>Getting your location...</Text>
+                          <Ionicons name="locate" size={20} color="#94A3B8" />
+                          <Text style={{ marginLeft: 8, color: "#94A3B8" }}>Getting your location...</Text>
                         </View>
                       )}
                       {locationStatus === "got" && location && (
-                        <View style={[styles.locationBox, { backgroundColor: "#1a2e1a", borderColor: "#2ecc71" }]}>
-                          <Ionicons name="checkmark-circle" size={20} color="#2ecc71" />
-                          <Text style={{ marginLeft: 8, color: "#2ecc71" }}>
+                        <View style={[styles.locationBox, { backgroundColor: "#F0FDF4", borderColor: "#22C55E" }]}>
+                          <Ionicons name="checkmark-circle" size={20} color="#22C55E" />
+                          <Text style={{ marginLeft: 8, color: "#16A34A" }}>
                             Location captured ({location.latitude.toFixed(4)}, {location.longitude.toFixed(4)})
                           </Text>
                         </View>
                       )}
                       {locationStatus === "denied" && (
-                        <View style={[styles.locationBox, { backgroundColor: "#2e1a1a", borderColor: "#e74c3c" }]}>
-                          <Ionicons name="alert-circle" size={20} color="#e74c3c" />
-                          <Text style={{ marginLeft: 8, color: "#e74c3c", flex: 1 }}>
+                        <View style={[styles.locationBox, { backgroundColor: "#FEF2F2", borderColor: "#DC2626" }]}>
+                          <Ionicons name="alert-circle" size={20} color="#DC2626" />
+                          <Text style={{ marginLeft: 8, color: "#DC2626", flex: 1 }}>
                             Location permission denied. Enable it in settings.
                           </Text>
                         </View>
                       )}
                       {locationStatus === "idle" && (
                         <TouchableOpacity style={styles.locationBox} onPress={getLocation}>
-                          <Ionicons name="locate-outline" size={20} color="#888" />
-                          <Text style={{ marginLeft: 8, color: "#888" }}>Tap to get current location</Text>
+                          <Ionicons name="locate-outline" size={20} color="#94A3B8" />
+                          <Text style={{ marginLeft: 8, color: "#94A3B8" }}>Tap to get current location</Text>
                         </TouchableOpacity>
                       )}
                     </View>
@@ -591,11 +584,11 @@ export default function Register() {
                       <View style={styles.modalOverlay}>
                         <View style={styles.modalContent}>
                           <View style={styles.modalHeader}>
-                            <Text style={{ fontSize: 17, fontWeight: "700", color: "#FFFFFF" }}>
+                            <Text style={{ fontSize: 17, fontWeight: "700", color: "#17202b" }}>
                               Select Barangay
                             </Text>
                             <TouchableOpacity onPress={() => setShowBarangayPicker(false)}>
-                              <Ionicons name="close" size={24} color="#888" />
+                              <Ionicons name="close" size={24} color="#94A3B8" />
                             </TouchableOpacity>
                           </View>
                           <FlatList
@@ -611,7 +604,7 @@ export default function Register() {
                               >
                                 <Text style={styles.barangayText}>{item}</Text>
                                 {barangay === item && (
-                                  <Ionicons name="checkmark-circle" size={22} color="#FFFFFF" />
+                                  <Ionicons name="checkmark-circle" size={22} color="#0F204B" />
                                 )}
                               </TouchableOpacity>
                             )}
@@ -692,18 +685,18 @@ export default function Register() {
                     </View>
                     {!idPhotoUploaded ? (
                       <TouchableOpacity style={styles.uploadBox} onPress={pickIdPhoto}>
-                        <Ionicons name="camera-outline" size={36} color="#666" />
-                        <Text style={{ fontSize: 14, fontWeight: "600", color: "#FFFFFF", marginTop: 8 }}>
+                        <Ionicons name="camera-outline" size={36} color="#94A3B8" />
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: "#17202b", marginTop: 8 }}>
                           Upload ID Photo
                         </Text>
-                        <Text style={{ fontSize: 12, color: "#888", textAlign: "center", marginTop: 4 }}>
+                        <Text style={{ fontSize: 12, color: "#64748B", textAlign: "center", marginTop: 4 }}>
                           Take a photo of your valid ID
                         </Text>
                       </TouchableOpacity>
                     ) : (
                       <View style={styles.uploadedBox}>
-                        <Ionicons name="checkmark-circle" size={28} color="#2ecc71" />
-                        <Text style={{ fontSize: 14, fontWeight: "600", color: "#2ecc71", marginLeft: 8 }}>
+                        <Ionicons name="checkmark-circle" size={28} color="#22C55E" />
+                        <Text style={{ fontSize: 14, fontWeight: "600", color: "#16A34A", marginLeft: 8 }}>
                           ID Photo Uploaded
                         </Text>
                       </View>
@@ -744,9 +737,9 @@ export default function Register() {
                         </View>
 
                         {isPinning && (
-                          <View style={[styles.locationBox, { backgroundColor: "#2e2a1a", borderColor: "#F59E0B", marginTop: 12 }]}>
+                          <View style={[styles.locationBox, { backgroundColor: "#FFFBEB", borderColor: "#F59E0B", marginTop: 12 }]}>
                             <Ionicons name="finger-print" size={20} color="#F59E0B" />
-                            <Text style={{ marginLeft: 8, color: "#F59E0B", flex: 1, fontSize: 13 }}>
+                            <Text style={{ marginLeft: 8, color: "#D97706", flex: 1, fontSize: 13 }}>
                               Tap the map or drag the pin to set your exact location.
                             </Text>
                           </View>
@@ -754,20 +747,20 @@ export default function Register() {
 
                         {isPinning && pinnedLocation && pinnedAddress ? (
                           <View style={[styles.locationBox, {
-                            backgroundColor: isPinValid ? "#1a2e1a" : "#2e1a1a",
-                            borderColor: isPinValid ? "#2ecc71" : "#e74c3c",
+                            backgroundColor: isPinValid ? "#F0FDF4" : "#FEF2F2",
+                            borderColor: isPinValid ? "#22C55E" : "#DC2626",
                             marginTop: 8,
                           }]}>
                             <Ionicons
                               name={isPinValid ? "checkmark-circle" : "alert-circle"}
                               size={20}
-                              color={isPinValid ? "#2ecc71" : "#e74c3c"}
+                              color={isPinValid ? "#22C55E" : "#DC2626"}
                             />
                             <View style={{ marginLeft: 8, flex: 1 }}>
-                              <Text style={{ color: isPinValid ? "#2ecc71" : "#e74c3c", fontSize: 12, fontWeight: "600" }}>
+                              <Text style={{ color: isPinValid ? "#16A34A" : "#DC2626", fontSize: 12, fontWeight: "600" }}>
                                 {isPinValid ? "Location is within Calbayog City" : "Location is outside Calbayog City"}
                               </Text>
-                              <Text style={{ color: "#94A3B8", fontSize: 11, marginTop: 2 }}>
+                              <Text style={{ color: "#64748B", fontSize: 11, marginTop: 2 }}>
                                 {pinnedAddress}
                               </Text>
                             </View>
@@ -778,22 +771,22 @@ export default function Register() {
                           Registered Address
                         </Text>
                         <View style={styles.addressCard}>
-                          <Ionicons name="home-outline" size={20} color="#FFFFFF" />
-                          <Text style={{ marginLeft: 10, color: "#FFFFFF", flex: 1, fontSize: 14 }}>
+                          <Ionicons name="home-outline" size={20} color="#0F204B" />
+                          <Text style={{ marginLeft: 10, color: "#17202b", flex: 1, fontSize: 14 }}>
                             {street}, Brgy. {barangay}, Calbayog City, Samar
                           </Text>
                         </View>
 
                         {!isPinning ? (
                           <TouchableOpacity
-                            style={[styles.locationBox, { backgroundColor: "#1a2a2e", borderColor: "#3B82F6", marginTop: 12 }]}
+                            style={[styles.locationBox, { backgroundColor: "#EFF6FF", borderColor: "#1565C0", marginTop: 12 }]}
                             onPress={startPinning}
                           >
-                            <Ionicons name="finger-print" size={20} color="#3B82F6" />
-                            <Text style={{ marginLeft: 8, color: "#3B82F6", flex: 1, fontSize: 13, fontWeight: "600" }}>
+                            <Ionicons name="finger-print" size={20} color="#1565C0" />
+                            <Text style={{ marginLeft: 8, color: "#1565C0", flex: 1, fontSize: 13, fontWeight: "600" }}>
                               Pin Exact Location (if GPS is inaccurate)
                             </Text>
-                            <Ionicons name="chevron-forward" size={18} color="#3B82F6" />
+                            <Ionicons name="chevron-forward" size={18} color="#1565C0" />
                           </TouchableOpacity>
                         ) : (
                           <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
@@ -803,34 +796,34 @@ export default function Register() {
                                 paddingVertical: 14,
                                 borderRadius: 12,
                                 borderWidth: 1,
-                                borderColor: "#475569",
+                                borderColor: "#E5E5EA",
                                 alignItems: "center",
                               }}
                               onPress={() => { setIsPinning(false); setPinnedLocation(null); setPinnedAddress(""); setIsPinValid(null); }}
                             >
-                              <Text style={{ color: "#888", fontSize: 14, fontWeight: "600" }}>Cancel</Text>
+                              <Text style={{ color: "#64748B", fontSize: 14, fontWeight: "600" }}>Cancel</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                               style={{
                                 flex: 1,
                                 paddingVertical: 14,
                                 borderRadius: 12,
-                                backgroundColor: isPinValid ? "#2ecc71" : "#334155",
+                                backgroundColor: isPinValid ? "#22C55E" : "#E5E5EA",
                                 alignItems: "center",
                               }}
                               onPress={usePinnedLocation}
                               disabled={!isPinValid}
                             >
-                              <Text style={{ color: isPinValid ? "#FFFFFF" : "#666", fontSize: 14, fontWeight: "600" }}>
+                              <Text style={{ color: isPinValid ? "#FFFFFF" : "#999999", fontSize: 14, fontWeight: "600" }}>
                                 Confirm Pin
                               </Text>
                             </TouchableOpacity>
                           </View>
                         )}
 
-                        <View style={[styles.locationBox, { backgroundColor: "#1a2e1a", borderColor: "#2ecc71", marginTop: 12 }]}>
-                          <Ionicons name="information-circle" size={20} color="#2ecc71" />
-                          <Text style={{ marginLeft: 8, color: "#2ecc71", flex: 1, fontSize: 13 }}>
+                        <View style={[styles.locationBox, { backgroundColor: "#F0FDF4", borderColor: "#22C55E", marginTop: 12 }]}>
+                          <Ionicons name="information-circle" size={20} color="#22C55E" />
+                          <Text style={{ marginLeft: 8, color: "#16A34A", flex: 1, fontSize: 13 }}>
                             {isPinning
                               ? "Ensure the pin is at your exact address within Calbayog City."
                               : "Verify that the map pin matches your address above. You can pin manually if GPS is inaccurate."}
@@ -839,8 +832,8 @@ export default function Register() {
                       </>
                     ) : (
                       <View style={{ alignItems: "center", padding: 40 }}>
-                        <Ionicons name="locate-outline" size={48} color="#666" />
-                        <Text style={{ marginTop: 16, color: "#888", textAlign: "center" }}>
+                        <Ionicons name="locate-outline" size={48} color="#94A3B8" />
+                        <Text style={{ marginTop: 16, color: "#64748B", textAlign: "center" }}>
                           No location data available. Please go back to step 2 and allow location access.
                         </Text>
                       </View>
@@ -851,10 +844,10 @@ export default function Register() {
                 {step === 5 && (
                   <>
                     <View style={{ alignItems: "center", marginBottom: 20 }}>
-                      <Ionicons name="mail-outline" size={48} color="#888" />
-                      <Text style={{ fontSize: 15, color: "#888", textAlign: "center", marginTop: 12 }}>
+                      <Ionicons name="mail-outline" size={48} color="#94A3B8" />
+                      <Text style={{ fontSize: 15, color: "#64748B", textAlign: "center", marginTop: 12 }}>
                         A verification code will be sent to{"\n"}
-                        <Text style={{ fontWeight: "700", color: "#FFFFFF" }}>{email}</Text>
+                        <Text style={{ fontWeight: "700", color: "#17202b" }}>{email}</Text>
                       </Text>
                     </View>
 
@@ -863,20 +856,20 @@ export default function Register() {
                         title="Send OTP Code"
                         onPress={sendOtp}
                         disabled={isLoading}
-                        textStyle={{ color: "#151515" }}
-                        style={{ borderRadius: 999, backgroundColor: "#FFFFFF", height: 50 }}
+                        textStyle={{ color: "#FFFFFF" }}
+                        style={{ borderRadius: 999, backgroundColor: "#0F204B", height: 50 }}
                       />
                     ) : !otpVerified ? (
                       <>
                         <InputField
                           label="Enter 8-Digit Code"
                           placeholder="00000000"
-                          placeholderTextColor="#666"
+                          placeholderTextColor="#94A3B8"
                           keyboardType="number-pad"
                           maxLength={8}
                           value={otpCode}
                           onChangeText={setOtpCode}
-                          labelStyle={{ color: "#888" }}
+                          labelStyle={{ color: "#64748B" }}
                           style={inputStyle}
                         />
                         <View style={{ marginTop: 12, gap: 10 }}>
@@ -885,11 +878,11 @@ export default function Register() {
                             onPress={verifyOtp}
                             disabled={otpCode.length !== 8}
                             loading={isLoading}
-                            textStyle={{ color: "#151515" }}
-                            style={{ borderRadius: 999, backgroundColor: "#FFFFFF", height: 50 }}
+                            textStyle={{ color: "#FFFFFF" }}
+                            style={{ borderRadius: 999, backgroundColor: "#0F204B", height: 50 }}
                           />
                           <TouchableOpacity onPress={sendOtp} disabled={isLoading}>
-                            <Text style={{ color: "#888", textAlign: "center", fontSize: 14 }}>
+                            <Text style={{ color: "#1565C0", textAlign: "center", fontSize: 14 }}>
                               Resend Code
                             </Text>
                           </TouchableOpacity>
@@ -897,11 +890,11 @@ export default function Register() {
                       </>
                     ) : (
                       <View style={styles.verifiedContainer}>
-                        <Ionicons name="checkmark-circle" size={56} color="#2ecc71" />
-                        <Text style={{ fontSize: 18, fontWeight: "700", color: "#2ecc71", marginTop: 12 }}>
+                        <Ionicons name="checkmark-circle" size={56} color="#22C55E" />
+                        <Text style={{ fontSize: 18, fontWeight: "700", color: "#16A34A", marginTop: 12 }}>
                           Email Verified!
                         </Text>
-                        <Text style={{ fontSize: 14, color: "#888", marginTop: 4, textAlign: "center" }}>
+                        <Text style={{ fontSize: 14, color: "#64748B", marginTop: 4, textAlign: "center" }}>
                           Your email has been verified successfully.
                         </Text>
                       </View>
@@ -915,16 +908,16 @@ export default function Register() {
                   title={step < TOTAL_STEPS ? "Continue" : "Complete Registration"}
                   onPress={step < TOTAL_STEPS ? handleNext : handleRegister}
                   disabled={isLoading || (step === 5 && !otpVerified)}
-                  textStyle={{ color: "#151515" }}
-                  style={{ borderRadius: 999, backgroundColor: "#FFFFFF", height: 50 }}
+                  textStyle={{ color: "#FFFFFF" }}
+                  style={{ borderRadius: 999, backgroundColor: "#0F204B", height: 50 }}
                 />
                 <Button
                   title={step === 1 ? "Back to Login" : "Previous Step"}
                   variant="outline"
                   onPress={handleBack}
                   disabled={isLoading}
-                  textStyle={{ color: "#FFFFFF" }}
-                  style={{ borderRadius: 999, height: 50, borderColor: "#334155", backgroundColor: "transparent", marginTop: 10 }}
+                  textStyle={{ color: "#0F204B" }}
+                  style={{ borderRadius: 999, height: 50, borderColor: "#E5E5EA", backgroundColor: "transparent", marginTop: 10 }}
                 />
               </View>
             </View>
@@ -946,16 +939,16 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "#334155",
+    backgroundColor: "#F5F7FA",
     justifyContent: "center",
     alignItems: "center",
   },
   stepCircleDone: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#0F204B",
   },
   stepCircleCurrent: {
-    backgroundColor: "#FFFFFF",
-    shadowColor: "#FFFFFF",
+    backgroundColor: "#0F204B",
+    shadowColor: "#0F204B",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 8,
@@ -967,27 +960,27 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
   },
   stepNumberActive: {
-    color: "#0F204B",
+    color: "#FFFFFF",
   },
   stepLine: {
     width: 28,
     height: 2,
-    backgroundColor: "#334155",
+    backgroundColor: "#E5E5EA",
     marginHorizontal: 6,
   },
   stepLineActive: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#0F204B",
   },
   inputLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#94A3B8",
+    color: "#64748B",
     marginBottom: 6,
     marginTop: 4,
   },
   pickerButton: {
     borderBottomWidth: 1,
-    borderBottomColor: "#475569",
+    borderBottomColor: "#E5E5EA",
     paddingHorizontal: 0,
     paddingVertical: 12,
     flexDirection: "row",
@@ -998,15 +991,15 @@ const styles = StyleSheet.create({
   },
   pickerText: {
     fontSize: 15,
-    color: "#FFFFFF",
+    color: "#11181C",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: "rgba(0,0,0,0.5)",
     justifyContent: "flex-end",
   },
   modalContent: {
-    backgroundColor: "#1E293B",
+    backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: "70%",
@@ -1018,7 +1011,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#475569",
+    borderBottomColor: "#E5E5EA",
   },
   barangayItem: {
     flexDirection: "row",
@@ -1027,43 +1020,43 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: "#475569",
+    borderBottomColor: "#F0F4F8",
   },
   barangayText: {
     fontSize: 15,
-    color: "#FFFFFF",
+    color: "#11181C",
   },
   locationBox: {
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
     borderWidth: 1,
-    borderColor: "#475569",
+    borderColor: "#E5E5EA",
     borderRadius: 10,
-    backgroundColor: "transparent",
+    backgroundColor: "#F8FAFC",
   },
   mapContainer: {
     borderRadius: 14,
     overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#475569",
+    borderColor: "#E5E5EA",
   },
   addressCard: {
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    backgroundColor: "transparent",
+    backgroundColor: "#F8FAFC",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#475569",
+    borderColor: "#E5E5EA",
   },
   uploadBox: {
     alignItems: "center",
     padding: 24,
-    backgroundColor: "transparent",
+    backgroundColor: "#F8FAFC",
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#475569",
+    borderColor: "#E5E5EA",
     borderStyle: "dashed",
     marginTop: 4,
   },
@@ -1071,10 +1064,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 14,
-    backgroundColor: "#1a2e1a",
+    backgroundColor: "#F0FDF4",
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#2ecc71",
+    borderColor: "#22C55E",
     marginTop: 4,
   },
   verifiedContainer: {
@@ -1085,13 +1078,13 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 4,
     borderBottomWidth: 1,
-    borderBottomColor: "#475569",
+    borderBottomColor: "#E5E5EA",
     paddingBottom: 6,
   },
   sectionLabel: {
     fontSize: 11,
     fontWeight: "700",
-    color: "#94A3B8",
+    color: "#64748B",
     letterSpacing: 1,
   },
 });
