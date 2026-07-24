@@ -38,6 +38,7 @@ const statusIcons: Record<string, typeof Clock> = {
 
 const getTimelineIcon = (type: string) => {
   switch (type) {
+    case "accepted": return Shield;
     case "dispatched": return Car;
     case "backup_requested": return AlertTriangle;
     case "resolved": return CheckCircle;
@@ -47,6 +48,7 @@ const getTimelineIcon = (type: string) => {
 
 const getTimelineColor = (type: string) => {
   switch (type) {
+    case "accepted": return "#3b82f6";
     case "dispatched": return "#7c3aed";
     case "backup_requested": return "#dc2626";
     case "resolved": return "#059669";
@@ -76,6 +78,7 @@ export default function ReportDetail() {
   const [userStatus, setUserStatus] = useState<string>("approved");
   const [updatingUser, setUpdatingUser] = useState(false);
   const [assignedOfficer, setAssignedOfficer] = useState<any>(null);
+  const [acceptedAt, setAcceptedAt] = useState<string | null>(null);
   const [showAccountModal, setShowAccountModal] = useState(false);
 
   const getSignedUrl = useCallback(async (filename: string): Promise<string | null> => {
@@ -91,12 +94,9 @@ export default function ReportDetail() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "crime_reports", filter: `id=eq.${id}` },
-        (payload) => {
+        async (payload) => {
           setReport(payload.new);
-          const updated = payload.new as any;
-          if (updated?.status === "in-progress" || updated?.assigned_officer_id) {
-            setTimeout(loadAssignedOfficer, 1000);
-          }
+          loadAssignedOfficer();
         }
       )
       .on(
@@ -109,11 +109,19 @@ export default function ReportDetail() {
         { event: "INSERT", schema: "public", table: "action_updates", filter: `report_id=eq.${id}` },
         (payload: any) => {
           setActionUpdates((prev: any[]) => [...prev, payload.new]);
-          if (payload.new.action_type === "dispatched") loadAssignedOfficer();
+          loadAssignedOfficer();
         }
       )
       .subscribe();
     return () => { supabase.removeChannel(channel); };
+  }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    const interval = setInterval(() => {
+      loadAssignedOfficer();
+    }, 5000);
+    return () => clearInterval(interval);
   }, [id]);
 
   const loadReport = async () => {
@@ -164,69 +172,100 @@ export default function ReportDetail() {
   };
 
   const loadAssignedOfficer = async () => {
-    const { data: report } = await supabase
-      .from("crime_reports")
-      .select("assigned_officer_id")
-      .eq("id", id)
-      .single();
-    let officer: any = null;
+    try {
+      const { data: report } = await supabase
+        .from("crime_reports")
+        .select("assigned_officer_id")
+        .eq("id", id)
+        .single();
+      let officer: any = null;
+      let accepted: any = null;
 
-    if (report?.assigned_officer_id) {
-      const { data: p } = await supabase
-        .from("police_profiles")
-        .select("id, full_name, badge_id, rank, photo_url")
-        .eq("id", report.assigned_officer_id)
-        .maybeSingle();
-      officer = p || null;
-    }
-
-    if (!officer) {
-      const { data: dispatched } = await supabase
-        .from("action_updates")
-        .select("*, officer:police_profiles!officer_id(id, full_name, badge_id, rank, photo_url)")
-        .eq("report_id", id)
-        .eq("action_type", "dispatched")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      officer = dispatched?.officer || null;
-    }
-
-    if (!officer) {
-      const { data: loc } = await supabase
-        .from("police_locations")
-        .select("officer_id")
-        .eq("report_id", id)
-        .maybeSingle();
-      if (loc?.officer_id) {
+      if (report?.assigned_officer_id) {
         const { data: p } = await supabase
           .from("police_profiles")
           .select("id, full_name, badge_id, rank, photo_url")
-          .eq("id", loc.officer_id)
+          .eq("id", report.assigned_officer_id)
           .maybeSingle();
         officer = p || null;
       }
-    }
 
-    if (officer?.id) {
-      const { data: assignment } = await supabase
-        .from("police_post_assignments")
-        .select("post_id")
-        .eq("officer_id", officer.id)
-        .maybeSingle();
-      if (assignment?.post_id) {
-        const { data: post } = await supabase
-          .from("police_posts")
-          .select("name")
-          .eq("id", assignment.post_id)
+      if (!officer) {
+        const { data: acc } = await supabase
+          .from("action_updates")
+          .select("*, officer:police_profiles!officer_id(id, full_name, badge_id, rank, photo_url)")
+          .eq("report_id", id)
+          .eq("action_type", "accepted")
+          .order("created_at", { ascending: false })
+          .limit(1)
           .maybeSingle();
-        officer.assigned_post = post?.name || null;
-      } else {
-        officer.assigned_post = null;
+        accepted = acc;
+        officer = acc?.officer || null;
       }
-    }
 
-    setAssignedOfficer(officer);
+      if (!officer) {
+        const { data: dispatched } = await supabase
+          .from("action_updates")
+          .select("*, officer:police_profiles!officer_id(id, full_name, badge_id, rank, photo_url)")
+          .eq("report_id", id)
+          .eq("action_type", "dispatched")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        officer = dispatched?.officer || null;
+      }
+
+      if (!officer) {
+        const { data: loc } = await supabase
+          .from("police_locations")
+          .select("officer_id")
+          .eq("report_id", id)
+          .maybeSingle();
+        if (loc?.officer_id) {
+          const { data: p } = await supabase
+            .from("police_profiles")
+            .select("id, full_name, badge_id, rank, photo_url")
+            .eq("id", loc.officer_id)
+            .maybeSingle();
+          officer = p || null;
+        }
+      }
+
+      if (!accepted && officer?.id) {
+        const { data: acc } = await supabase
+          .from("action_updates")
+          .select("created_at")
+          .eq("report_id", id)
+          .eq("action_type", "accepted")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        accepted = acc;
+      }
+
+      if (officer?.id) {
+        const { data: assignment } = await supabase
+          .from("police_post_assignments")
+          .select("post_id")
+          .eq("officer_id", officer.id)
+          .maybeSingle();
+        if (assignment?.post_id) {
+          const { data: post } = await supabase
+            .from("police_posts")
+            .select("name")
+            .eq("id", assignment.post_id)
+            .maybeSingle();
+          officer.assigned_post = post?.name || null;
+        } else {
+          officer.assigned_post = null;
+        }
+      }
+
+      setAssignedOfficer(officer);
+      setAcceptedAt(accepted?.created_at || null);
+    } catch (e) {
+      console.error("loadAssignedOfficer failed:", e);
+    }
   };
 
   const updateUserStatus = async (status: string) => {
@@ -688,6 +727,9 @@ export default function ReportDetail() {
                         <div className="rd-officer-row" style={{ color: "var(--gray-400)" }}><MapPin size={10} /> {assignedOfficer.assigned_post}</div>
                       ) : (
                         <div className="rd-officer-row" style={{ color: "var(--gray-500)", fontStyle: "italic" }}>No assigned post</div>
+                      )}
+                      {acceptedAt && (
+                        <div className="rd-officer-row" style={{ color: "#3b82f6", fontWeight: 600 }}><Clock size={10} /> Accepted {formatDateShort(acceptedAt)} at {formatTime(acceptedAt)}</div>
                       )}
                     </div>
                   </div>

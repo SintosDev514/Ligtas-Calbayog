@@ -12,13 +12,13 @@ import {
   Image,
   Vibration,
 } from "react-native";
-import { Audio } from "expo-av";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
+import { useAlarm } from "../../context/AlarmContext";
 import { statusColors, crimeIcons, colors } from "../../constants/theme";
 import { reportsStyles as s } from "../styles/Reports.styles";
 import MapView, { Marker } from "../../components/MapView";
@@ -27,6 +27,7 @@ import { upsertPoliceLocation } from "../../../../shared/services/reportService"
 export default function ReportsScreen() {
   const { profile } = useAuth();
   const router = useRouter();
+  const { alertBanner, setAlertBanner, playEmergencyAlert, stopAlertForReport } = useAlarm();
   const [reports, setReports] = useState<any[]>([]);
   const [residents, setResidents] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
@@ -34,116 +35,44 @@ export default function ReportsScreen() {
   const [selectedReport, setSelectedReport] = useState<any | null>(null);
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
   const [policeLocation, setPoliceLocation] = useState<{latitude: number; longitude: number} | null>(null);
-  const [alertBanner, setAlertBanner] = useState<string | null>(null);
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const soundLoaded = useRef(false);
-  const activeAlertIds = useRef<Set<string>>(new Set());
   const locationWatchRef = useRef<any>(null);
   const locationIntervalRef = useRef<number | null>(null);
-  const alertTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: true,
-        });
-        const { sound } = await Audio.Sound.createAsync(
-          require("../../assets/emergency_alert.wav"),
-          { volume: 1.0 },
-        );
-        if (mounted) {
-          soundRef.current = sound;
-          soundLoaded.current = true;
-        }
-      } catch (e) {
-        console.warn("Audio setup failed:", e);
-      }
-    })();
+    loadReports();
+    const channel = supabase
+      .channel("police-reports")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "crime_reports" },
+        (payload) => {
+          const newReport = payload.new as any;
+          setReports((prev) => [newReport, ...prev]);
+          if (newReport.resident_id) {
+            loadResidentName(newReport.resident_id);
+          }
+          playEmergencyAlert(newReport);
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "crime_reports" },
+        (payload) => {
+          const updated = payload.new as any;
+          if (updated.status === "in-progress") {
+            stopAlertForReport(updated.id);
+          }
+          setReports((prev) =>
+            prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)),
+          );
+        },
+      )
+      .subscribe();
     return () => {
-      mounted = false;
-      soundRef.current?.unloadAsync();
+      supabase.removeChannel(channel);
+      try { Vibration.cancel(); } catch (_) {}
     };
   }, []);
-
-  const playEmergencyAlert = async (report: any) => {
-    if (activeAlertIds.current.has(report.id)) return;
-    activeAlertIds.current.add(report.id);
-    console.log("playEmergencyAlert called for:", report.id, report.crime_type);
-
-    try {
-      Vibration.vibrate(500);
-      setTimeout(() => {
-        try { Vibration.vibrate([500, 300, 500, 300, 500], true); } catch (_) {}
-      }, 600);
-    } catch (e) {
-      console.warn("Vibration failed:", e);
-    }
-
-    const label = report.crime_type?.replace(/-/g, " ") || "New report";
-    setAlertBanner(`⚠️ Emergency: ${label}`);
-    if (alertTimerRef.current) clearTimeout(alertTimerRef.current);
-    alertTimerRef.current = setTimeout(() => setAlertBanner(null), 5000);
-
-    // Audio: manual loop with 1s gap between plays
-    const playLoop = async (retries = 3) => {
-      if (activeAlertIds.current.size === 0) return;
-      try {
-        const sound = soundRef.current;
-        if (sound && soundLoaded.current) {
-          await sound.stopAsync();
-          await sound.setPositionAsync(0);
-          await sound.playAsync();
-        } else if (retries > 0) {
-          setTimeout(() => playLoop(retries - 1), 500);
-          return;
-        }
-      } catch (e) {
-        console.warn("Audio playback failed:", e);
-      }
-      if (activeAlertIds.current.size > 0) {
-        setTimeout(playLoop, 1000);
-      }
-    };
-    playLoop();
-  };
-
-  const stopAlertForReport = async (reportId: string) => {
-    if (!activeAlertIds.current.has(reportId)) return;
-    activeAlertIds.current.delete(reportId);
-    console.log("stopAlertForReport called for:", reportId, "remaining:", activeAlertIds.current.size);
-    if (activeAlertIds.current.size === 0) {
-      try { Vibration.cancel(); } catch (e) { console.warn("Vibration cancel failed:", e); }
-      try {
-        const sound = soundRef.current;
-        if (sound) {
-          await sound.stopAsync();
-        }
-      } catch (e) { console.warn("Audio stop failed:", e); }
-    }
-    setAlertBanner(null);
-    if (alertTimerRef.current) { clearTimeout(alertTimerRef.current); alertTimerRef.current = null; }
-  };
-
-  // Fallback: alert on new pending reports from data fetches too, skip on initial data load
-  const prevReportIds = useRef<Set<string>>(new Set());
-  const initialLoadDone = useRef(false);
-  useEffect(() => {
-    if (!initialLoadDone.current) {
-      initialLoadDone.current = true;
-      for (const r of reports) prevReportIds.current.add(r.id);
-      return;
-    }
-    for (const r of reports) {
-      if (r.status === "pending" && !prevReportIds.current.has(r.id)) {
-        playEmergencyAlert(r);
-      }
-      prevReportIds.current.add(r.id);
-    }
-  }, [reports]);
 
   // Start/stop location tracking based on active report
   useEffect(() => {
@@ -201,45 +130,6 @@ export default function ReportsScreen() {
 
     return () => clearInterval(id);
   }, [activeReportId, policeLocation, profile]);
-
-  useEffect(() => {
-    loadReports();
-    const channel = supabase
-      .channel("police-reports")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "crime_reports" },
-        (payload) => {
-          const newReport = payload.new as any;
-          setReports((prev) => [newReport, ...prev]);
-          if (newReport.resident_id) {
-            loadResidentName(newReport.resident_id);
-          }
-          playEmergencyAlert(newReport);
-        },
-      )
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "crime_reports" },
-        (payload) => {
-          const updated = payload.new as any;
-          if (updated.status === "in-progress") {
-            stopAlertForReport(updated.id);
-          }
-          setReports((prev) =>
-            prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)),
-          );
-        },
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-      try { Vibration.cancel(); } catch (_) {}
-      soundRef.current?.stopAsync().catch(() => {});
-      soundRef.current?.setIsLoopingAsync(false).catch(() => {});
-      activeAlertIds.current.clear();
-    };
-  }, []);
 
   const loadResidentName = async (residentId: string) => {
     if (residents[residentId]) return;

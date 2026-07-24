@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useEffect, forwardRef } from "react";
+import React, { useCallback, useRef, useEffect, useMemo, forwardRef } from "react";
 import { View, Platform } from "react-native";
 
 const MAPILLARY_TOKEN = "MLY|27240407492254490|a5c94f86b7fb9a1e9728f1eddcb49110";
@@ -244,7 +244,7 @@ map.on('click', function(e) {
   postMsg('mapPress', { latitude: e.lngLat.lat, longitude: e.lngLat.lng });
 });
 
-window.addEventListener('message', function(e) {
+function onRCMessage(e) {
   try {
     var msg = JSON.parse(e.data);
     if (msg.type === 'init' && msg.region) {
@@ -268,7 +268,9 @@ window.addEventListener('message', function(e) {
       clearRoute();
     }
   } catch(err) {}
-});
+}
+window.addEventListener('message', onRCMessage);
+document.addEventListener('message', onRCMessage);
 })();
 <\/script>
 </body>
@@ -278,6 +280,9 @@ window.addEventListener('message', function(e) {
 const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialRegion, mapStyle = "light", routeData, ...props }, ref) => {
   const webViewRef = useRef<any>(null);
   const readyRef = useRef(false);
+  const onMarkerPressRef = useRef(onMarkerPress);
+  const markersRef = useRef<any[]>([]);
+  const webViewSource = useMemo(() => ({ html: HTML }), []);
 
   const extractMarkers = useCallback((children: any) => {
     const markers: any[] = [];
@@ -311,6 +316,8 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
     ? Math.round(Math.log2(360 / Math.max(region.latitudeDelta || 0.05, 0.001)))
     : 11;
   const markers = extractMarkers(children);
+  markersRef.current = markers;
+  onMarkerPressRef.current = onMarkerPress;
 
   const sendToWebView = useCallback((msg: any) => {
     try {
@@ -326,19 +333,18 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
       const msg = JSON.parse(event.nativeEvent.data);
       if (msg.type === "ready" && !readyRef.current) {
         readyRef.current = true;
-        const pitch = (props as any).pitch;
         if (region) {
-          sendToWebView({ type: "init", region: { latitude: region.latitude, longitude: region.longitude, zoom, pitch } });
+          sendToWebView({ type: "init", region: { latitude: region.latitude, longitude: region.longitude, zoom } });
         }
-        if (markers.length > 0) {
-          sendToWebView({ type: "markers", data: markers });
+        if (markersRef.current.length > 0) {
+          sendToWebView({ type: "markers", data: markersRef.current });
         }
         if (routeData) {
           sendToWebView({ type: "route", route: routeData });
         }
       }
       if (msg.type === "markerPress") {
-        onMarkerPress?.({
+        onMarkerPressRef.current?.({
           coordinate: {
             latitude: msg.data.latitude,
             longitude: msg.data.longitude,
@@ -346,13 +352,21 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
         });
       }
     } catch {}
-  }, [region, zoom, markers, routeData, onMarkerPress, sendToWebView]);
+  }, [region, zoom, routeData, sendToWebView]);
 
   useEffect(() => {
-    if (readyRef.current && markers.length > 0) {
+    if (!readyRef.current) return;
+    if (markers.length > 0) {
       sendToWebView({ type: "markers", data: markers });
     }
   }, [markers, sendToWebView]);
+
+  useEffect(() => {
+    if (!readyRef.current) return;
+    if (region) {
+      sendToWebView({ type: "init", region: { latitude: region.latitude, longitude: region.longitude, zoom } });
+    }
+  }, [region?.latitude, region?.longitude, zoom, sendToWebView]);
 
   useEffect(() => {
     if (readyRef.current) {
@@ -386,7 +400,7 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
     <View style={[{ flex: 1, overflow: "hidden", backgroundColor: "#F1F5F9" }, style]}>
       <WebView
         ref={webViewRef}
-        source={{ html: HTML }}
+        source={webViewSource}
         style={{ flex: 1, backgroundColor: "transparent" }}
         javaScriptEnabled
         domStorageEnabled
