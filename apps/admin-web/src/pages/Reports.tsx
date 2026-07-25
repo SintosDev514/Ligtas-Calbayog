@@ -41,17 +41,26 @@ export default function Reports() {
         .select("*")
         .order("created_at", { ascending: false });
       if (!error) {
-        const withResidents = await Promise.all(
+        const withProfiles = await Promise.all(
           (data ?? []).map(async (r: any) => {
             const { data: rp } = await supabase
               .from("resident_profiles")
               .select("full_name, phone_number, address")
               .eq("id", r.resident_id)
               .maybeSingle();
-            return { ...r, resident: rp || null };
+            let assignedOfficer = null;
+            if (r.assigned_officer_id) {
+              const { data: op } = await supabase
+                .from("police_profiles")
+                .select("full_name, badge_id, rank")
+                .eq("id", r.assigned_officer_id)
+                .maybeSingle();
+              assignedOfficer = op || null;
+            }
+            return { ...r, resident: rp || null, assigned_officer: assignedOfficer };
           })
         );
-        setReports(withResidents);
+        setReports(withProfiles);
       }
     } catch (err) {
       console.error("Failed to load reports:", err);
@@ -202,6 +211,7 @@ export default function Reports() {
                     <th>Crime Type</th>
                     <th>Resident</th>
                     <th>Location</th>
+                    <th>Accepted By</th>
                     <th>Status</th>
                     <th>Date</th>
                     <th style={{ width: 60 }}></th>
@@ -228,6 +238,18 @@ export default function Reports() {
                       </td>
                       <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {r.location_address || `${r.latitude?.toFixed(4)}, ${r.longitude?.toFixed(4)}` || "—"}
+                      </td>
+                      <td style={{ fontSize: 13 }}>
+                        {r.assigned_officer ? (
+                          <div>
+                            <div style={{ fontWeight: 500 }}>{r.assigned_officer.full_name}</div>
+                            <div style={{ fontSize: 11, color: "var(--gray-400)" }}>
+                              {r.assigned_officer.rank} • #{r.assigned_officer.badge_id}
+                            </div>
+                          </div>
+                        ) : (
+                          <span style={{ color: "var(--gray-400)" }}>—</span>
+                        )}
                       </td>
                       <td>
                         <span className={`badge badge-${r.status}`}>{r.status}</span>

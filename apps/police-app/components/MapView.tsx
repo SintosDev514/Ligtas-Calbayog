@@ -28,6 +28,8 @@ interface MapViewProps {
   mapStyle?: MapStyle;
   routeData?: RouteData | null;
   pitch?: number;
+  bearing?: number;
+  userHeading?: number;
   onPress?: (e: any) => void;
   onMarkerPress?: (markerData: any) => void;
   onRegionChangeComplete?: (region: Region) => void;
@@ -38,7 +40,9 @@ interface MarkerProps {
   title?: string;
   pinColor?: string;
   popupHtml?: string;
+  markerHtml?: string;
   animate?: boolean;
+  heading?: number;
   children?: React.ReactNode;
 }
 

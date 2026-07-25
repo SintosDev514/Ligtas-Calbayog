@@ -10,6 +10,7 @@ interface AlarmContextType {
   setAlertBanner: (msg: string | null) => void;
   playEmergencyAlert: (report: any) => void;
   stopAlertForReport: (reportId: string) => void;
+  stopAllAlarms: () => void;
   triggerHaptics: () => Promise<void>;
   soundsLoaded: boolean;
 }
@@ -18,17 +19,21 @@ const AlarmContext = createContext<AlarmContextType | undefined>(undefined);
 
 export function AlarmProvider({ children }: { children: React.ReactNode }) {
   const [alertBanner, setAlertBanner] = useState<string | null>(null);
+  const [soundsLoaded, setSoundsLoaded] = useState(false);
   const emergencySoundRef = useRef<Audio.Sound | null>(null);
   const normalSoundRef = useRef<Audio.Sound | null>(null);
-  const soundsLoaded = useRef(false);
   const activeAlertIds = useRef<Set<string>>(new Set());
   const alertTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const mountedRef = useRef(true);
+  const audioSetupRunning = useRef(false);
 
   useEffect(() => {
-    let mounted = true;
-    const instances: Audio.Sound[] = [];
+    mountedRef.current = true;
 
-    (async () => {
+    const load = async () => {
+      if (audioSetupRunning.current) return;
+      audioSetupRunning.current = true;
+
       try {
         await Audio.setAudioModeAsync({
           playsInSilentModeIOS: true,
@@ -37,44 +42,49 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
           interruptionModeAndroid: 1,
         });
 
-        const [emergencyResult, normalResult] = await Promise.all([
-          Audio.Sound.createAsync(
+        try {
+          const { sound } = await Audio.Sound.createAsync(
             require("../assets/emergency_alert.wav"),
-            { volume: 0.5, shouldPlay: false, rate: 1.0 }
-          ),
-          Audio.Sound.createAsync(
+            { volume: 0.8, shouldPlay: false }
+          );
+          if (mountedRef.current) emergencySoundRef.current = sound;
+        } catch (e) {
+          console.error("[AlarmContext] Failed to load emergency sound:", e);
+        }
+
+        try {
+          const { sound } = await Audio.Sound.createAsync(
             require("../assets/normalreport.mp3"),
-            { volume: 0.5, shouldPlay: false, rate: 1.0 }
-          ),
-        ]);
+            { volume: 0.8, shouldPlay: false }
+          );
+          if (mountedRef.current) normalSoundRef.current = sound;
+        } catch (e) {
+          console.error("[AlarmContext] Failed to load normal sound:", e);
+        }
 
-        instances.push(emergencyResult.sound, normalResult.sound);
-
-        if (mounted) {
-          emergencySoundRef.current = emergencyResult.sound;
-          normalSoundRef.current = normalResult.sound;
-          soundsLoaded.current = true;
-        } else {
-          instances.forEach((s) => s.unloadAsync().catch(() => {}));
+        if (mountedRef.current) {
+          setSoundsLoaded(true);
+          console.log("[AlarmContext] Audio loaded. Emergency:", !!emergencySoundRef.current, "Normal:", !!normalSoundRef.current);
         }
       } catch (e) {
         console.error("[AlarmContext] Audio setup failed:", e);
+      } finally {
+        audioSetupRunning.current = false;
       }
-    })();
+    };
+
+    load();
 
     return () => {
-      mounted = false;
-      instances.forEach((s) => {
-        s.stopAsync().catch(() => {});
-        s.unloadAsync().catch(() => {});
-      });
+      mountedRef.current = false;
+      emergencySoundRef.current?.unloadAsync().catch(() => {});
+      normalSoundRef.current?.unloadAsync().catch(() => {});
       emergencySoundRef.current = null;
       normalSoundRef.current = null;
-      soundsLoaded.current = false;
     };
   }, []);
 
-  const triggerHaptics = async () => {
+  const triggerHaptics = useCallback(async () => {
     try {
       if (Platform.OS === "ios") {
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -89,18 +99,48 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
         await new Promise((r) => setTimeout(r, 300));
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
       }
-    } catch (e) {
-      try { Vibration.vibrate([0, 500, 300, 500, 300, 500]); } catch (_) {}
+    } catch {
+      try { Vibration.vibrate([0, 500, 300, 500, 300, 500]); } catch {}
     }
-  };
+  }, []);
 
   const isEmergencyType = (crimeType: string | null | undefined) => {
     return EMERGENCY_TYPES.includes(crimeType?.toLowerCase() || "");
   };
 
-  const playEmergencyAlert = useCallback(async (report: any) => {
+  const forcePlaySound = useCallback(async (sound: Audio.Sound) => {
+    try {
+      await sound.stopAsync();
+    } catch {}
+    try {
+      await sound.setPositionAsync(0);
+    } catch {}
+    try {
+      await sound.setIsLoopingAsync(true);
+    } catch {}
+    try {
+      await sound.setVolumeAsync(0.8);
+    } catch {}
+    try {
+      await sound.playAsync();
+    } catch {}
+  }, []);
+
+  const stopAllAudio = useCallback(async () => {
+    try { Vibration.cancel(); } catch {}
+
+    for (const sound of [emergencySoundRef.current, normalSoundRef.current]) {
+      if (!sound) continue;
+      try { await sound.setIsLoopingAsync(false); } catch {}
+      try { await sound.stopAsync(); } catch {}
+      try { await sound.setPositionAsync(0); } catch {}
+    }
+  }, []);
+
+  const playEmergencyAlert = useCallback((report: any) => {
     if (activeAlertIds.current.has(report.id)) return;
     activeAlertIds.current.add(report.id);
+    console.log("[AlarmContext] playEmergencyAlert called for", report.id, "type:", report.crime_type);
 
     triggerHaptics();
 
@@ -113,57 +153,44 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     const isEmergency = isEmergencyType(report.crime_type);
     const sound = isEmergency ? emergencySoundRef.current : normalSoundRef.current;
 
-    if (sound && soundsLoaded.current) {
-      try {
-        await sound.stopAsync().catch(() => {});
-        await sound.setPositionAsync(0).catch(() => {});
-        await sound.setIsLoopingAsync(true);
-        await sound.playAsync();
-      } catch (e) {
-        console.warn("[AlarmContext] Audio playback failed:", e);
-      }
+    if (sound) {
+      forcePlaySound(sound);
+    } else {
+      console.warn("[AlarmContext] Sound ref not ready for:", label);
     }
-  }, []);
+  }, [triggerHaptics, forcePlaySound]);
 
-  const stopAlertForReport = useCallback(async (reportId: string) => {
-    if (!activeAlertIds.current.has(reportId)) return;
+  const stopAlertForReport = useCallback((reportId: string) => {
     activeAlertIds.current.delete(reportId);
 
     if (activeAlertIds.current.size === 0) {
-      try { Haptics.selectionAsync(); } catch (_) {}
-      try { Vibration.cancel(); } catch (_) {}
-
-      try {
-        if (emergencySoundRef.current) {
-          await emergencySoundRef.current.stopAsync().catch(() => {});
-          await emergencySoundRef.current.setPositionAsync(0).catch(() => {});
-          await emergencySoundRef.current.setIsLoopingAsync(false).catch(() => {});
-        }
-        if (normalSoundRef.current) {
-          await normalSoundRef.current.stopAsync().catch(() => {});
-          await normalSoundRef.current.setPositionAsync(0).catch(() => {});
-          await normalSoundRef.current.setIsLoopingAsync(false).catch(() => {});
-        }
-      } catch (e) {
-        console.warn("[AlarmContext] Stop audio failed:", e);
+      stopAllAudio();
+      setAlertBanner(null);
+      if (alertTimerRef.current) {
+        clearTimeout(alertTimerRef.current);
+        alertTimerRef.current = null;
       }
     }
+  }, [stopAllAudio]);
 
+  const stopAllAlarms = useCallback(() => {
+    activeAlertIds.current.clear();
+    stopAllAudio();
     setAlertBanner(null);
     if (alertTimerRef.current) {
       clearTimeout(alertTimerRef.current);
       alertTimerRef.current = null;
     }
-  }, []);
+  }, [stopAllAudio]);
 
   useEffect(() => {
     return () => {
       if (alertTimerRef.current) clearTimeout(alertTimerRef.current);
-      emergencySoundRef.current?.stopAsync().catch(() => {});
-      emergencySoundRef.current?.setIsLoopingAsync(false).catch(() => {});
-      normalSoundRef.current?.stopAsync().catch(() => {});
-      normalSoundRef.current?.setIsLoopingAsync(false).catch(() => {});
       activeAlertIds.current.clear();
+      emergencySoundRef.current?.setIsLoopingAsync(false).catch(() => {});
+      emergencySoundRef.current?.stopAsync().catch(() => {});
+      normalSoundRef.current?.setIsLoopingAsync(false).catch(() => {});
+      normalSoundRef.current?.stopAsync().catch(() => {});
     };
   }, []);
 
@@ -174,8 +201,9 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
         setAlertBanner,
         playEmergencyAlert,
         stopAlertForReport,
+        stopAllAlarms,
         triggerHaptics,
-        soundsLoaded: soundsLoaded.current,
+        soundsLoaded,
       }}
     >
       {children}

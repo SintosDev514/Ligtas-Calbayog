@@ -46,6 +46,8 @@ interface MapViewProps {
   mapStyle?: MapStyle;
   routeData?: RouteData | null;
   pitch?: number;
+  bearing?: number;
+  userHeading?: number;
   onPress?: (e: any) => void;
   onMarkerPress?: (markerData: MarkerProps) => void;
   onRegionChangeComplete?: (region: Region) => void;
@@ -56,7 +58,9 @@ interface MarkerProps {
   title?: string;
   pinColor?: string;
   popupHtml?: string;
+  markerHtml?: string;
   animate?: boolean;
+  heading?: number;
   children?: React.ReactNode;
 }
 
@@ -96,6 +100,8 @@ const MapView: React.FC<MapViewProps> = ({
   mapStyle = "light",
   routeData,
   pitch,
+  bearing,
+  userHeading,
   onPress,
   onMarkerPress,
   onRegionChangeComplete,
@@ -104,6 +110,7 @@ const MapView: React.FC<MapViewProps> = ({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markersRef = useRef<maplibregl.Marker[]>([]);
   const userMarkerRef = useRef<maplibregl.Marker | null>(null);
+  const arrowElRef = useRef<HTMLDivElement | null>(null);
   const initializedRef = useRef(false);
 
   const activeRegion = region || initialRegion;
@@ -136,10 +143,11 @@ const MapView: React.FC<MapViewProps> = ({
       minZoom: 1,
       maxZoom: 19,
       pitch: pitch ?? 0,
+      bearing: bearing ?? 0,
       maxPitch: 85,
       scrollZoom: scrollEnabled,
       dragPan: scrollEnabled,
-      dragRotate: false,
+      dragRotate: bearing != null,
       touchZoomRotate: scrollEnabled,
       doubleClickZoom: scrollEnabled,
       keyboard: scrollEnabled,
@@ -268,40 +276,89 @@ const MapView: React.FC<MapViewProps> = ({
       style.id = "marker-anim";
       style.textContent = `
 @keyframes marker-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.7); }
-  70% { box-shadow: 0 0 0 18px rgba(239,68,68,0); }
+  0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.6); }
+  70% { box-shadow: 0 0 0 14px rgba(239,68,68,0); }
   100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+}
+@keyframes user-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.5); }
+  70% { box-shadow: 0 0 0 12px rgba(59,130,246,0); }
+  100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
 }
 .marker-animate {
   animation: marker-pulse 2s infinite;
+}
+.user-location-animate {
+  animation: user-pulse 2.5s infinite;
 }
 `;
       document.head.appendChild(style);
     }
 
     markerData.forEach((m) => {
+      const isUserLoc = m.pinColor === "#3B82F6" && !m.animate;
+      const isCustom = !!m.markerHtml;
+      const hasHeading = typeof m.heading === "number" && !isNaN(m.heading);
+      const isArrow = isUserLoc && hasHeading;
       const el = document.createElement("div");
-      el.style.width = "28px";
-      el.style.height = "28px";
-      el.style.borderRadius = "50%";
-      el.style.background = m.pinColor || "#3B82F6";
-      el.style.border = `3px solid ${m.animate ? '#EF4444' : '#22C55E'}`;
-      el.style.boxShadow = "0 2px 6px rgba(0,0,0,0.3)";
-      el.style.cursor = "pointer";
-      el.style.display = "flex";
-      el.style.alignItems = "center";
-      el.style.justifyContent = "center";
-      if (m.animate) el.classList.add("marker-animate");
 
-      if (m.children) {
+      if (isArrow) {
+        arrowElRef.current = el;
+        el.style.width = "30px";
+        el.style.height = "30px";
+        el.style.borderRadius = "50%";
+        el.style.display = "flex";
+        el.style.alignItems = "center";
+        el.style.justifyContent = "center";
+        el.style.cursor = "pointer";
+        el.innerHTML = `
+          <svg width="30" height="30" viewBox="0 0 30 30" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.4));">
+            <circle cx="15" cy="15" r="13" fill="rgba(59,130,246,0.25)" stroke="#3B82F6" stroke-width="2.5"/>
+            <g transform="rotate(${m.heading}, 15, 15)">
+              <polygon points="15,3 21,22 15,17 9,22" fill="#3B82F6" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/>
+            </g>
+          </svg>`;
+        el.classList.add("user-location-animate");
+      } else if (isCustom) {
+        el.style.width = "26px";
+        el.style.height = "26px";
+        el.style.borderRadius = "50%";
+        el.style.display = "flex";
+        el.style.alignItems = "center";
+        el.style.justifyContent = "center";
+        el.style.cursor = "pointer";
+        el.style.overflow = "hidden";
+        el.style.background = "rgba(0,0,0,0.6)";
+        el.style.border = "2px solid rgba(251,191,36,0.6)";
+        el.style.boxShadow = "0 2px 8px rgba(0,0,0,0.4)";
+        el.innerHTML = m.markerHtml!;
+      } else {
+        el.style.width = isUserLoc ? "18px" : "26px";
+        el.style.height = isUserLoc ? "18px" : "26px";
+        el.style.borderRadius = "50%";
+        el.style.display = "flex";
+        el.style.alignItems = "center";
+        el.style.justifyContent = "center";
+        el.style.cursor = "pointer";
+        el.style.overflow = "hidden";
+        el.style.background = m.pinColor || "#3B82F6";
+        el.style.border = `2px solid ${m.animate ? '#EF4444' : isUserLoc ? '#fff' : '#22C55E'}`;
+        el.style.boxShadow = isUserLoc
+          ? "0 1px 4px rgba(0,0,0,0.25), 0 0 0 1.5px rgba(59,130,246,0.3)"
+          : "0 2px 8px rgba(0,0,0,0.35)";
+        if (m.animate) el.classList.add("marker-animate");
+        if (isUserLoc) el.classList.add("user-location-animate");
+      }
+
+      if (!isArrow && !isCustom && m.children) {
         if (React.isValidElement(m.children)) {
           const props = (m.children as any).props;
           const src = props?.src || props?.source?.uri;
           if (src) {
             const img = document.createElement("img");
             img.src = src;
-            img.style.width = "28px";
-            img.style.height = "28px";
+            img.style.width = "100%";
+            img.style.height = "100%";
             img.style.borderRadius = "50%";
             img.style.objectFit = "cover";
             el.appendChild(img);
@@ -343,12 +400,13 @@ const MapView: React.FC<MapViewProps> = ({
         const { latitude, longitude } = pos.coords;
         if (!userMarkerRef.current) {
           const el = document.createElement("div");
-          el.style.width = "16px";
-          el.style.height = "16px";
+          el.style.width = "14px";
+          el.style.height = "14px";
           el.style.borderRadius = "50%";
-          el.style.background = "#1565C0";
-          el.style.border = "3px solid #fff";
-          el.style.boxShadow = "0 0 0 2px rgba(21,101,192,0.4)";
+          el.style.background = "#3B82F6";
+          el.style.border = "2px solid #fff";
+          el.style.boxShadow = "0 1px 4px rgba(0,0,0,0.25), 0 0 0 1.5px rgba(59,130,246,0.3)";
+          el.classList.add("user-location-animate");
           userMarkerRef.current = new maplibregl.Marker({ element: el })
             .setLngLat([longitude, latitude])
             .addTo(mapRef.current!);
@@ -409,6 +467,18 @@ const MapView: React.FC<MapViewProps> = ({
       map.fitBounds(bounds, { padding: 80, maxZoom: 16, duration: 1000 });
     }
   }, [routeData]);
+
+  useEffect(() => {
+    if (!arrowElRef.current) return;
+    if (typeof userHeading !== "number") return;
+    arrowElRef.current.innerHTML = `
+      <svg width="30" height="30" viewBox="0 0 30 30" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.4));">
+        <circle cx="15" cy="15" r="13" fill="rgba(59,130,246,0.25)" stroke="#3B82F6" stroke-width="2.5"/>
+        <g transform="rotate(${userHeading}, 15, 15)">
+          <polygon points="15,3 21,22 15,17 9,22" fill="#3B82F6" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/>
+        </g>
+      </svg>`;
+  }, [userHeading]);
 
   useEffect(() => {
     const map = mapRef.current;

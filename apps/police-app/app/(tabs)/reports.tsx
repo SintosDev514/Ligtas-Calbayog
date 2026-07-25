@@ -27,7 +27,7 @@ import { upsertPoliceLocation } from "../../../../shared/services/reportService"
 export default function ReportsScreen() {
   const { profile } = useAuth();
   const router = useRouter();
-  const { alertBanner, setAlertBanner, playEmergencyAlert, stopAlertForReport } = useAlarm();
+  const { alertBanner, setAlertBanner, playEmergencyAlert, stopAlertForReport, stopAllAlarms } = useAlarm();
   const [reports, setReports] = useState<any[]>([]);
   const [residents, setResidents] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
@@ -59,8 +59,11 @@ export default function ReportsScreen() {
         { event: "UPDATE", schema: "public", table: "crime_reports" },
         (payload) => {
           const updated = payload.new as any;
-          if (updated.status === "in-progress") {
+          if (updated.status === "in-progress" || updated.status === "resolved" || updated.status === "dismissed") {
             stopAlertForReport(updated.id);
+          }
+          if (updated.status === "pending") {
+            playEmergencyAlert(updated);
           }
           setReports((prev) =>
             prev.map((r) => (r.id === updated.id ? { ...r, ...updated } : r)),
@@ -73,6 +76,18 @@ export default function ReportsScreen() {
       try { Vibration.cancel(); } catch (_) {}
     };
   }, []);
+
+  const reportsInitialDone = useRef(false);
+  useEffect(() => {
+    if (!reportsInitialDone.current) {
+      reportsInitialDone.current = true;
+      for (const r of reports) {
+        if (r.status === "pending") {
+          playEmergencyAlert(r);
+        }
+      }
+    }
+  }, [reports]);
 
   // Start/stop location tracking based on active report
   useEffect(() => {
@@ -173,9 +188,13 @@ export default function ReportsScreen() {
 
   const updateStatus = async (reportId: string, status: string) => {
     try {
+      const updateData: any = { status, updated_at: new Date().toISOString() };
+      if (status === "in-progress" && profile?.id) {
+        updateData.assigned_officer_id = profile.id;
+      }
       const { error } = await supabase
         .from("crime_reports")
-        .update({ status, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq("id", reportId);
       if (error) throw error;
       setReports((prev) =>
@@ -187,8 +206,10 @@ export default function ReportsScreen() {
 
       if (status === "in-progress") {
         setActiveReportId(reportId);
-      } else {
+        stopAllAlarms();
+      } else if (status === "resolved" || status === "dismissed") {
         if (activeReportId === reportId) setActiveReportId(null);
+        stopAllAlarms();
       }
 
       Alert.alert("Updated", `Report marked as "${status.replace("-", " ")}".`);
@@ -198,7 +219,16 @@ export default function ReportsScreen() {
   };
 
   const navigateToRoute = async (destLat: number, destLng: number, residentId: string) => {
+    if (!destLat || !destLng) {
+      Alert.alert("Error", "This report has no location data.");
+      return;
+    }
     try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission needed", "Location access is required for navigation.");
+        return;
+      }
       const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const params = new URLSearchParams({
         sourceLat: pos.coords.latitude.toString(),
@@ -209,7 +239,7 @@ export default function ReportsScreen() {
       });
       router.push(`/navigate/${residentId}?${params.toString()}` as any);
     } catch (err) {
-      Alert.alert("Error", "Could not get your current location.");
+      Alert.alert("Error", "Could not get your current location. Make sure GPS is enabled.");
     }
   };
 
@@ -536,7 +566,7 @@ export default function ReportsScreen() {
                       </TouchableOpacity>
                     </>
                   )}
-                  {selectedReport.status === "in-progress" && (
+                  {selectedReport.status === "in-progress" && selectedReport.latitude && selectedReport.longitude && (
                     <>
                       <TouchableOpacity
                         style={[s.modalActionBtn, { backgroundColor: "#DBEAFE" }]}

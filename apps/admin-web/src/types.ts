@@ -33,6 +33,7 @@ export interface CrimeReport {
   status: string;
   photo_url?: string;
   share_live_location: boolean;
+  assigned_officer_id?: string;
   created_at: string;
   updated_at: string;
   resident: {
@@ -40,6 +41,11 @@ export interface CrimeReport {
     phone_number: string;
     address: string;
   };
+  assigned_officer?: {
+    full_name: string;
+    badge_id: string;
+    rank: string;
+  } | null;
 }
 
 export interface PoliceOfficer {

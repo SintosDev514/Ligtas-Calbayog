@@ -15,12 +15,14 @@ const HTML = `
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#F1F5F9}
 #map{width:100%;height:100%}
-.marker{width:32px;height:32px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.3);cursor:pointer;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.marker{width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:pointer;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .marker-img{width:100%;height:100%;border-radius:50%;object-fit:cover}
 .marker-animate{animation:marker-pulse 2s infinite}
-@keyframes marker-pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.7)}70%{box-shadow:0 0 0 18px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
-.maplibregl-popup-content{font-size:12px;padding:8px 10px;border-radius:8px;font-family:sans-serif;max-width:220px}
-.maplibregl-popup-close-button{font-size:16px;padding:2px 6px}
+.user-location-animate{animation:user-pulse 2.5s infinite}
+@keyframes marker-pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.6)}70%{box-shadow:0 0 0 14px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
+@keyframes user-pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,0.5)}70%{box-shadow:0 0 0 12px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}}
+.mapboxgl-popup-content{font-size:12px;padding:8px 10px;border-radius:8px;font-family:sans-serif;max-width:220px}
+.mapboxgl-popup-close-button{font-size:16px;padding:2px 6px}
 </style>
 </head>
 <body>
@@ -60,10 +62,12 @@ var map = new maplibregl.Map({
   center: [124.6, 12.07],
   zoom: 11,
   pitch: 0,
+  bearing: 0,
   maxPitch: 85
 });
 
 var _initialPitch = null;
+var _initialBearing = null;
 var loaded = false;
 var ready = false;
 var pendingMarkers = [];
@@ -79,6 +83,9 @@ map.on('load', function() {
   loaded = true;
   if (_initialPitch != null) {
     map.setPitch(_initialPitch);
+  }
+  if (_initialBearing != null) {
+    map.setBearing(_initialBearing);
   }
 
   map.addSource('mapillary', {
@@ -195,17 +202,68 @@ function postMsg(type, data) {
 }
 
 var markers = [];
+var arrowEl = null;
+var arrowMarker = null;
+
+function updateArrowHeading(heading) {
+  if (arrowEl && arrowEl.parentNode) {
+    arrowEl.innerHTML = '<svg width="30" height="30" viewBox="0 0 30 30" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.4));"><circle cx="15" cy="15" r="13" fill="rgba(59,130,246,0.25)" stroke="#3B82F6" stroke-width="2.5"/><g transform="rotate(' + heading + ', 15, 15)"><polygon points="15,3 21,22 15,17 9,22" fill="#3B82F6" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></g></svg>';
+  }
+}
+
 function doAddMarkers(list) {
   markers.forEach(function(m) { m.remove(); });
   markers = [];
 
   list.forEach(function(m) {
+    var isUserLoc = m.color === '#3B82F6' && !m.animate;
+    var isCustom = !!m.markerHtml;
+    var hasHeading = typeof m.heading === 'number' && !isNaN(m.heading);
+    var isArrow = isUserLoc && hasHeading;
     var el = document.createElement('div');
-    el.className = 'marker' + (m.animate ? ' marker-animate' : '');
-    el.style.background = m.color || '#3B82F6';
-    el.style.border = '3px solid ' + (m.animate ? '#EF4444' : '#22C55E');
 
-    if (m.imageUrl) {
+    if (isArrow) {
+      arrowEl = el;
+      el.style.width = '30px';
+      el.style.height = '30px';
+      el.style.borderRadius = '50%';
+      el.style.display = 'flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.style.cursor = 'pointer';
+      el.innerHTML = '<svg width="30" height="30" viewBox="0 0 30 30" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.4));"><circle cx="15" cy="15" r="13" fill="rgba(59,130,246,0.25)" stroke="#3B82F6" stroke-width="2.5"/><g transform="rotate(' + m.heading + ', 15, 15)"><polygon points="15,3 21,22 15,17 9,22" fill="#3B82F6" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></g></svg>';
+      el.classList.add('user-location-animate');
+    } else if (isCustom) {
+      el.style.width = '26px';
+      el.style.height = '26px';
+      el.style.borderRadius = '50%';
+      el.style.display = 'flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.style.cursor = 'pointer';
+      el.style.overflow = 'hidden';
+      el.style.background = 'rgba(0,0,0,0.6)';
+      el.style.border = '2px solid rgba(251,191,36,0.6)';
+      el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.4)';
+      el.innerHTML = m.markerHtml;
+    } else {
+      el.style.width = isUserLoc ? '18px' : '26px';
+      el.style.height = isUserLoc ? '18px' : '26px';
+      el.style.borderRadius = '50%';
+      el.style.display = 'flex';
+      el.style.alignItems = 'center';
+      el.style.justifyContent = 'center';
+      el.style.cursor = 'pointer';
+      el.style.overflow = 'hidden';
+      el.className = 'marker' + (m.animate ? ' marker-animate' : '') + (isUserLoc ? ' user-location-animate' : '');
+      el.style.background = m.color || '#3B82F6';
+      el.style.border = '2px solid ' + (m.animate ? '#EF4444' : '#fff');
+      el.style.boxShadow = isUserLoc
+        ? '0 1px 4px rgba(0,0,0,0.25), 0 0 0 1.5px rgba(59,130,246,0.3)'
+        : '0 2px 8px rgba(0,0,0,0.35)';
+    }
+
+    if (!isArrow && !isCustom && m.imageUrl) {
       el.style.background = '#fff';
       var img = document.createElement('img');
       img.className = 'marker-img';
@@ -254,6 +312,10 @@ function onRCMessage(e) {
         if (loaded) { map.setPitch(msg.region.pitch); }
         else { _initialPitch = msg.region.pitch; }
       }
+      if (msg.region.bearing != null) {
+        if (loaded) { map.setBearing(msg.region.bearing); }
+        else { _initialBearing = msg.region.bearing; }
+      }
     }
     if (msg.type === 'markers') {
       addMarkers(msg.data || []);
@@ -267,6 +329,9 @@ function onRCMessage(e) {
     if (msg.type === 'clearRoute') {
       clearRoute();
     }
+    if (msg.type === 'updateHeading') {
+      updateArrowHeading(msg.heading);
+    }
   } catch(err) {}
 }
 window.addEventListener('message', onRCMessage);
@@ -277,7 +342,7 @@ document.addEventListener('message', onRCMessage);
 </html>
 `;
 
-const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialRegion, mapStyle = "light", routeData, ...props }, ref) => {
+const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialRegion, mapStyle = "light", routeData, pitch, bearing, userHeading, ...props }, ref) => {
   const webViewRef = useRef<any>(null);
   const readyRef = useRef(false);
   const onMarkerPressRef = useRef(onMarkerPress);
@@ -288,7 +353,7 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
     const markers: any[] = [];
     React.Children.forEach(children, (child: any) => {
       if (child?.type?.displayName === "Marker") {
-        const { coordinate, pinColor, title, popupHtml, children: mc } = child.props;
+        const { coordinate, pinColor, title, popupHtml, markerHtml, children: mc } = child.props;
         let imageUrl = null;
         if (mc) {
           const arr = React.Children.toArray(mc);
@@ -303,8 +368,10 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
           color: pinColor || "#3B82F6",
           title: title || null,
           popupHtml: popupHtml || null,
+          markerHtml: markerHtml || null,
           imageUrl,
           animate: !!child.props.animate,
+          heading: typeof child.props.heading === "number" ? child.props.heading : null,
         });
       }
     });
@@ -334,7 +401,7 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
       if (msg.type === "ready" && !readyRef.current) {
         readyRef.current = true;
         if (region) {
-          sendToWebView({ type: "init", region: { latitude: region.latitude, longitude: region.longitude, zoom } });
+          sendToWebView({ type: "init", region: { latitude: region.latitude, longitude: region.longitude, zoom, pitch: pitch ?? 0, bearing: bearing ?? 0 } });
         }
         if (markersRef.current.length > 0) {
           sendToWebView({ type: "markers", data: markersRef.current });
@@ -352,7 +419,7 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
         });
       }
     } catch {}
-  }, [region, zoom, routeData, sendToWebView]);
+  }, [region, zoom, routeData, sendToWebView, pitch, bearing]);
 
   useEffect(() => {
     if (!readyRef.current) return;
@@ -364,9 +431,9 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
   useEffect(() => {
     if (!readyRef.current) return;
     if (region) {
-      sendToWebView({ type: "init", region: { latitude: region.latitude, longitude: region.longitude, zoom } });
+      sendToWebView({ type: "init", region: { latitude: region.latitude, longitude: region.longitude, zoom, pitch: pitch ?? 0, bearing: bearing ?? 0 } });
     }
-  }, [region?.latitude, region?.longitude, zoom, sendToWebView]);
+  }, [region?.latitude, region?.longitude, zoom, sendToWebView, pitch, bearing]);
 
   useEffect(() => {
     if (readyRef.current) {
@@ -382,6 +449,13 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
       sendToWebView({ type: "clearRoute" });
     }
   }, [routeData, sendToWebView]);
+
+  useEffect(() => {
+    if (!readyRef.current) return;
+    if (typeof userHeading === "number") {
+      sendToWebView({ type: "updateHeading", heading: userHeading });
+    }
+  }, [userHeading, sendToWebView]);
 
   if (Platform.OS === "web") {
     return (

@@ -22,12 +22,12 @@ import { upsertPoliceLocation } from "../../../../shared/services/reportService"
 export default function DashboardScreen() {
   const { profile } = useAuth();
   const router = useRouter();
-  const { alertBanner, setAlertBanner, playEmergencyAlert, stopAlertForReport } = useAlarm();
+  const { alertBanner, setAlertBanner, playEmergencyAlert, stopAlertForReport, stopAllAlarms } = useAlarm();
   const [residents, setResidents] = useState<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filterMap, setFilterMap] = useState<"all" | "emergency">("all");
+  const [filterMap, setFilterMap] = useState<"all" | "emergency">("emergency");
   const [mapStyle, setMapStyle] = useState<any>("light");
   const [showStylePicker, setShowStylePicker] = useState(false);
   const [userLocation, setUserLocation] = useState<{latitude: number; longitude: number} | null>(null);
@@ -66,8 +66,11 @@ export default function DashboardScreen() {
         { event: "UPDATE", schema: "public", table: "crime_reports" },
         (payload) => {
           const updated = payload.new as any;
-          if (updated.status === "in-progress") {
+          if (updated.status === "in-progress" || updated.status === "resolved" || updated.status === "dismissed") {
             stopAlertForReport(updated.id);
+          }
+          if (updated.status === "pending") {
+            playEmergencyAlert(updated);
           }
           if (updated.id === activeReportId && (updated.status === "resolved" || updated.status === "dismissed")) {
             setActiveReportId(null);
@@ -89,7 +92,12 @@ export default function DashboardScreen() {
   useEffect(() => {
     if (!initialLoadDone.current) {
       initialLoadDone.current = true;
-      for (const r of reports) prevReportIds.current.add(r.id);
+      for (const r of reports) {
+        prevReportIds.current.add(r.id);
+        if (r.status === "pending") {
+          playEmergencyAlert(r);
+        }
+      }
       return;
     }
     for (const r of reports) {
@@ -205,6 +213,18 @@ export default function DashboardScreen() {
   const centerLng = allVisibleCoords.length > 0
     ? allVisibleCoords.reduce((s, c) => s + c.longitude, 0) / allVisibleCoords.length
     : 124.596;
+
+  useEffect(() => {
+    if (emergencyReports.length === 0) return;
+    const latest = emergencyReports[0];
+    if (!latest?.latitude || !latest?.longitude) return;
+    setMapRegion({
+      latitude: latest.latitude,
+      longitude: latest.longitude,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    });
+  }, [emergencyReports.length, filterMap]);
 
   const handleMarkerPress = (markerData: any) => {
     const report = visibleReports.find(
@@ -329,6 +349,8 @@ export default function DashboardScreen() {
             initialRegion={{ latitude: centerLat, longitude: centerLng, latitudeDelta: 0.05, longitudeDelta: 0.05 }}
             region={mapRegion}
             mapStyle={mapStyle}
+            pitch={45}
+            bearing={-17.6}
             scrollEnabled
             zoomEnabled
             onMarkerPress={handleMarkerPress}
@@ -364,14 +386,19 @@ export default function DashboardScreen() {
             {userLocation && (
               <Marker coordinate={userLocation} pinColor="#3B82F6">
                 {profile?.photo_url || profile?.police_id_photo_url ? (
-                  <Image source={{ uri: profile.photo_url || profile.police_id_photo_url! }} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: "#3B82F6" }} />
+                  <Image source={{ uri: profile.photo_url || profile.police_id_photo_url! }} style={{ width: 22, height: 22, borderRadius: 11, borderWidth: 1.5, borderColor: "#fff" }} />
                 ) : (
-                  <Image source={Image.resolveAssetSource(require("../../assets/logo-black.png"))} style={{ width: 28, height: 28, borderRadius: 14 }} />
+                  <Image source={Image.resolveAssetSource(require("../../assets/logo-black.png"))} style={{ width: 20, height: 20, borderRadius: 10 }} />
                 )}
               </Marker>
             )}
             {policePosts.map((post) => (
-              <Marker key={`post-${post.id}`} coordinate={{ latitude: post.latitude, longitude: post.longitude }} pinColor="#F59E0B" title={`${post.name} (Police Post)`} />
+              <Marker
+                key={`post-${post.id}`}
+                coordinate={{ latitude: post.latitude, longitude: post.longitude }}
+                markerHtml='<svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:100%;height:100%;padding:3px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>'
+                popupHtml={`<div style="padding:4px 0;"><h4 style="display:flex;align-items:center;gap:6px;margin:0 0 4px 0;font-size:13px;"><svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" style="width:14px;height:14px;flex-shrink:0;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>${post.name}</h4>${post.address ? `<p style="margin:0;font-size:11px;color:#64748b;">${post.address}</p>` : ""}</div>`}
+              />
             ))}
           </MapView>
         </View>
