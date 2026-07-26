@@ -274,7 +274,7 @@ export default function ReportsScreen() {
         key={item.id}
         activeOpacity={0.7}
         onPress={() => setSelectedReport(item)}
-        style={[s.card, { borderLeftColor: meta.text }]}
+        style={s.card}
       >
         <View style={s.cardHeader}>
           <View style={[s.cardIcon, { backgroundColor: meta.bg }]}>
@@ -337,19 +337,10 @@ export default function ReportsScreen() {
         {status === "in-progress" && (
           <View style={s.actions}>
             <TouchableOpacity
-              style={s.locateBtn}
-              onPress={() =>
-                item.latitude && navigateToRoute(item.latitude, item.longitude, item.resident_id)
-              }
-            >
-              <Ionicons name="navigate" size={16} color="#2563EB" />
-              <Text style={s.locateBtnText}>Navigate</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               style={s.acceptBtn}
-              onPress={() => updateStatus(item.id, "resolved")}
+              onPress={() => router.push(`/report/${item.id}` as any)}
             >
-              <Text style={s.acceptBtnText}>Resolve</Text>
+              <Text style={s.acceptBtnText}>View More</Text>
             </TouchableOpacity>
           </View>
         )}

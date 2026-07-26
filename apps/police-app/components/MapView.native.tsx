@@ -17,10 +17,12 @@ html,body{width:100%;height:100%;overflow:hidden;background:#F1F5F9}
 #map{width:100%;height:100%}
 .marker{width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:pointer;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .marker-img{width:100%;height:100%;border-radius:50%;object-fit:cover}
-.marker-animate{animation:marker-pulse 2s infinite}
-.user-location-animate{animation:user-pulse 2.5s infinite}
-@keyframes marker-pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.6)}70%{box-shadow:0 0 0 14px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
+@keyframes emergency-pulse-1{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.5)}100%{box-shadow:0 0 0 16px rgba(239,68,68,0)}}
+@keyframes emergency-pulse-2{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.35)}100%{box-shadow:0 0 0 26px rgba(239,68,68,0)}}
+@keyframes emergency-glow{0%,100%{filter:drop-shadow(0 0 4px rgba(239,68,68,0.4))}50%{filter:drop-shadow(0 0 10px rgba(239,68,68,0.7))}}
 @keyframes user-pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,0.5)}70%{box-shadow:0 0 0 12px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}}
+.marker-animate{animation:emergency-pulse-1 1.4s ease-out infinite,emergency-glow 2s ease-in-out infinite}
+.user-location-animate{animation:user-pulse 2.5s infinite}
 .mapboxgl-popup-content{font-size:12px;padding:8px 10px;border-radius:8px;font-family:sans-serif;max-width:220px}
 .mapboxgl-popup-close-button{font-size:16px;padding:2px 6px}
 </style>
@@ -247,6 +249,7 @@ function doAddMarkers(list) {
       el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.4)';
       el.innerHTML = m.markerHtml;
     } else {
+      el.style.position = 'relative';
       el.style.width = isUserLoc ? '18px' : '26px';
       el.style.height = isUserLoc ? '18px' : '26px';
       el.style.borderRadius = '50%';
@@ -254,10 +257,10 @@ function doAddMarkers(list) {
       el.style.alignItems = 'center';
       el.style.justifyContent = 'center';
       el.style.cursor = 'pointer';
-      el.style.overflow = 'hidden';
+      el.style.overflow = 'visible';
       el.className = 'marker' + (m.animate ? ' marker-animate' : '') + (isUserLoc ? ' user-location-animate' : '');
-      el.style.background = m.color || '#3B82F6';
-      el.style.border = '2px solid ' + (m.animate ? '#EF4444' : '#fff');
+      el.style.background = m.animate ? '#EF4444' : (m.color || '#3B82F6');
+      el.style.border = '2px solid ' + (m.animate ? '#FCA5A5' : '#fff');
       el.style.boxShadow = isUserLoc
         ? '0 1px 4px rgba(0,0,0,0.25), 0 0 0 1.5px rgba(59,130,246,0.3)'
         : '0 2px 8px rgba(0,0,0,0.35)';

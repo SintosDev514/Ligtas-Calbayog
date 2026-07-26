@@ -70,7 +70,6 @@ export const reportsStyles = StyleSheet.create({
     marginBottom: spacing.md,
     borderWidth: 1,
     borderColor: colors.border,
-    borderLeftWidth: 4,
     ...shadow.card,
   },
   cardHeader: {

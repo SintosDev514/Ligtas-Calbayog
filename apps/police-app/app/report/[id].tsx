@@ -15,7 +15,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { statusColors, crimeIcons, colors } from "../../constants/theme";
@@ -63,10 +63,12 @@ export default function ReportDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { profile } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [report, setReport] = useState<any>(null);
   const [resident, setResident] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
+  const [resolving, setResolving] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerZoom, setViewerZoom] = useState(1);
@@ -221,6 +223,33 @@ export default function ReportDetailScreen() {
       Alert.alert("Error", err.message || "Failed to accept report");
     } finally {
       setAccepting(false);
+    }
+  };
+
+  const handleResolve = async () => {
+    if (!report || resolving) return;
+    setResolving(true);
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("crime_reports")
+        .update({ status: "resolved", updated_at: now })
+        .eq("id", report.id);
+      if (error) throw error;
+
+      await supabase.from("action_updates").insert({
+        report_id: report.id,
+        action_type: "resolved",
+        officer_id: profile?.id,
+        description: `${profile?.full_name || "Officer"} resolved this report`,
+        created_at: now,
+      });
+
+      setReport((prev: any) => ({ ...prev, status: "resolved" }));
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to resolve report");
+    } finally {
+      setResolving(false);
     }
   };
 
@@ -638,7 +667,7 @@ export default function ReportDetailScreen() {
           borderTopWidth: 1,
           borderTopColor: "rgba(255,255,255,0.06)",
           paddingHorizontal: 20,
-          paddingBottom: 32,
+          paddingBottom: 16 + insets.bottom,
           paddingTop: 16,
         }}
       >
@@ -672,11 +701,57 @@ export default function ReportDetailScreen() {
             </Text>
           </TouchableOpacity>
         ) : status === "in-progress" ? (
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-            <View style={{ flex: 1, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(124,58,237,0.1)", borderRadius: 12, padding: 14, borderWidth: 1, borderColor: "rgba(124,58,237,0.15)" }}>
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: "#7C3AED" }} />
-              <Text style={{ fontSize: 13, color: "rgba(255,255,255,0.5)", fontWeight: "500" }}>Responding</Text>
-            </View>
+          <View style={{ flexDirection: "row", gap: 10 }}>
+            {resident?.emergency_contact && (
+              <TouchableOpacity
+                style={{
+                  flex: 1,
+                  backgroundColor: "rgba(59,130,246,0.12)",
+                  borderRadius: 14,
+                  paddingVertical: 16,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 8,
+                  borderWidth: 1,
+                  borderColor: "rgba(59,130,246,0.2)",
+                }}
+                onPress={() => Linking.openURL(`tel:${resident.emergency_contact}`)}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="call" size={18} color="#3B82F6" />
+                <Text style={{ color: "#60A5FA", fontSize: 14, fontWeight: "700" }}>Call</Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
+              style={{
+                flex: resident?.emergency_contact ? 1.2 : 1,
+                backgroundColor: "#16A34A",
+                borderRadius: 14,
+                paddingVertical: 16,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+                shadowColor: "#16A34A",
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 12,
+                elevation: 6,
+              }}
+              onPress={handleResolve}
+              disabled={resolving}
+              activeOpacity={0.8}
+            >
+              {resolving ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="checkmark-done-circle" size={20} color="#fff" />
+              )}
+              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
+                {resolving ? "Resolving..." : "Resolve"}
+              </Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity

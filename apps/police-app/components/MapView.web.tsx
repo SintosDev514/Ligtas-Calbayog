@@ -275,10 +275,17 @@ const MapView: React.FC<MapViewProps> = ({
     if (!document.getElementById("marker-anim")) {
       style.id = "marker-anim";
       style.textContent = `
-@keyframes marker-pulse {
-  0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.6); }
-  70% { box-shadow: 0 0 0 14px rgba(239,68,68,0); }
-  100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+@keyframes emergency-pulse-1 {
+  0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+  100% { box-shadow: 0 0 0 16px rgba(239,68,68,0); }
+}
+@keyframes emergency-pulse-2 {
+  0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.35); }
+  100% { box-shadow: 0 0 0 26px rgba(239,68,68,0); }
+}
+@keyframes emergency-glow {
+  0%, 100% { filter: drop-shadow(0 0 4px rgba(239,68,68,0.4)); }
+  50% { filter: drop-shadow(0 0 10px rgba(239,68,68,0.7)); }
 }
 @keyframes user-pulse {
   0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.5); }
@@ -286,7 +293,15 @@ const MapView: React.FC<MapViewProps> = ({
   100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
 }
 .marker-animate {
-  animation: marker-pulse 2s infinite;
+  animation: emergency-pulse-1 1.4s ease-out infinite, emergency-glow 2s ease-in-out infinite;
+}
+.marker-animate::after {
+  content: '';
+  position: absolute;
+  top: -2px; left: -2px; right: -2px; bottom: -2px;
+  border-radius: 50%;
+  animation: emergency-pulse-2 1.4s ease-out infinite;
+  pointer-events: none;
 }
 .user-location-animate {
   animation: user-pulse 2.5s infinite;
@@ -333,6 +348,7 @@ const MapView: React.FC<MapViewProps> = ({
         el.style.boxShadow = "0 2px 8px rgba(0,0,0,0.4)";
         el.innerHTML = m.markerHtml!;
       } else {
+        el.style.position = "relative";
         el.style.width = isUserLoc ? "18px" : "26px";
         el.style.height = isUserLoc ? "18px" : "26px";
         el.style.borderRadius = "50%";
@@ -340,9 +356,9 @@ const MapView: React.FC<MapViewProps> = ({
         el.style.alignItems = "center";
         el.style.justifyContent = "center";
         el.style.cursor = "pointer";
-        el.style.overflow = "hidden";
-        el.style.background = m.pinColor || "#3B82F6";
-        el.style.border = `2px solid ${m.animate ? '#EF4444' : isUserLoc ? '#fff' : '#22C55E'}`;
+        el.style.overflow = "visible";
+        el.style.background = m.animate ? "#EF4444" : (m.pinColor || "#3B82F6");
+        el.style.border = `2px solid ${m.animate ? '#FCA5A5' : isUserLoc ? '#fff' : '#22C55E'}`;
         el.style.boxShadow = isUserLoc
           ? "0 1px 4px rgba(0,0,0,0.25), 0 0 0 1.5px rgba(59,130,246,0.3)"
           : "0 2px 8px rgba(0,0,0,0.35)";
