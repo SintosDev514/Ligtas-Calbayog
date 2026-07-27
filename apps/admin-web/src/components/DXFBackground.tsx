@@ -121,26 +121,71 @@ export default function DXFBackground() {
     wireT.position.y = -1.5;
     scene.add(wireT);
 
-    const bldgData: { x: number; z: number; w: number; d: number; h: number }[] = [];
-    for (let i = 0; i < 45; i++) {
+    const bldgData: { x: number; z: number; w: number; d: number; h: number; isTower?: boolean }[] = [];
+
+    // Dense core buildings (small blocks)
+    for (let i = 0; i < 60; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const rad = 2 + Math.random() * 6;
+      const rad = 1.5 + Math.random() * 5;
       const x = Math.cos(angle) * rad;
       const z = Math.sin(angle) * rad;
-      bldgData.push({ x, z, w: 0.15 + Math.random() * 0.35, d: 0.15 + Math.random() * 0.35, h: 0.2 + Math.random() * 1.2 });
+      bldgData.push({ x, z, w: 0.15 + Math.random() * 0.3, d: 0.15 + Math.random() * 0.3, h: 0.2 + Math.random() * 1.0 });
     }
+
+    // Medium ring of buildings
+    for (let i = 0; i < 35; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const rad = 5 + Math.random() * 3;
+      const x = Math.cos(angle) * rad;
+      const z = Math.sin(angle) * rad;
+      bldgData.push({ x, z, w: 0.2 + Math.random() * 0.4, d: 0.2 + Math.random() * 0.4, h: 0.4 + Math.random() * 0.8 });
+    }
+
+    // Outer sprawl buildings (smaller, scattered)
+    for (let i = 0; i < 30; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const rad = 7 + Math.random() * 3;
+      const x = Math.cos(angle) * rad;
+      const z = Math.sin(angle) * rad;
+      bldgData.push({ x, z, w: 0.12 + Math.random() * 0.25, d: 0.12 + Math.random() * 0.25, h: 0.15 + Math.random() * 0.5 });
+    }
+
+    // Tall towers (landmarks)
+    const towerAngles = [0, Math.PI * 0.5, Math.PI, Math.PI * 1.5, Math.PI * 0.25, Math.PI * 0.75, Math.PI * 1.25, Math.PI * 1.75];
+    towerAngles.forEach(a => {
+      const rad = 3 + Math.random() * 2;
+      bldgData.push({ x: Math.cos(a) * rad, z: Math.sin(a) * rad, w: 0.12 + Math.random() * 0.15, d: 0.12 + Math.random() * 0.15, h: 1.5 + Math.random() * 1.2, isTower: true });
+    });
+
     bldgData.forEach(b => {
       const bg = new THREE.BoxGeometry(b.w, b.h, b.d);
+      const hue = b.isTower ? 0.58 : 0.55 + Math.random() * 0.1;
+      const lightness = b.isTower ? 0.22 : 0.12 + Math.random() * 0.15;
       const bm = new THREE.MeshPhysicalMaterial({
-        color: new THREE.Color().setHSL(0.55 + Math.random() * 0.1, 0.2, 0.15 + Math.random() * 0.15),
-        metalness: 0.4,
-        roughness: 0.5,
+        color: new THREE.Color().setHSL(hue, 0.25, lightness),
+        metalness: b.isTower ? 0.6 : 0.4,
+        roughness: 0.4,
+        emissive: b.isTower ? 0x0a1a3a : 0x050a15,
+        emissiveIntensity: b.isTower ? 0.3 : 0.1,
       });
       const mesh = new THREE.Mesh(bg, bm);
       mesh.position.set(b.x, -1.5 + b.h / 2, b.z);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
       scene.add(mesh);
+
+      // Window glow on taller buildings
+      if (b.h > 0.7) {
+        const winGeo = new THREE.BoxGeometry(b.w * 0.6, b.h * 0.8, b.d * 0.6);
+        const winMat = new THREE.MeshBasicMaterial({
+          color: 0x4488cc,
+          transparent: true,
+          opacity: 0.06 + Math.random() * 0.06,
+        });
+        const win = new THREE.Mesh(winGeo, winMat);
+        win.position.set(b.x, -1.5 + b.h / 2, b.z);
+        scene.add(win);
+      }
     });
 
     function addRoad(path: [number, number, number, number][]) {
@@ -155,9 +200,31 @@ export default function DXFBackground() {
       tube.position.y = -1.5;
       scene.add(tube);
     }
+
+    // Main N-S and E-W arteries
     addRoad([[-6, 0, -5, -1.5], [-3, 0, -3, -1.2], [0, 0, 0, -1.0], [3, 0, 3, -1.2], [6, 0, 5, -1.5]]);
     addRoad([[5, 0, -5, -1.5], [3, 0, -3, -1.2], [0, 0, 0, -1.0], [-3, 0, 3, -1.2], [-5, 0, 5, -1.5]]);
+
+    // Diagonal roads
     addRoad([[-6, 0, 6, -1.5], [-4, 0, 3, -1.2], [-2, 0, 1, -1.0], [2, 0, -1, -1.2], [4, 0, -3, -1.3], [6, 0, -5, -1.5]]);
+    addRoad([[-7, 0, -7, -1.6], [-5, 0, -4, -1.3], [-2, 0, -2, -1.1], [0, 0, 0, -1.0], [2, 0, 2, -1.1], [5, 0, 4, -1.3], [7, 0, 7, -1.6]]);
+
+    // Additional connector roads
+    addRoad([[-4, 0, -6, -1.5], [-2, 0, -4, -1.25], [0, 0, -2, -1.1], [2, 0, 0, -1.0], [4, 0, 2, -1.15], [6, 0, 4, -1.35]]);
+    addRoad([[-6, 0, 2, -1.4], [-3, 0, 1, -1.15], [0, 0, 0, -1.0], [3, 0, -1, -1.15], [6, 0, -2, -1.4]]);
+
+    // Ring road (perimeter)
+    addRoad([[-7, 0, 0, -1.6], [-5, 0, -5, -1.45], [0, 0, -7, -1.5], [5, 0, -5, -1.45], [7, 0, 0, -1.6], [5, 0, 5, -1.45], [0, 0, 7, -1.5], [-5, 0, 5, -1.45], [-7, 0, 0, -1.6]]);
+
+    // Spoke roads from center
+    addRoad([[0, 0, 0, -1.0], [2, 0, -3, -1.2], [4, 0, -6, -1.5]]);
+    addRoad([[0, 0, 0, -1.0], [-2, 0, 3, -1.2], [-4, 0, 6, -1.5]]);
+    addRoad([[0, 0, 0, -1.0], [3, 0, -2, -1.15], [6, 0, -3, -1.45]]);
+    addRoad([[0, 0, 0, -1.0], [-3, 0, 2, -1.15], [-6, 0, 3, -1.45]]);
+
+    // Cross connectors
+    addRoad([[-5, 0, -2, -1.4], [-3, 0, -1, -1.2], [0, 0, -1, -1.05], [3, 0, -1, -1.2], [5, 0, -2, -1.4]]);
+    addRoad([[-5, 0, 2, -1.4], [-3, 0, 1, -1.2], [0, 0, 1, -1.05], [3, 0, 1, -1.2], [5, 0, 2, -1.4]]);
 
     function addRiver(path: [number, number, number, number][]) {
       const pts = path.map(([x, , z, h]) => new THREE.Vector3(x, 0.05, z));
@@ -251,7 +318,7 @@ export default function DXFBackground() {
   return (
     <div
       ref={mountRef}
-      style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "auto" }}
+      style={{ position: "absolute", inset: 0, zIndex: 0, pointerEvents: "auto" }}
     />
   );
 }
