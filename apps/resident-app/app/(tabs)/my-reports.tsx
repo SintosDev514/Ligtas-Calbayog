@@ -15,10 +15,13 @@ import {
   TextInput,
   Alert,
   Modal,
+  Dimensions,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { openBrowserAsync } from "expo-web-browser";
+import { Video, ResizeMode } from "expo-av";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import {
   fetchResidentReports,
@@ -108,6 +111,17 @@ function getTimeAgo(dateStr: string) {
   return `${days}d ago`;
 }
 
+function parseEvidenceUrls(photoUrl: string | null | undefined): string[] {
+  if (!photoUrl) return [];
+  return photoUrl.split(",").map((u: string) => u.trim()).filter(Boolean);
+}
+
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|mov|avi|webm|mkv)$/i.test(url) || url.includes("/videos/");
+}
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
+
 export default function MyReportsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
@@ -117,7 +131,6 @@ export default function MyReportsScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [selectedFilter, setSelectedFilter] = useState((params.filter as string) || "all");
-  const [expandedReportId, setExpandedReportId] = useState<string | null>(null);
   const [reportFeedback, setReportFeedback] = useState<Record<string, any>>({});
   const [actionUpdates, setActionUpdates] = useState<Record<string, any[]>>({});
   const [loadingFeedback, setLoadingFeedback] = useState<Set<string>>(new Set());
@@ -130,10 +143,12 @@ export default function MyReportsScreen() {
   const [showAppealModal, setShowAppealModal] = useState(false);
   const [appealMessage, setAppealMessage] = useState("");
   const [submittingAppeal, setSubmittingAppeal] = useState(false);
+  const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerUrls, setViewerUrls] = useState<string[]>([]);
+  const [viewerIndex, setViewerIndex] = useState(0);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
-  const expandAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadReports();
@@ -154,6 +169,7 @@ export default function MyReportsScreen() {
       if (!userId) { setError("Not logged in. Please sign in to view your reports."); return; }
       const data = await fetchResidentReports(userId);
       setReports(data);
+      data.forEach((r: any) => loadReportDetails(r.id));
       Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
     } catch (e: any) {
       setError(e.message || "Failed to load reports.");
@@ -161,19 +177,6 @@ export default function MyReportsScreen() {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  };
-
-  const toggleExpand = (id: string) => {
-    expandAnim.setValue(0);
-    const isCollapsing = expandedReportId === id;
-    setExpandedReportId(isCollapsing ? null : id);
-    if (isCollapsing) {
-      const sub = subscriptionsRef.current[id];
-      if (sub) { supabase.removeChannel(sub); delete subscriptionsRef.current[id]; }
-      return;
-    }
-    Animated.spring(expandAnim, { toValue: 1, friction: 8, tension: 40, useNativeDriver: true }).start();
-    loadReportDetails(id);
   };
 
   const loadReportDetails = async (reportId: string) => {
@@ -249,7 +252,6 @@ export default function MyReportsScreen() {
     const statusMeta = STATUS_META[status] ?? STATUS_META["pending"];
     const crimeIcon = CRIME_ICONS[item.crime_type] ?? "alert-circle";
     const crimeColor = CRIME_COLORS[item.crime_type] ?? "#64748B";
-    const isExpanded = expandedReportId === item.id;
 
     return (
       <Animated.View
@@ -266,11 +268,7 @@ export default function MyReportsScreen() {
           },
         ]}
       >
-        <TouchableOpacity
-          activeOpacity={0.95}
-          onPress={() => toggleExpand(item.id)}
-          style={styles.card}
-        >
+        <View style={styles.card}>
           <View style={styles.cardInner}>
             {/* Card Header */}
             <View style={styles.cardHeader}>
@@ -297,217 +295,184 @@ export default function MyReportsScreen() {
               </View>
             </View>
 
-            {/* Quick preview when collapsed */}
-            {!isExpanded && !!item.description && (
-              <Text style={styles.descriptionCollapsed} numberOfLines={2}>
-                {item.description}
-              </Text>
+            <View style={styles.divider} />
+
+            {/* Description */}
+            {!!item.description && (
+              <View style={styles.expandedBlock}>
+                <Text style={styles.blockLabel}>Description</Text>
+                <Text style={styles.blockText}>{item.description}</Text>
+              </View>
             )}
 
-            {/* Evidence thumbnail when collapsed */}
-            {!isExpanded && !!item.photo_url && (
-              <View style={styles.collapsedEvidenceThumb}>
-                <Image source={{ uri: item.photo_url }} style={styles.collapsedEvidenceImage} resizeMode="cover" />
-                <View style={styles.collapsedEvidenceOverlay}>
-                  <Ionicons name="image-outline" size={14} color="#fff" />
-                  <Text style={styles.collapsedEvidenceLabel}>Evidence</Text>
+            {/* Evidence */}
+            {!!item.photo_url && (() => {
+              const evidenceUrls = parseEvidenceUrls(item.photo_url);
+              if (evidenceUrls.length === 0) return null;
+              return (
+                <View style={styles.expandedBlock}>
+                  <Text style={styles.blockLabel}>Evidence ({evidenceUrls.length})</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={{ flexDirection: "row", gap: 8 }}>
+                      {evidenceUrls.map((url: string, idx: number) => (
+                        <TouchableOpacity
+                          key={idx}
+                          activeOpacity={0.8}
+                          onPress={() => {
+                            setViewerUrls(evidenceUrls);
+                            setViewerIndex(idx);
+                            setViewerVisible(true);
+                          }}
+                          style={styles.imageFrame}
+                        >
+                          {isVideoUrl(url) ? (
+                            <View style={[styles.evidenceImage, { backgroundColor: "#1E293B", justifyContent: "center", alignItems: "center" }]}>
+                              <Ionicons name="play-circle" size={32} color="#fff" />
+                            </View>
+                          ) : (
+                            <Image source={{ uri: url }} style={styles.evidenceImage} resizeMode="cover" />
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </View>
+              );
+            })()}
+
+            {/* Location - Map instead of coordinates */}
+            {item.latitude !== undefined && item.longitude !== undefined ? (
+              <View style={styles.expandedBlock}>
+                <Text style={styles.blockLabel}>Location</Text>
+                {!!item.location_address && (
+                  <View style={styles.locationAddressRow}>
+                    <Ionicons name="location" size={14} color="#3B82F6" />
+                    <Text style={styles.locationAddressText}>{item.location_address}</Text>
+                  </View>
+                )}
+                <View style={styles.mapContainer}>
+                  <MapView
+                    style={styles.map}
+                    initialRegion={{
+                      latitude: item.latitude,
+                      longitude: item.longitude,
+                      latitudeDelta: 0.01,
+                      longitudeDelta: 0.01,
+                    }}
+                    mapStyle={mapStyle}
+                    scrollEnabled={false}
+                    zoomEnabled={false}
+                    pointerEvents="none"
+                  >
+                    <UrlTile urlTemplate={tileUrl} />
+                    <Marker
+                      coordinate={{ latitude: item.latitude, longitude: item.longitude }}
+                      pinColor={crimeColor}
+                      title={item.crime_type ? item.crime_type.split("-").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : "Incident"}
+                    />
+                  </MapView>
+                </View>
+              </View>
+            ) : !!item.location_address ? (
+              <View style={styles.expandedBlock}>
+                <Text style={styles.blockLabel}>Location</Text>
+                <View style={styles.locationAddressRow}>
+                  <Ionicons name="location" size={14} color="#3B82F6" />
+                  <Text style={styles.locationAddressText}>{item.location_address}</Text>
+                </View>
+              </View>
+            ) : null}
+
+            {/* Police Feedback */}
+            {loadingFeedback.has(item.id) ? (
+              <View style={styles.expandedBlock}>
+                <Text style={styles.blockLabel}>Police Response</Text>
+                <ActivityIndicator size="small" color="#8B5CF6" />
+              </View>
+            ) : reportFeedback[item.id] ? (
+              <View style={styles.feedbackBlock}>
+                <View style={styles.feedbackHeader}>
+                  <View style={styles.feedbackIconCircle}>
+                    <Ionicons name="shield-checkmark" size={14} color="#10B981" />
+                  </View>
+                  <Text style={styles.feedbackTitle}>Police Response</Text>
+                </View>
+                {reportFeedback[item.id].officer_name && (
+                  <View style={styles.feedbackRow}>
+                    <Ionicons name="person-outline" size={13} color="#059669" />
+                    <Text style={styles.feedbackValue}>{reportFeedback[item.id].officer_name}</Text>
+                  </View>
+                )}
+                {reportFeedback[item.id].response_message && (
+                  <View style={styles.feedbackRow}>
+                    <Ionicons name="chatbubble-outline" size={13} color="#059669" />
+                    <Text style={[styles.feedbackValue, { flex: 1 }]}>{reportFeedback[item.id].response_message}</Text>
+                  </View>
+                )}
+                {reportFeedback[item.id].estimated_arrival && (
+                  <View style={styles.feedbackRow}>
+                    <Ionicons name="time-outline" size={13} color="#059669" />
+                    <Text style={styles.feedbackValue}>ETA: {reportFeedback[item.id].estimated_arrival}</Text>
+                  </View>
+                )}
+                {reportFeedback[item.id].created_at && (
+                  <Text style={styles.feedbackTime}>{formatDate(reportFeedback[item.id].created_at)}</Text>
+                )}
+              </View>
+            ) : null}
+
+            {/* Action Timeline */}
+            {actionUpdates[item.id] && actionUpdates[item.id].length > 0 && (
+              <View style={styles.expandedBlock}>
+                <Text style={styles.blockLabel}>Action Timeline</Text>
+                <View style={styles.timelineContainer}>
+                  {actionUpdates[item.id].map((update, idx) => (
+                    <View key={idx} style={styles.timelineItem}>
+                      <View style={styles.timelineDot}>
+                        <View style={[styles.timelineDotInner, { backgroundColor: statusMeta.accent }]} />
+                      </View>
+                      {idx < actionUpdates[item.id].length - 1 && <View style={[styles.timelineLine, { backgroundColor: statusMeta.accent + "30" }]} />}
+                      <View style={styles.timelineContent}>
+                        <Text style={styles.updateTitle}>{update.action_type}</Text>
+                        {update.description && <Text style={styles.updateDescription}>{update.description}</Text>}
+                        <Text style={styles.updateTime}>{formatDate(update.created_at)}</Text>
+                      </View>
+                    </View>
+                  ))}
                 </View>
               </View>
             )}
 
-            {/* Live tracking badge when collapsed */}
-            {!isExpanded && status === "in-progress" && (
-              <TouchableOpacity
-                style={styles.liveBadgeRow}
-                onPress={() => {
-                  setExpandedReportId(item.id);
-                  router.push({ pathname: "/(tabs)/live-tracking" as any, params: { reportId: item.id } });
-                }}
-                activeOpacity={0.8}
-              >
-                <View style={styles.liveDot} />
-                <Text style={styles.liveBadgeText}>Live — Tap to track police</Text>
-                <Ionicons name="chevron-forward" size={14} color="#F4B51A" />
-              </TouchableOpacity>
-            )}
+            {/* Reference ID */}
+            <View style={styles.refRow}>
+              <Ionicons name="finger-print" size={12} color="#94A3B8" />
+              <Text style={styles.refText}>ID: {item.id?.toString().toUpperCase().slice(0, 8)}</Text>
+            </View>
 
-            {/* Expanded Content */}
-            {isExpanded && (
-              <Animated.View
-                style={[
-                  styles.expandedSection,
-                  {
-                    opacity: expandAnim,
-                    transform: [{
-                      translateY: expandAnim.interpolate({ inputRange: [0, 1], outputRange: [-10, 0] }),
-                    }],
-                  },
-                ]}
-              >
-                <View style={styles.divider} />
-
-                {/* Description */}
-                {!!item.description && (
-                  <View style={styles.expandedBlock}>
-                    <Text style={styles.blockLabel}>Description</Text>
-                    <Text style={styles.blockText}>{item.description}</Text>
-                  </View>
-                )}
-
-                {/* Evidence Image */}
-                {!!item.photo_url && (
-                  <View style={styles.expandedBlock}>
-                    <Text style={styles.blockLabel}>Evidence Photo</Text>
-                    <View style={styles.imageFrame}>
-                      <Image source={{ uri: item.photo_url }} style={styles.evidenceImage} resizeMode="cover" />
-                    </View>
-                  </View>
-                )}
-
-                {/* Location - Map instead of coordinates */}
-                {item.latitude !== undefined && item.longitude !== undefined ? (
-                  <View style={styles.expandedBlock}>
-                    <Text style={styles.blockLabel}>Location</Text>
-                    {!!item.location_address && (
-                      <View style={styles.locationAddressRow}>
-                        <Ionicons name="location" size={14} color="#3B82F6" />
-                        <Text style={styles.locationAddressText}>{item.location_address}</Text>
-                      </View>
-                    )}
-                    <View style={styles.mapContainer}>
-                      <MapView
-                        style={styles.map}
-                        initialRegion={{
-                          latitude: item.latitude,
-                          longitude: item.longitude,
-                          latitudeDelta: 0.01,
-                          longitudeDelta: 0.01,
-                        }}
-                        mapStyle={mapStyle}
-                        scrollEnabled={false}
-                        zoomEnabled={false}
-                        pointerEvents="none"
-                      >
-                        <UrlTile urlTemplate={tileUrl} />
-                        <Marker
-                          coordinate={{ latitude: item.latitude, longitude: item.longitude }}
-                          pinColor={crimeColor}
-                          title={item.crime_type ? item.crime_type.split("-").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : "Incident"}
-                        />
-                      </MapView>
-                    </View>
-                  </View>
-                ) : !!item.location_address ? (
-                  <View style={styles.expandedBlock}>
-                    <Text style={styles.blockLabel}>Location</Text>
-                    <View style={styles.locationAddressRow}>
-                      <Ionicons name="location" size={14} color="#3B82F6" />
-                      <Text style={styles.locationAddressText}>{item.location_address}</Text>
-                    </View>
-                  </View>
-                ) : null}
-
-                {/* Police Feedback */}
-                {loadingFeedback.has(item.id) ? (
-                  <View style={styles.expandedBlock}>
-                    <Text style={styles.blockLabel}>Police Response</Text>
-                    <ActivityIndicator size="small" color="#8B5CF6" />
-                  </View>
-                ) : reportFeedback[item.id] ? (
-                  <View style={styles.feedbackBlock}>
-                    <View style={styles.feedbackHeader}>
-                      <View style={styles.feedbackIconCircle}>
-                        <Ionicons name="shield-checkmark" size={14} color="#10B981" />
-                      </View>
-                      <Text style={styles.feedbackTitle}>Police Response</Text>
-                    </View>
-                    {reportFeedback[item.id].officer_name && (
-                      <View style={styles.feedbackRow}>
-                        <Ionicons name="person-outline" size={13} color="#059669" />
-                        <Text style={styles.feedbackValue}>{reportFeedback[item.id].officer_name}</Text>
-                      </View>
-                    )}
-                    {reportFeedback[item.id].response_message && (
-                      <View style={styles.feedbackRow}>
-                        <Ionicons name="chatbubble-outline" size={13} color="#059669" />
-                        <Text style={[styles.feedbackValue, { flex: 1 }]}>{reportFeedback[item.id].response_message}</Text>
-                      </View>
-                    )}
-                    {reportFeedback[item.id].estimated_arrival && (
-                      <View style={styles.feedbackRow}>
-                        <Ionicons name="time-outline" size={13} color="#059669" />
-                        <Text style={styles.feedbackValue}>ETA: {reportFeedback[item.id].estimated_arrival}</Text>
-                      </View>
-                    )}
-                    {reportFeedback[item.id].created_at && (
-                      <Text style={styles.feedbackTime}>{formatDate(reportFeedback[item.id].created_at)}</Text>
-                    )}
-                  </View>
-                ) : null}
-
-                {/* Action Timeline */}
-                {actionUpdates[item.id] && actionUpdates[item.id].length > 0 && (
-                  <View style={styles.expandedBlock}>
-                    <Text style={styles.blockLabel}>Action Timeline</Text>
-                    <View style={styles.timelineContainer}>
-                      {actionUpdates[item.id].map((update, idx) => (
-                        <View key={idx} style={styles.timelineItem}>
-                          <View style={styles.timelineDot}>
-                            <View style={[styles.timelineDotInner, { backgroundColor: statusMeta.accent }]} />
-                          </View>
-                          {idx < actionUpdates[item.id].length - 1 && <View style={[styles.timelineLine, { backgroundColor: statusMeta.accent + "30" }]} />}
-                          <View style={styles.timelineContent}>
-                            <Text style={styles.updateTitle}>{update.action_type}</Text>
-                            {update.description && <Text style={styles.updateDescription}>{update.description}</Text>}
-                            <Text style={styles.updateTime}>{formatDate(update.created_at)}</Text>
-                          </View>
-                        </View>
-                      ))}
-                    </View>
-                  </View>
-                )}
-
-                {/* Reference ID */}
-                <View style={styles.refRow}>
-                  <Ionicons name="finger-print" size={12} color="#94A3B8" />
-                  <Text style={styles.refText}>ID: {item.id?.toString().toUpperCase().slice(0, 8)}</Text>
-                </View>
-
-                {/* Action Buttons */}
-                <View style={styles.actionButtons}>
-                  {status === "in-progress" && (
-                    <TouchableOpacity
-                      style={styles.trackBtn}
-                      onPress={() => router.push({ pathname: "/(tabs)/live-tracking" as any, params: { reportId: item.id } })}
-                    >
-                      <View style={styles.trackLiveDot} />
-                      <Ionicons name="navigate" size={18} color="#fff" />
-                      <Text style={styles.trackBtnText}>Track Police</Text>
-                    </TouchableOpacity>
-                  )}
-                  {status !== "cancelled" && status !== "resolved" && status !== "dismissed" && (
-                    <TouchableOpacity
-                      style={styles.cancelBtn}
-                      onPress={() => { setCancellingReport(item); setShowCancelModal(true); }}
-                    >
-                      <Ionicons name="close-circle-outline" size={15} color="#EF4444" />
-                      <Text style={styles.cancelBtnText}>Cancel Report</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-              </Animated.View>
-            )}
-
-            {/* Expand indicator */}
-            <View style={styles.expandIndicator}>
-              <Ionicons
-                name={isExpanded ? "chevron-up" : "chevron-down"}
-                size={14}
-                color="#CBD5E1"
-              />
+            {/* Action Buttons */}
+            <View style={styles.actionButtons}>
+              {status === "in-progress" && (
+                <TouchableOpacity
+                  style={styles.trackBtn}
+                  onPress={() => router.push({ pathname: "/(tabs)/live-tracking" as any, params: { reportId: item.id } })}
+                >
+                  <View style={styles.trackLiveDot} />
+                  <Ionicons name="navigate" size={18} color="#fff" />
+                  <Text style={styles.trackBtnText}>Track Police</Text>
+                </TouchableOpacity>
+              )}
+              {status !== "cancelled" && status !== "resolved" && status !== "dismissed" && (
+                <TouchableOpacity
+                  style={styles.cancelBtn}
+                  onPress={() => { setCancellingReport(item); setShowCancelModal(true); }}
+                >
+                  <Ionicons name="close-circle-outline" size={15} color="#EF4444" />
+                  <Text style={styles.cancelBtnText}>Cancel Report</Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
-        </TouchableOpacity>
+        </View>
       </Animated.View>
     );
   };
@@ -576,7 +541,7 @@ export default function MyReportsScreen() {
               return (
                 <TouchableOpacity
                   key={f.id}
-                  onPress={() => { setSelectedFilter(f.id); setExpandedReportId(null); }}
+                  onPress={() => setSelectedFilter(f.id)}
                   style={[styles.filterPill, isActive && styles.filterPillActive]}
                   activeOpacity={0.8}
                 >
@@ -774,6 +739,46 @@ export default function MyReportsScreen() {
               </TouchableOpacity>
             </View>
           </View>
+        </View>
+      </Modal>
+
+      {/* Evidence Viewer Modal */}
+      <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
+        <View style={styles.viewerOverlay}>
+          <StatusBar backgroundColor="rgba(0,0,0,0.95)" barStyle="light-content" />
+          <TouchableOpacity style={styles.viewerCloseBtn} onPress={() => setViewerVisible(false)}>
+            <Ionicons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.viewerCounter}>
+            {viewerIndex + 1} / {viewerUrls.length}
+          </Text>
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            contentOffset={{ x: viewerIndex * SCREEN_WIDTH, y: 0 }}
+            onMomentumScrollEnd={(e) => {
+              const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+              setViewerIndex(idx);
+            }}
+            style={styles.viewerScroll}
+          >
+            {viewerUrls.map((url: string, idx: number) => (
+              <View key={idx} style={styles.viewerPage}>
+                {isVideoUrl(url) ? (
+                  <Video
+                    source={{ uri: url }}
+                    style={styles.viewerVideo}
+                    useNativeControls
+                    resizeMode={ResizeMode.CONTAIN}
+                    shouldPlay={idx === viewerIndex}
+                  />
+                ) : (
+                  <Image source={{ uri: url }} style={styles.viewerImage} resizeMode="contain" />
+                )}
+              </View>
+            ))}
+          </ScrollView>
         </View>
       </Modal>
     </View>
@@ -1137,6 +1142,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
     height: 180,
+    width: 180,
   },
   evidenceImage: {
     width: "100%",
@@ -1405,5 +1411,71 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     marginBottom: 16,
     lineHeight: 20,
+  },
+  viewerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  viewerCloseBtn: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 50 : 30,
+    right: 16,
+    zIndex: 10,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  viewerCounter: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 55 : 35,
+    left: 0,
+    right: 0,
+    textAlign: "center",
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    zIndex: 10,
+  },
+  viewerScroll: {
+    flex: 1,
+    width: "100%",
+  },
+  viewerPage: {
+    width: SCREEN_WIDTH,
+    height: "100%",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  viewerImage: {
+    width: SCREEN_WIDTH - 20,
+    height: "80%",
+  },
+  viewerVideo: {
+    width: SCREEN_WIDTH - 20,
+    height: "60%",
+  },
+  videoContainer: {
+    width: SCREEN_WIDTH - 40,
+    height: "60%",
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#1E293B",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  videoPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10,
+  },
+  videoLabel: {
+    color: "#94A3B8",
+    fontSize: 14,
+    fontWeight: "500",
   },
 });

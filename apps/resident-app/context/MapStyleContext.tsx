@@ -17,7 +17,7 @@ interface MapStyleContextType {
 const MapStyleContext = createContext<MapStyleContextType | undefined>(undefined);
 
 export const MapStyleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [mapStyle, setMapStyle] = useState<MapStyle>("light");
+  const [mapStyle, setMapStyle] = useState<MapStyle>("satellite");
   return (
     <MapStyleContext.Provider value={{ tileUrl: TILE_URLS[mapStyle], mapStyle, setMapStyle }}>
       {children}

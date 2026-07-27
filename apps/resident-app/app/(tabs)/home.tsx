@@ -49,7 +49,7 @@ export default function HomeScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [policeNumber, setPoliceNumber] = useState<string | null>("117");
-  const [stats, setStats] = useState({ total: 0, pending: 0, resolved: 0 });
+  const [stats, setStats] = useState({ total: 0, pending: 0, active: 0, resolved: 0 });
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -91,6 +91,7 @@ export default function HomeScreen() {
 
   useFocusEffect(
     React.useCallback(() => {
+      loadData();
       setShowPhoneTip(true);
       phoneTipAnim.setValue(0);
       Animated.timing(phoneTipAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
@@ -114,6 +115,11 @@ export default function HomeScreen() {
 
       const mainChannel = supabase
         .channel("rhs-" + id)
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "crime_reports", filter: `resident_id=eq.${userId}` },
+          () => loadData(),
+        )
         .on(
           "postgres_changes",
           { event: "UPDATE", schema: "public", table: "crime_reports", filter: `resident_id=eq.${userId}` },
@@ -397,6 +403,8 @@ export default function HomeScreen() {
         total: reportsData.data.length,
         pending: reportsData.data.filter((r: any) => r.status === "pending")
           .length,
+        active: reportsData.data.filter((r: any) => r.status === "in-progress")
+          .length,
         resolved: reportsData.data.filter((r: any) => r.status === "resolved")
           .length,
       });
@@ -655,6 +663,11 @@ export default function HomeScreen() {
                 <View style={styles.combinedStatItem}>
                   <Text style={[styles.combinedStatNumber, { color: "#D97706" }]}>{stats.pending}</Text>
                   <Text style={styles.combinedStatLabel}>Pending</Text>
+                </View>
+                <View style={styles.combinedDivider} />
+                <View style={styles.combinedStatItem}>
+                  <Text style={[styles.combinedStatNumber, { color: "#7C3AED" }]}>{stats.active}</Text>
+                  <Text style={styles.combinedStatLabel}>Active</Text>
                 </View>
                 <View style={styles.combinedDivider} />
                 <View style={styles.combinedStatItem}>
