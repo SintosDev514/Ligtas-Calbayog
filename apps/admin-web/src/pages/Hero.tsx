@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -6,7 +6,6 @@ import { useGSAP } from "@gsap/react";
 import {
   Shield,
   Radio,
-  ShieldCheck,
   LogIn,
   ArrowRight,
   Eye,
@@ -15,13 +14,13 @@ import {
   BarChart3,
   AlertTriangle,
   Clock,
-  Activity,
   Info,
   Mail,
   Phone,
   Smartphone,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { supabase } from "../supabase";
 
 gsap.registerPlugin(ScrollTrigger, useGSAP);
 
@@ -44,11 +43,33 @@ export default function Hero() {
   const navigate = useNavigate();
   const rootRef = useRef<HTMLDivElement>(null);
 
+  const [contactInfo, setContactInfo] = useState({
+    email: "",
+    phone: "911",
+  });
+
   useEffect(() => {
     if (!isLoading && isAdmin) {
       navigate("/dashboard", { replace: true });
     }
   }, [isAdmin, isLoading, navigate]);
+
+  useEffect(() => {
+    supabase
+      .from("station_settings")
+      .select("*")
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setContactInfo({
+            email: data.contact_email || contactInfo.email,
+            phone: data.police_phone || contactInfo.phone,
+          });
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useGSAP(
     () => {
@@ -67,12 +88,6 @@ export default function Hero() {
             { y: 46, opacity: 0, scale: 0.96 },
             { y: 0, opacity: 1, scale: 1, duration: 0.85 },
             "-=0.35"
-          )
-          .fromTo(
-            ".hp-chip",
-            { opacity: 0, scale: 0.9 },
-            { opacity: 1, scale: 1, duration: 0.45 },
-            "-=0.5"
           )
           .fromTo(
             ".hp-headline",
@@ -140,6 +155,22 @@ export default function Hero() {
           },
         });
 
+        // Mobile about intro reveal (below hero card)
+        gsap.fromTo(
+          ".hp-hero-about-head",
+          { opacity: 0, y: 30 },
+          {
+            opacity: 1,
+            y: 0,
+            duration: 0.7,
+            ease: "power3.out",
+            scrollTrigger: {
+              trigger: ".hp-hero-about-head",
+              start: "top 90%",
+            },
+          }
+        );
+
         // About section reveals
         gsap.fromTo(
           ".hp-about .hp-chip",
@@ -174,18 +205,35 @@ export default function Hero() {
             scrollTrigger: { trigger: ".hp-about", start: "top 70%" },
           }
         );
+        // About cards — interactive scroll scrub (staggered lift + slight parallax drift)
         gsap.fromTo(
           ".hp-about-card",
-          { opacity: 0, y: 46 },
+          { opacity: 0, y: 80, rotationX: -10, scale: 0.94 },
           {
             opacity: 1,
             y: 0,
-            duration: 0.65,
-            stagger: 0.12,
-            ease: "power3.out",
-            scrollTrigger: { trigger: ".hp-about-grid", start: "top 82%" },
+            rotationX: 0,
+            scale: 1,
+            stagger: 0.16,
+            ease: "none",
+            scrollTrigger: {
+              trigger: ".hp-about-grid",
+              start: "top 85%",
+              end: "top 30%",
+              scrub: true,
+            },
           }
         );
+        gsap.to(".hp-about-grid", {
+          y: -40,
+          ease: "none",
+          scrollTrigger: {
+            trigger: ".hp-about-grid",
+            start: "top 80%",
+            end: "bottom top",
+            scrub: true,
+          },
+        });
 
         // Contact section reveals
         gsap.fromTo(
@@ -299,12 +347,6 @@ export default function Hero() {
         {/* Main content — bottom-left anchored */}
         <div className="hp-main">
           <div className="hp-glass">
-            {/* Tagline chip */}
-            <div className="hp-chip">
-              <Activity size={12} />
-              Emergency Response Command System
-            </div>
-
             <h1 className="hp-headline">
               <span className="hp-headline-thin">Ligtas</span>
               <br />
@@ -321,10 +363,10 @@ export default function Hero() {
 
             {/* CTA Row */}
             <div className="hp-cta-row">
-              <button className="hp-cta" onClick={() => window.open("https://play.google.com/store/apps/details?id=com.ligtascalbayog", "_blank")}>
+              <a className="hp-cta" href="/apk/resident-app-litascalbayog.apk" download>
                 <span>Download Resident App — Ligtas Calbayog</span>
                 <ArrowRight size={16} />
-              </button>
+              </a>
             </div>
 
             {/* Mini stat cards */}
@@ -347,15 +389,6 @@ export default function Hero() {
                   <span className="hp-mini-stat-label">Patrol Tracking</span>
                 </div>
               </div>
-              <div className="hp-mini-stat">
-                <div className="hp-mini-stat-icon hp-mini-stat-icon--green">
-                  <ShieldCheck size={14} />
-                </div>
-                <div>
-                  <span className="hp-mini-stat-val">Verified</span>
-                  <span className="hp-mini-stat-label">Report Handling</span>
-                </div>
-              </div>
             </div>
           </div>
 
@@ -363,7 +396,7 @@ export default function Hero() {
           <div className="hp-features">
             {[
               { icon: Radio, label: "Real-Time Dispatch", color: "#3b82f6" },
-              { icon: Eye, label: "Crime Heatmaps", color: "#8b5cf6" },
+              { icon: Eye, label: "Crime Heatmaps", color: "#60a5fa" },
               { icon: Users, label: "Officer Management", color: "#10b981" },
               { icon: BarChart3, label: "Performance Analytics", color: "#f59e0b" },
               { icon: Clock, label: "Response Time Tracking", color: "#ef4444" },
@@ -380,11 +413,9 @@ export default function Hero() {
             ))}
           </div>
         </div>
-      </section>
 
-      {/* About */}
-      <section id="about" className="hp-section hp-about">
-        <div className="hp-section-inner">
+        {/* About intro — shown below hero card on mobile to fill black space */}
+        <div className="hp-hero-about-head">
           <div className="hp-chip">
             <Info size={12} />
             About
@@ -397,6 +428,26 @@ export default function Hero() {
             into one coordinated emergency response platform. Every report is
             logged, every response is tracked, and every barangay stays connected.
           </p>
+        </div>
+      </section>
+
+      {/* About */}
+      <section id="about" className="hp-section hp-about">
+        <div className="hp-section-inner">
+          <div className="hp-about-head">
+            <div className="hp-chip">
+              <Info size={12} />
+              About
+            </div>
+            <h2 className="hp-section-title">
+              Built to Keep <span className="hp-section-title-accent">Calbayog Safe</span>
+            </h2>
+            <p className="hp-section-desc">
+              Ligtas Calbayog unifies residents, police patrols, and administrators
+              into one coordinated emergency response platform. Every report is
+              logged, every response is tracked, and every barangay stays connected.
+            </p>
+          </div>
           <div className="hp-about-grid">
             <div className="hp-about-card">
               <div className="hp-about-icon hp-about-icon--green">
@@ -419,7 +470,7 @@ export default function Hero() {
               </p>
             </div>
             <div className="hp-about-card">
-              <div className="hp-about-icon hp-about-icon--purple">
+              <div className="hp-about-icon hp-about-icon--blue">
                 <BarChart3 size={18} />
               </div>
               <h3>For Administrators</h3>
@@ -452,17 +503,21 @@ export default function Hero() {
                 <Mail size={18} />
               </div>
               <span className="hp-contact-label">Email</span>
-              <a className="hp-contact-value" href="mailto:sintosroberto3@gmail.com">
-                sintosroberto3@gmail.com
-              </a>
+              {contactInfo.email ? (
+                <a className="hp-contact-value" href={`mailto:${contactInfo.email}`}>
+                  {contactInfo.email}
+                </a>
+              ) : (
+                <span className="hp-contact-value">Set contact email in Admin Settings</span>
+              )}
             </div>
             <div className="hp-contact-card">
               <div className="hp-contact-icon">
                 <Phone size={18} />
               </div>
               <span className="hp-contact-label">Hotline</span>
-              <a className="hp-contact-value" href="tel:911">
-                911 — Calbayog Police
+              <a className="hp-contact-value" href={`tel:${contactInfo.phone}`}>
+                {contactInfo.phone} — Calbayog Police
               </a>
             </div>
             <div className="hp-contact-card">
@@ -480,10 +535,6 @@ export default function Hero() {
 
       {/* Footer */}
       <footer className="hp-footer">
-        <div className="hp-footer-left">
-          <span className="hp-footer-dot" />
-          System Operational
-        </div>
         <div className="hp-footer-right">
           <a
             href="https://github.com/SintosDev514"
@@ -494,8 +545,6 @@ export default function Hero() {
             <GithubIcon size={14} />
             SintosDev514
           </a>
-          <span className="hp-footer-sep">·</span>
-          <span>PNP Calbayog — Administrative Portal v1.0</span>
         </div>
       </footer>
     </div>

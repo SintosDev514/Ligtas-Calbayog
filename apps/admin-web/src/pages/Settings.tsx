@@ -86,6 +86,7 @@ export default function Settings() {
   const [theme, setThemeState] = useState<"light" | "dark">(getTheme);
   const [stationName, setStationName] = useState("PNP Calbayog");
   const [policePhone, setPolicePhone] = useState("117");
+  const [contactEmail, setContactEmail] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -120,6 +121,7 @@ export default function Settings() {
       if (data) {
         setStationName(data.station_name || "PNP Calbayog");
         setPolicePhone(data.police_phone || "117");
+        setContactEmail(data.contact_email || "");
         setProfileImage(data.profile_image_url || null);
       }
     } catch (err: any) {
@@ -214,13 +216,13 @@ export default function Settings() {
       if (existing) {
         const { error } = await supabase
           .from("station_settings")
-          .update({ station_name: stationName, police_phone: policePhone, updated_at: new Date().toISOString() })
+          .update({ station_name: stationName, police_phone: policePhone, contact_email: contactEmail, updated_at: new Date().toISOString() })
           .eq("id", existing.id);
         if (error) throw error;
       } else {
         const { error } = await supabase
           .from("station_settings")
-          .insert({ station_name: stationName, police_phone: policePhone, profile_image_url: profileImage });
+          .insert({ station_name: stationName, police_phone: policePhone, contact_email: contactEmail, profile_image_url: profileImage });
         if (error) throw error;
       }
 
@@ -393,6 +395,25 @@ export default function Settings() {
                     />
                     <div style={{ fontSize: 12, color: "var(--gray-500)", marginTop: 6 }}>
                       This number appears on the messages screen PNP card for emergency calls.
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: "1px solid var(--gray-100)", paddingTop: 16, marginTop: 16 }}>
+                    <label style={{ fontSize: 14, fontWeight: 500, display: "block", marginBottom: 8, color: "var(--gray-800)" }}>
+                      Contact Email
+                    </label>
+                    <input
+                      type="email"
+                      value={contactEmail}
+                      onChange={(e) => setContactEmail(e.target.value)}
+                      style={{
+                        width: "100%", padding: "10px 14px", fontSize: 14,
+                        border: "1.5px solid var(--gray-300)", borderRadius: "var(--radius-md)",
+                        background: "transparent", color: "var(--gray-700)",
+                      }}
+                    />
+                    <div style={{ fontSize: 12, color: "var(--gray-500)", marginTop: 6 }}>
+                      This email appears on the landing page contact section.
                     </div>
                   </div>
                 </div>
