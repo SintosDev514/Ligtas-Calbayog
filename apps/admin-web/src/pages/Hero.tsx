@@ -363,7 +363,12 @@ export default function Hero() {
 
             {/* CTA Row */}
             <div className="hp-cta-row">
-              <a className="hp-cta" href="/apk/resident-app-litascalbayog.apk" download>
+              <a
+                className="hp-cta"
+                href="https://github.com/SintosDev514/Ligtas-Calbayog/releases/latest/download/resident-app-litascalbayog.apk"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <span>Download Resident App — Ligtas Calbayog</span>
                 <ArrowRight size={16} />
               </a>
