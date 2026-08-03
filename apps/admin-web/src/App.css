@@ -4510,6 +4510,8 @@ tr.clickable-row:hover td {
   align-items: center;
   gap: 12px;
   color: #fff;
+  text-decoration: none;
+  cursor: pointer;
 }
 
 .hp-topbar-left {
@@ -4661,19 +4663,22 @@ tr.clickable-row:hover td {
 }
 
 .hp-headline {
-  font-size: 42px;
-  line-height: 1.1;
+  font-family: "Montserrat", "Segoe UI", sans-serif;
+  font-weight: 700;
+  font-size: 44px;
+  line-height: 1.05;
   margin-bottom: 16px;
-  letter-spacing: -1.5px;
+  letter-spacing: -0.5px;
+  text-transform: uppercase;
 }
 
 .hp-headline-thin {
-  font-weight: 300;
-  color: rgba(255, 255, 255, 0.55);
+  font-weight: 700;
+  color: #fff;
 }
 
 .hp-headline-bold {
-  font-weight: 900;
+  font-weight: 800;
   color: #fff;
   background: linear-gradient(135deg, #fff 30%, #60a5fa 100%);
   -webkit-background-clip: text;
@@ -4697,48 +4702,68 @@ tr.clickable-row:hover td {
   border-radius: 8px;
   text-transform: uppercase;
   font-style: normal;
-  font-weight: 400;
+  font-weight: 500;
   text-decoration: none;
-  padding-left: 25px;
-  padding-right: 25px;
+  padding: 10px 18px;
   color: #fff;
-  height: 40px;
-  font-size: 0.7rem;
-  line-height: 14px;
-  letter-spacing: 1.2px;
-  transition: all 0.3s ease-in;
+  font-size: 13px;
+  letter-spacing: 0.05em;
+  transition: all 0.2s;
   background-image: linear-gradient(90deg, #172554, #1e40af);
-  border: 0 solid;
-  overflow: hidden;
+  border: none;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   position: relative;
   font-family: inherit;
+  box-shadow: 0 0.7em 1.5em -0.5em rgba(30, 64, 175, 0.5);
+  line-height: 1;
+}
+
+.hp-cta svg {
+  margin-right: 8px;
+  width: 18px;
+  height: auto;
+  transition: transform 0.25s ease;
 }
 
 .hp-cta::before {
-  display: none;
+  content: "";
+  width: 4px;
+  height: 40%;
+  background-color: white;
+  position: absolute;
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+  left: 0;
+  transition: all 0.2s;
+}
+
+.hp-cta::after {
+  content: "";
+  width: 4px;
+  height: 40%;
+  background-color: white;
+  position: absolute;
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  right: 0;
+  transition: all 0.2s;
+}
+
+.hp-cta:hover::before,
+.hp-cta:hover::after {
+  height: 60%;
 }
 
 .hp-cta:hover {
   cursor: pointer;
-  transition: all 0.3s ease-in;
-  padding-right: 30px;
-  padding-left: 30px;
+  box-shadow: 0 0.5em 1.5em -0.5em rgba(37, 99, 235, 0.6);
 }
 
 .hp-cta:active {
   transform: scale(0.97);
-}
-
-.hp-cta svg {
-  transition: transform 0.25s ease;
-}
-
-.hp-cta:hover svg {
-  transform: translateX(3px);
+  box-shadow: 0 0.3em 1em -0.5em rgba(37, 99, 235, 0.6);
 }
 
 /* Mini stat cards */
@@ -5161,7 +5186,11 @@ tr.clickable-row:hover td {
   .hp-section-desc {
     margin: 0 auto 10px;
   }
-  .hp-topbar-nav {
+  .hp-topbar-nav a {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  .hp-topbar-login {
     display: none;
   }
 }

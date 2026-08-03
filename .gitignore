@@ -2,3 +2,16 @@
 apps/admin-web/apk/
 *.apk
 node_modules
+
+# environment & secrets
+.env
+.env.*
+!.env.example
+
+# build output
+dist/
+build/
+
+# expo & editor
+.expo/
+.vscode/

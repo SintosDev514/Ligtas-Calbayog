@@ -4,16 +4,11 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import {
-  Shield,
   Radio,
   LogIn,
-  ArrowRight,
-  Eye,
   MapPin,
-  Users,
   BarChart3,
   AlertTriangle,
-  Clock,
   Info,
   Mail,
   Phone,
@@ -205,25 +200,46 @@ export default function Hero() {
             scrollTrigger: { trigger: ".hp-about", start: "top 70%" },
           }
         );
-        // About cards — interactive scroll scrub (staggered lift + slight parallax drift)
-        gsap.fromTo(
-          ".hp-about-card",
-          { opacity: 0, y: 80, rotationX: -10, scale: 0.94 },
-          {
-            opacity: 1,
-            y: 0,
-            rotationX: 0,
-            scale: 1,
-            stagger: 0.16,
-            ease: "none",
-            scrollTrigger: {
-              trigger: ".hp-about-grid",
-              start: "top 85%",
-              end: "top 30%",
-              scrub: true,
-            },
-          }
-        );
+        // About cards — desktop: slide up from bottom; mobile: alternating left/right slide
+        const mmAbout = gsap.matchMedia();
+
+        mmAbout.add("(min-width: 901px)", () => {
+          gsap.fromTo(
+            ".hp-about-card",
+            { opacity: 0, y: 80 },
+            {
+              opacity: 1,
+              y: 0,
+              stagger: 0.16,
+              ease: "none",
+              scrollTrigger: {
+                trigger: ".hp-about-grid",
+                start: "top 85%",
+                end: "top 30%",
+                scrub: true,
+              },
+            }
+          );
+        });
+
+        mmAbout.add("(max-width: 900px)", () => {
+          gsap.fromTo(
+            ".hp-about-card",
+            { opacity: 0, x: (i: number) => (i % 2 === 0 ? -120 : 120) },
+            {
+              opacity: 1,
+              x: 0,
+              stagger: 0.16,
+              ease: "none",
+              scrollTrigger: {
+                trigger: ".hp-about-grid",
+                start: "top 85%",
+                end: "top 30%",
+                scrub: true,
+              },
+            }
+          );
+        });
         gsap.to(".hp-about-grid", {
           y: -40,
           ease: "none",
@@ -309,7 +325,7 @@ export default function Hero() {
   return (
     <div className="hp" ref={rootRef}>
       {/* Hero — full screen */}
-      <section className="hp-hero">
+      <section id="hero" className="hp-hero">
         {/* Full-screen background */}
         <div className="hp-3d">
           <img
@@ -326,13 +342,13 @@ export default function Hero() {
         {/* Top bar */}
         <header className="hp-topbar">
           <div className="hp-topbar-left">
-            <div className="hp-topbar-brand">
+            <a className="hp-topbar-brand" href="#hero">
               <img src="/logo-police.png" alt="PNP Logo" className="hp-topbar-logo" />
               <div className="hp-topbar-brand-text">
                 <span className="hp-topbar-name">Ligtas Calbayog</span>
                 <span className="hp-topbar-sub">PNP Command Center</span>
               </div>
-            </div>
+            </a>
             <nav className="hp-topbar-nav">
               <a href="#about">About</a>
               <a href="#contact">Contact</a>
@@ -369,8 +385,17 @@ export default function Hero() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <span>Download Resident App — Ligtas Calbayog</span>
-                <ArrowRight size={16} />
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  height="16"
+                  width="20"
+                  viewBox="0 0 640 512"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M144 480C64.5 480 0 415.5 0 336c0-62.8 40.2-116.2 96.2-135.9c-.1-2.7-.2-5.4-.2-8.1c0-88.4 71.6-160 160-160c59.3 0 111 32.2 138.7 80.2C409.9 102 428.3 96 448 96c53 0 96 43 96 96c0 12.2-2.3 23.8-6.4 34.6C596 238.4 640 290.1 640 352c0 70.7-57.3 128-128 128H144zm79-167l80 80c9.4 9.4 24.6 9.4 33.9 0l80-80c9.4-9.4 9.4-24.6 0-33.9s-24.6-9.4-33.9 0l-39 39V184c0-13.3-10.7-24-24-24s-24 10.7-24 24V318.1l-39-39c-9.4-9.4-24.6-9.4-33.9 0s-9.4 24.6 0 33.9z" />
+                </svg>
+                <span>Download Ligtas Calbayog</span>
               </a>
             </div>
 
@@ -395,27 +420,6 @@ export default function Hero() {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Feature strip on the right edge of glass */}
-          <div className="hp-features">
-            {[
-              { icon: Radio, label: "Real-Time Dispatch", color: "#3b82f6" },
-              { icon: Eye, label: "Crime Heatmaps", color: "#60a5fa" },
-              { icon: Users, label: "Officer Management", color: "#10b981" },
-              { icon: BarChart3, label: "Performance Analytics", color: "#f59e0b" },
-              { icon: Clock, label: "Response Time Tracking", color: "#ef4444" },
-              { icon: Shield, label: "Case Resolution", color: "#06b6d4" },
-            ].map((f, i) => (
-              <div className="hp-feat" key={i}>
-                <div
-                  className="hp-feat-dot"
-                  style={{ background: f.color, boxShadow: `0 0 8px ${f.color}60` }}
-                />
-                <f.icon size={13} style={{ color: f.color }} />
-                <span>{f.label}</span>
-              </div>
-            ))}
           </div>
         </div>
 

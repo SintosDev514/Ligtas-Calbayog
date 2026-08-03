@@ -40,12 +40,17 @@ export default function CrimeHeatmap() {
   const navigate = useNavigate();
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
+  const reportsRef = useRef<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [mapError, setMapError] = useState(false);
   const [barangayStats, setBarangayStats] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    reportsRef.current = reports;
+  }, [reports]);
 
   useEffect(() => {
     load();
@@ -57,10 +62,11 @@ export default function CrimeHeatmap() {
   }, []);
 
   useEffect(() => {
-    if (reports.length > 0 && !mapRef.current) {
+    if (!mapRef.current) {
       initMap();
     }
-  }, [reports]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!mapRef.current) return;
@@ -144,7 +150,8 @@ export default function CrimeHeatmap() {
       mapRef.current = map;
 
       map.on("load", () => {
-        const features = reports
+        const current = reportsRef.current;
+        const features = current
           .filter((r) => r.latitude && r.longitude)
           .map((r) => ({
             type: "Feature" as const,
