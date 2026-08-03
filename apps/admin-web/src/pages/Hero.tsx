@@ -8,7 +8,6 @@ import {
   LogIn,
   MapPin,
   BarChart3,
-  AlertTriangle,
   Info,
   Mail,
   Phone,
@@ -210,7 +209,6 @@ export default function Hero() {
             {
               opacity: 1,
               y: 0,
-              stagger: 0.16,
               ease: "none",
               scrollTrigger: {
                 trigger: ".hp-about-grid",
@@ -397,28 +395,6 @@ export default function Hero() {
                 </svg>
                 <span>Download Ligtas Calbayog</span>
               </a>
-            </div>
-
-            {/* Mini stat cards */}
-            <div className="hp-mini-stats">
-              <div className="hp-mini-stat">
-                <div className="hp-mini-stat-icon hp-mini-stat-icon--red">
-                  <AlertTriangle size={14} />
-                </div>
-                <div>
-                  <span className="hp-mini-stat-val">Live</span>
-                  <span className="hp-mini-stat-label">Alert System</span>
-                </div>
-              </div>
-              <div className="hp-mini-stat">
-                <div className="hp-mini-stat-icon hp-mini-stat-icon--blue">
-                  <MapPin size={14} />
-                </div>
-                <div>
-                  <span className="hp-mini-stat-val">GPS</span>
-                  <span className="hp-mini-stat-label">Patrol Tracking</span>
-                </div>
-              </div>
             </div>
           </div>
         </div>
