@@ -26,6 +26,7 @@ function copyApkPlugin() {
       });
     },
     closeBundle() {
+      if (!fs.existsSync(apkDir)) return;
       const destDir = path.join(outDir, "apk");
       fs.mkdirSync(destDir, { recursive: true });
       for (const file of fs.readdirSync(apkDir)) {
