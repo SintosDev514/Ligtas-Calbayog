@@ -108,6 +108,12 @@ export default function Hero() {
             "-=0.3"
           )
           .fromTo(
+            ".hp-hero-phone",
+            { x: 70, opacity: 0 },
+            { x: 0, opacity: 1, duration: 0.85 },
+            "-=0.5"
+          )
+          .fromTo(
             ".hp-features .hp-feat",
             { x: 28, opacity: 0 },
             { x: 0, opacity: 1, duration: 0.42, stagger: 0.07 },
@@ -199,55 +205,21 @@ export default function Hero() {
             scrollTrigger: { trigger: ".hp-about", start: "top 70%" },
           }
         );
-        // About cards — desktop: slide up from bottom; mobile: alternating left/right slide
-        const mmAbout = gsap.matchMedia();
-
-        mmAbout.add("(min-width: 901px)", () => {
-          gsap.fromTo(
-            ".hp-about-card",
-            { opacity: 0, y: 80 },
-            {
-              opacity: 1,
-              y: 0,
-              ease: "none",
-              scrollTrigger: {
-                trigger: ".hp-about-grid",
-                start: "top 85%",
-                end: "top 30%",
-                scrub: true,
-              },
-            }
-          );
-        });
-
-        mmAbout.add("(max-width: 900px)", () => {
-          gsap.fromTo(
-            ".hp-about-card",
-            { opacity: 0, x: (i: number) => (i % 2 === 0 ? -120 : 120) },
-            {
-              opacity: 1,
-              x: 0,
-              stagger: 0.16,
-              ease: "none",
-              scrollTrigger: {
-                trigger: ".hp-about-grid",
-                start: "top 85%",
-                end: "top 30%",
-                scrub: true,
-              },
-            }
-          );
-        });
-        gsap.to(".hp-about-grid", {
-          y: -40,
-          ease: "none",
-          scrollTrigger: {
-            trigger: ".hp-about-grid",
-            start: "top 80%",
-            end: "bottom top",
-            scrub: true,
-          },
-        });
+        // About cards — fade in on scroll (no transforms, so cards always stay aligned)
+        gsap.fromTo(
+          ".hp-about-card",
+          { opacity: 0 },
+          {
+            opacity: 1,
+            ease: "none",
+            scrollTrigger: {
+              trigger: ".hp-about-grid",
+              start: "top 85%",
+              end: "top 30%",
+              scrub: true,
+            },
+          }
+        );
 
         // Contact section reveals
         gsap.fromTo(
@@ -397,6 +369,12 @@ export default function Hero() {
               </a>
             </div>
           </div>
+
+          <img
+            src="/222-portrait.png"
+            alt="Ligtas Calbayog app preview"
+            className="hp-hero-phone"
+          />
         </div>
 
         {/* About intro — shown below hero card on mobile to fill black space */}
