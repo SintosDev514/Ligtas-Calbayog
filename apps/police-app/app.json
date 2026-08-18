@@ -30,6 +30,10 @@
       "expo-router",
       "expo-location",
       "expo-av",
+      "expo-image-picker",
+      "expo-haptics",
+      "expo-file-system",
+      "expo-image",
       [
         "expo-splash-screen",
         {
