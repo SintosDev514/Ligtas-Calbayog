@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { supabase } from "../../../shared/supabase/supabaseClient";
+import { supabase } from "@shared/supabase/supabaseClient";
 
 interface PoliceProfile {
   id: string;

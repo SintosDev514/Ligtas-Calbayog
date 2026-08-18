@@ -16,13 +16,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
-import { supabase } from "../../../../shared/supabase/supabaseClient";
+import { supabase } from "@shared/supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { useAlarm } from "../../context/AlarmContext";
 import { statusColors, crimeIcons, colors } from "../../constants/theme";
 import { reportsStyles as s } from "../styles/Reports.styles";
 import MapView, { Marker } from "../../components/MapView";
-import { upsertPoliceLocation } from "../../../../shared/services/reportService";
+import { upsertPoliceLocation } from "@shared/services/reportService";
 
 export default function ReportsScreen() {
   const { profile } = useAuth();

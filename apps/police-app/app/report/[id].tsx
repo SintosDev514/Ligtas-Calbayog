@@ -16,10 +16,10 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { supabase } from "../../../../shared/supabase/supabaseClient";
+import { supabase } from "@shared/supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { statusColors, crimeIcons, colors } from "../../constants/theme";
-import { openBestStreetView } from "../../../../shared/utils/streetView";
+import { openBestStreetView } from "@shared/utils/streetView";
 import MapView, { Marker } from "../../components/MapView";
 import { Image as ExpoImage } from "expo-image";
 import { Video, ResizeMode } from "expo-av";

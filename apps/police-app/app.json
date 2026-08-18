@@ -19,7 +19,11 @@
       },
       "package": "com.ligtas.police",
       "permissions": [
-        "android.permission.VIBRATE"
+        "android.permission.VIBRATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "plugins": [
@@ -36,6 +40,12 @@
         }
       ]
     ],
-    "scheme": "ligtas-police"
+    "scheme": "ligtas-police",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c683ad1e-3a6b-4ec4-9640-87141742f769"
+      }
+    }
   }
 }

@@ -14,7 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "../../context/AuthContext";
-import { supabase } from "../../../../shared/supabase/supabaseClient";
+import { supabase } from "@shared/supabase/supabaseClient";
 import { colors } from "../../constants/theme";
 import { profileStyles as s } from "../styles/Profile.styles";
 
