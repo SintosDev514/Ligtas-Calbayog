@@ -97,6 +97,18 @@ export default function Settings() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [voiceOverEnabled, setVoiceOverEnabled] = useState<boolean>(
+    () => localStorage.getItem("admin-tts-enabled") !== "off"
+  );
+
+  const toggleVoiceOver = () => {
+    setVoiceOverEnabled((prev) => {
+      const next = !prev;
+      localStorage.setItem("admin-tts-enabled", next ? "on" : "off");
+      if (!next && "speechSynthesis" in window) window.speechSynthesis.cancel();
+      return next;
+    });
+  };
 
   useEffect(() => {
     setTheme(theme);
@@ -567,19 +579,43 @@ export default function Settings() {
                       </button>
                     </div>
                   ) : (
-                    section.fields.map((field) => (
-                      <div key={field.label} style={{
-                        display: "flex", justifyContent: "space-between", alignItems: "center",
-                        padding: "12px 0", borderBottom: "1px solid var(--gray-100)"
-                      }}>
-                        <span style={{ fontSize: 14, fontWeight: 500, color: "var(--gray-800)" }}>{field.label}</span>
-                        {field.type === "toggle" ? (
-                          <span className="badge badge-resolved" style={{ cursor: "pointer" }}>{field.value}</span>
-                        ) : (
-                          <span style={{ fontSize: 14, color: "var(--gray-500)" }}>{field.value}</span>
-                        )}
-                      </div>
-                    ))
+                    <>
+                      {section.id === "general" && (
+                        <div style={{
+                          display: "flex", justifyContent: "space-between", alignItems: "center",
+                          padding: "12px 0", borderBottom: "1px solid var(--gray-100)"
+                        }}>
+                          <div>
+                            <span style={{ fontSize: 14, fontWeight: 500, color: "var(--gray-800)" }}>Report Voice Over</span>
+                            <div style={{ fontSize: 12, color: "var(--gray-500)" }}>
+                              Automatically reads the report description aloud when a report is opened
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={voiceOverEnabled}
+                            className={`settings-switch${voiceOverEnabled ? " on" : ""}`}
+                            onClick={toggleVoiceOver}
+                          >
+                            <span className="settings-switch-knob" />
+                          </button>
+                        </div>
+                      )}
+                      {section.fields.map((field) => (
+                        <div key={field.label} style={{
+                          display: "flex", justifyContent: "space-between", alignItems: "center",
+                          padding: "12px 0", borderBottom: "1px solid var(--gray-100)"
+                        }}>
+                          <span style={{ fontSize: 14, fontWeight: 500, color: "var(--gray-800)" }}>{field.label}</span>
+                          {field.type === "toggle" ? (
+                            <span className="badge badge-resolved" style={{ cursor: "pointer" }}>{field.value}</span>
+                          ) : (
+                            <span style={{ fontSize: 14, color: "var(--gray-500)" }}>{field.value}</span>
+                          )}
+                        </div>
+                      ))}
+                    </>
                   )}
                 </div>
               </div>

@@ -6,7 +6,8 @@ import {
   ArrowLeft, AlertTriangle, MapPin, Clock, CheckCircle, XCircle,
   MessageSquare, Car, Shield, Eye, Phone, User,
   Image as ImageIcon, ExternalLink, Maximize2, X, Calendar, ImageOff,
-  Video, Play, Ban, Send, PauseCircle, Crosshair, UserCog
+  Video, Play, Ban, Send, PauseCircle, Crosshair, UserCog,
+  Volume2, VolumeX
 } from "lucide-react";
 
 const STATUSES = [
@@ -80,6 +81,37 @@ export default function ReportDetail() {
   const [assignedOfficer, setAssignedOfficer] = useState<any>(null);
   const [acceptedAt, setAcceptedAt] = useState<string | null>(null);
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const spokenIdRef = useRef<string | null>(null);
+
+  const speakDescription = useCallback((text: string) => {
+    if (!("speechSynthesis" in window) || !text) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.85;
+    utterance.onend = () => setIsSpeaking(false);
+    utterance.onerror = () => setIsSpeaking(false);
+    setIsSpeaking(true);
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  const stopSpeaking = useCallback(() => {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setIsSpeaking(false);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!report?.description || spokenIdRef.current === report.id) return;
+    if (localStorage.getItem("admin-tts-enabled") === "off") return;
+    spokenIdRef.current = report.id;
+    speakDescription(report.description);
+  }, [report, speakDescription]);
 
   const getSignedUrl = useCallback(async (filename: string): Promise<string | null> => {
     const { data } = await supabase.storage.from(BUCKET).createSignedUrl(filename, SIGNED_URL_EXPIRY);
@@ -432,6 +464,15 @@ export default function ReportDetail() {
                 <div className="rd-card-head">
                   <MessageSquare size={13} />
                   <span>Description</span>
+                  {report.description && (
+                    <button
+                      className={`rd-tts-btn${isSpeaking ? " speaking" : ""}`}
+                      onClick={() => (isSpeaking ? stopSpeaking() : speakDescription(report.description))}
+                      title={isSpeaking ? "Stop voice over" : "Play voice over"}
+                    >
+                      {isSpeaking ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                    </button>
+                  )}
                 </div>
                 <p className="rd-description">
                   {report.description || "No description provided."}

@@ -154,6 +154,12 @@ export default function PoliceTracking() {
   const [officerRoutes, setOfficerRoutes] = useState<OfficerRoute[]>([]);
   const officerRoutesRef = useRef<OfficerRoute[]>([]);
   const [showRoutes, setShowRoutes] = useState(true);
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const loadAllReports = useCallback(async () => {
     try {
@@ -1042,6 +1048,15 @@ export default function PoliceTracking() {
             {showSidebar ? <PanelRightClose size={16} /> : <PanelRightOpen size={16} />}
           </button>
           <span className="left-bar-item-label">Directory</span>
+        </div>
+      </div>
+
+      <div className="tracking-clock">
+        <div className="tracking-clock-time">
+          {now.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true })}
+        </div>
+        <div className="tracking-clock-date">
+          {now.toLocaleDateString("en-PH", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
         </div>
       </div>
 

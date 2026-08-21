@@ -1,64 +1,254 @@
 # Ligtas Calbayog
 
-**Ligtas Calbayog** is a comprehensive, multi-platform ecosystem designed to enhance community safety, emergency response, public health advocacy, and civic engagement for the citizens of Calbayog City. 
+Ligtas Calbayog is a multi-platform community safety and emergency response system built for the citizens of Calbayog City, Samar, Philippines. The platform connects residents, the Philippine National Police (PNP), and local administration through a unified ecosystem of mobile applications and a web-based command dashboard.
 
-The project connects residents, local authorities (like the police), and administration through dedicated applications to streamline communication, incident reporting, and public health initiatives (such as Dengue awareness and community clean-up drives).
-
-## 📱 Project Ecosystem
-
-The platform is structured as a monorepo containing multiple interconnected applications and shared services:
-
-### 1. Resident App (`apps/resident-app`)
-A mobile application built with React Native/Expo for the citizens of Calbayog.
-*   **Secure Registration**: Features a robust registration flow with mandatory **Liveness Verification** (facial motion detection) to ensure the authenticity of user profiles.
-*   **Civic Engagement**: Allows users to register as volunteers for community clean-up drives and public health initiatives.
-*   **Modern UI**: Professional, dark-themed, and animated user interface for a premium user experience.
-
-### 2. Police App (`apps/police-app`)
-A dedicated mobile application for law enforcement and emergency responders to manage incidents, verify profiles, and respond to community alerts.
-
-### 3. Admin Web Dashboard (`apps/admin-web`)
-A web-based portal for administrators to manage the platform.
-*   **Content Management**: Dynamically post, update, and manage upcoming community clean-up drives.
-*   **Dengue Advocacy Platform**: Integrates live epidemiological data (e.g., from DOH datasets via HDX) to display real-time dengue case statistics and trends.
-*   **Volunteer Management**: Track and manage volunteer registrations.
-
-### 4. Shared Services (`shared/`)
-Contains shared business logic, models, utilities, and backend configuration that are used across all applications.
-
-## 🛠️ Technology Stack
-
-*   **Frontend (Mobile)**: React Native, Expo
-*   **Frontend (Web)**: Web technologies for the admin dashboard
-*   **Backend & Database**: **Supabase** (Migrated from Firebase)
-    *   **PostgreSQL**: Relational database managing `users`, `resident_profiles`, and `police_profiles`.
-    *   **Row-Level Security (RLS)**: Enforces strict data access policies.
-    *   **Authentication**: Secure user authentication.
-    *   **Storage**: Public buckets used for storing Liveness Verification photos and other assets.
-
-## 🚀 Development Roadmap & Current Focus
-
-*   [x] **Backend Migration**: Successfully migrated from Firebase to Supabase for all Auth, Database, and Storage needs.
-*   [x] **Liveness Verification Gate**: Implemented a mandatory facial-movement liveness check before users can successfully register on the Resident App.
-*   [x] **UI/UX Modernization**: Revamped the Resident App login and registration flows with dynamic gradients, scrollable content, and premium animations.
-*   [ ] **Dengue Advocacy Integration**: Connecting the web dashboard to live public health APIs for dynamic data visualization.
-*   [ ] **Volunteer Module Polish**: Finalizing the data pipeline between the mobile app volunteer registrations and the web admin dashboard.
-
-## 💻 Getting Started
-
-This repository uses a monorepo structure. Ensure you have Node.js and standard React Native/Expo development tools installed.
-
-1.  **Install Dependencies**:
-    ```bash
-    npm install
-    ```
-2.  **Run the Resident App**:
-    ```bash
-    cd apps/resident-app
-    npm start
-    ```
-3.  **Environment Variables**:
-    Ensure you have configured your `.env` files with the correct **Supabase URL** and **Anon Key**. (See `shared/supabase/supabaseClient.js`).
+"Ligtas" is the Filipino word for "safe" — the project exists to make Calbayog a safer city by giving every resident a direct, transparent, and accountable channel to report incidents, request help, and stay informed.
 
 ---
-*Built for the safety, health, and empowerment of Calbayog City.*
+
+## Table of Contents
+
+- [About](#about)
+- [Features](#features)
+- [Technology Stack](#technology-stack)
+- [Repository Structure](#repository-structure)
+- [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [Database Setup](#database-setup)
+- [Documentation](#documentation)
+- [Security](#security)
+- [Roadmap](#roadmap)
+
+---
+
+## About
+
+Ligtas Calbayog is a monorepo containing three interconnected applications and a shared backend layer:
+
+1. **Resident App** — a mobile application that lets residents report incidents, track police response in real time, receive official PNP announcements, and connect with family and safety contacts.
+2. **Police App** — a mobile application for law enforcement to monitor incoming reports, respond to emergencies, share live officer locations, and manage cases from dispatch to resolution.
+3. **Admin Web Dashboard** — a web-based command center for administrators to manage reports, officers, announcements, crime analytics, and system users.
+
+All applications share a single Supabase backend (PostgreSQL, authentication, realtime, and storage) with strict row-level security.
+
+---
+
+## Features
+
+### Resident App
+
+- **Secure multi-step registration** — verified email via OTP, barangay selection, GPS address pinning on a map, government ID photo upload, and optional guardian/family information.
+- **Incident reporting** — submit reports by crime category with automatic GPS coordinates, reverse-geocoded addresses, and optional photo/video evidence.
+- **Report tracking** — follow reports through statuses (pending, under review, in-progress, resolved, dismissed, cancelled) with color-coded badges, police feedback, and a chronological action timeline.
+- **Live police tracking** — view the responding officer's location in real time on a map, with driving route, distance, and estimated time of arrival computed via the OSRM routing service.
+- **Official announcements** — browse PNP advisories, alerts, news, and events with images, videos, likes, and comments.
+- **Safety contacts and messaging** — build a network of family contacts, send and accept contact requests, and exchange text and location messages.
+- **False report prevention** — progressive penalties (warning, restriction, ban) for cancelled or false reports, with an appeal mechanism.
+- **Notifications** — in-app notifications and local push notifications for report status changes, messages, and announcements.
+
+### Police App
+
+- **Live incident dashboard** — an interactive map showing pending reports, resident locations, police posts, and officer positions with emergency and all-markers filters.
+- **Emergency alerting** — real-time alarms with siren audio and vibration when a new emergency report arrives, with auto-dismiss on resolution.
+- **Case management** — open report details, review evidence, view the resident's profile, accept reports, send response messages, add action updates, and mark cases resolved.
+- **Scene navigation** — turn-by-turn-style routing to the incident location with distance and ETA, plus street view imagery.
+- **Officer location sharing** — continuous background location heartbeats so command centers and residents can see responding officers.
+- **Pending approval workflow** — police officer accounts are created in a pending state and activated by an administrator.
+
+### Admin Web Dashboard
+
+- **Command overview** — key performance indicators for total, pending, and resolved reports, officers, announcements, and registered residents.
+- **Report management** — full report list, detail views, status transitions, evidence gallery, and resident feedback.
+- **Crime analytics** — crime statistics, an interactive crime heatmap, and response-time metrics.
+- **Announcement publishing** — rich announcement creation with images, videos, and pinned map locations.
+- **Police operations** — live officer tracking, patrol history, patrol units, duty assignment, and officer performance.
+- **User administration** — user management, role-based access control, notification management, audit logs, and system settings.
+
+### Backend & Infrastructure
+
+- **Supabase backend** — PostgreSQL database, authentication, realtime subscriptions, and object storage.
+- **41 SQL migrations** — a complete, versioned schema covering profiles, reports, feedback, action updates, announcements, messaging, penalties, police locations, and role-based access control.
+- **Supabase Edge Functions** — an OTP email delivery function and a face detection function for identity verification.
+- **Shared service layer** — reusable auth, report, admin, messaging, push notification, and caching modules consumed by all apps.
+
+---
+
+## Technology Stack
+
+| Layer           | Technologies                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| Mobile          | React Native, Expo SDK 54, Expo Router, React 19                                                |
+| Web dashboard   | React 19, Vite, TypeScript, React Router                                                       |
+| Maps            | MapLibre GL, Mapbox GL, react-native-maps, Leaflet (web), OSRM routing, Mapillary street view  |
+| Visualization   | GSAP, Three.js                                                                                 |
+| Backend         | Supabase (PostgreSQL, Auth, Realtime, Storage, Edge Functions)                                 |
+| Push            | Expo Notifications                                                                             |
+
+---
+
+## Repository Structure
+
+```
+ligtas-calbayog/
+├── apps/
+│   ├── resident-app/          # Resident mobile app (Expo / React Native)
+│   ├── police-app/            # Police mobile app (Expo / React Native)
+│   └── admin-web/             # Admin command dashboard (React / Vite / TypeScript)
+├── shared/
+│   ├── models/                # Shared data models
+│   ├── services/              # Shared service layer (auth, reports, admin, messages, push, cache)
+│   ├── supabase/              # Supabase client configuration
+│   └── utils/                 # Shared utilities (e.g., street view)
+├── supabase/
+│   └── functions/             # Supabase Edge Functions (send-otp, detect-face)
+├── db/
+│   └── migrations/            # Versioned SQL schema migrations (001-041)
+├── docs/                      # Documentation and reference material
+└── backend/                   # Backend workspace (functions)
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18 or newer
+- npm
+- A Supabase project (free tier is sufficient)
+- Android Studio / Xcode / Expo Go for mobile development
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+Install dependencies for each application individually:
+
+```bash
+cd apps/resident-app && npm install
+cd ../police-app && npm install
+cd ../admin-web && npm install
+```
+
+### 2. Configure Supabase
+
+Create a Supabase project and copy your project URL and anon (publishable) key. Set them in the environment variables described below, or update `shared/supabase/supabaseClient.js` for local development.
+
+### 3. Set up the database
+
+Run the SQL migrations in `db/migrations/` in order against your Supabase project. Each file is self-contained and versioned, covering tables, row-level security policies, realtime publications, and storage buckets. For a quick manual setup, the schema is also summarized in `DATABASE_SCHEMA.md`.
+
+### 4. Deploy Edge Functions (optional)
+
+The OTP and face detection functions live in `supabase/functions/`. Deploy them with the Supabase CLI:
+
+```bash
+cd supabase
+supabase functions deploy send-otp
+supabase functions deploy detect-face
+```
+
+Configure the required secrets (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `OTP_SALT`, `SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`) in the Supabase dashboard.
+
+### 5. Run the applications
+
+**Resident App:**
+
+```bash
+cd apps/resident-app
+npm start
+```
+
+**Police App:**
+
+```bash
+cd apps/police-app
+npm start
+```
+
+**Admin Dashboard:**
+
+```bash
+cd apps/admin-web
+npm run dev
+```
+
+---
+
+## Environment Variables
+
+Create a `.env` file in each application as needed:
+
+```bash
+# shared/supabase/supabaseClient.js or app-level .env
+EXPO_PUBLIC_SUPABASE_URL=your-supabase-project-url
+EXPO_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+```
+
+The admin dashboard reads its Supabase configuration from `apps/admin-web/.env` (`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`). The `.env` files are gitignored and must never be committed.
+
+---
+
+## Database Setup
+
+The complete database schema is documented in `DATABASE_SCHEMA.md`. Key tables include:
+
+- `users` — accounts with roles (`resident`, `police`, `admin`) and approval status
+- `resident_profiles` — resident identity and contact information
+- `police_profiles` — officer identity, rank, badge, and station assignment
+- `crime_reports` — incident reports with location and evidence
+- `report_feedback` — police response messages and estimated arrival
+- `action_updates` — chronological officer action timeline
+- `announcements` — official PNP communications with media and reactions
+- `police_locations` — live officer location tracking
+- `messages` / `family_contacts` / `contact_requests` — resident safety network and messaging
+- `penalties` — false report penalty records and appeals
+
+Row-level security is enforced on all tables so residents can only access their own data, officers access their assigned scope, and administrators manage the platform.
+
+---
+
+## Documentation
+
+| Document                  | Purpose                                             |
+| ------------------------- | --------------------------------------------------- |
+| `DATABASE_SCHEMA.md`      | Complete database schema and setup guide            |
+| `IMPLEMENTATION_GUIDE.md` | Feature documentation and user flows                |
+| `POLICE_BACKEND_SETUP.md` | Police backend and API configuration                |
+| `QUICK_START.md`          | Fast local setup and testing walkthrough            |
+| `PROJECT_SUMMARY.md`      | Implementation summary and status                   |
+
+---
+
+## Security
+
+- Authentication handled through Supabase Auth with email/password and OTP verification.
+- All data access is protected by PostgreSQL row-level security policies.
+- Evidence and ID photo uploads are stored in Supabase Storage with restricted access.
+- Role-based access control distinguishes residents, police officers, and administrators.
+- False-report penalties help deter misuse of the emergency reporting system.
+
+---
+
+## Roadmap
+
+- [x] Resident reporting, tracking, and real-time updates
+- [x] PNP announcements with media and reactions
+- [x] Resident safety network and messaging
+- [x] Police response app with live officer tracking
+- [x] Admin command dashboard with analytics and heatmaps
+- [x] False-report penalty and appeal system
+- [ ] Production push notification backend (Expo Push service integration)
+- [ ] Deployment pipelines for app stores and the web dashboard
+
+---
+
+## License
+
+This project is developed for academic and community use as a capstone project. Please contact the project maintainers for licensing inquiries.
+
+---
+
+_Built for the safety, health, and empowerment of Calbayog City._

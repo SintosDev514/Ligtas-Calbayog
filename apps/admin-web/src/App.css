@@ -1962,6 +1962,67 @@ tr.clickable-row:hover td {
   border-radius: 999px;
 }
 
+.rd-tts-btn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(14, 165, 233, 0.12);
+  color: #0ea5e9;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.rd-tts-btn:hover {
+  background: rgba(14, 165, 233, 0.25);
+}
+
+.rd-tts-btn.speaking {
+  animation: rd-tts-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes rd-tts-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+.settings-switch {
+  position: relative;
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  border: none;
+  padding: 0;
+  background: var(--gray-300);
+  cursor: pointer;
+  transition: background 0.2s ease;
+  flex-shrink: 0;
+}
+
+.settings-switch.on {
+  background: #10b981;
+}
+
+.settings-switch-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.2s ease;
+}
+
+.settings-switch.on .settings-switch-knob {
+  transform: translateX(20px);
+}
+
 /* card variants */
 .rd-card-media {
   padding: 6px;
@@ -3298,6 +3359,39 @@ tr.clickable-row:hover td {
   height: 100%;
 }
 
+.tracking-clock {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 6;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  padding: 10px 14px;
+  background: rgba(35, 35, 35, 0.956);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.tracking-clock-time {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 0.5px;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.tracking-clock-date {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.3px;
+}
+
 .tracking-left-bar {
   position: absolute;
   top: 0;
@@ -4409,6 +4503,16 @@ tr.clickable-row:hover td {
 
 [data-theme="light"] .tracking-overlay-sidebar {
   border-left-color: var(--gray-300);
+}
+
+[data-theme="light"] .tracking-clock {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: var(--gray-300);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] .tracking-clock-date {
+  color: var(--gray-600);
 }
 
 [data-theme="light"] .report-panel .report-header,
