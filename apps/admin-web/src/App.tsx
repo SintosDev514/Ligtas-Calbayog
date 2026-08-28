@@ -5,6 +5,7 @@ import Hero from "./pages/Hero";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Reports from "./pages/Reports";
+import ReportTriage from "./pages/ReportTriage";
 import ReportDetail from "./pages/ReportDetail";
 import Announcements from "./pages/Announcements";
 import CreateAnnouncement from "./pages/CreateAnnouncement";
@@ -97,6 +98,7 @@ export default function App() {
       >
         <Route index element={<Dashboard />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="report-triage" element={<ReportTriage />} />
         <Route path="reports/:id" element={<ReportDetail />} />
         <Route path="announcements" element={<Announcements />} />
         <Route path="announcements/create" element={<CreateAnnouncement />} />

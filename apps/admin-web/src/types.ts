@@ -34,6 +34,12 @@ export interface CrimeReport {
   photo_url?: string;
   share_live_location: boolean;
   assigned_officer_id?: string;
+  urgency?: string;
+  is_validated?: boolean;
+  validation_notes?: string;
+  validated_by?: string;
+  validated_at?: string;
+  triage_score?: number;
   created_at: string;
   updated_at: string;
   resident: {

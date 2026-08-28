@@ -5520,3 +5520,124 @@ tr.clickable-row:hover td {
     animation: none;
   }
 }
+
+/* ===== REPORT VALIDATION & TRIAGE ===== */
+.badge-critical {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.badge-high {
+  background: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+  border-color: rgba(249, 115, 22, 0.35);
+}
+
+.badge-medium {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.badge-low {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+.badge-validated {
+  background: var(--green-light);
+  color: var(--green);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+[data-theme="light"] .badge-critical { color: #dc2626; }
+[data-theme="light"] .badge-high { color: #ea580c; }
+[data-theme="light"] .badge-medium { color: #d97706; }
+[data-theme="light"] .badge-low { color: #0284c7; }
+
+.triage-urgency-select {
+  margin-left: 8px;
+  padding: 4px 6px;
+  border: 1.5px solid var(--gray-300);
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: var(--gray-200);
+  color: var(--gray-600);
+  cursor: pointer;
+  outline: none;
+}
+
+.triage-urgency-select:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15);
+}
+
+.triage-stat-active {
+  box-shadow: var(--shadow-md);
+}
+
+.triage-row-flash {
+  animation: triageRowFlash 1.2s ease-out;
+}
+
+@keyframes triageRowFlash {
+  0% {
+    background: rgba(96, 165, 250, 0.18);
+  }
+  100% {
+    background: transparent;
+  }
+}
+
+/* ===== AUTO TRIAGE ===== */
+.badge-auto {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
+}
+
+[data-theme="light"] .badge-auto { color: #0284c7; }
+
+.triage-critical-row td {
+  border-left: 3px solid rgba(239, 68, 68, 0.85);
+}
+
+.triage-high-row td {
+  border-left: 3px solid rgba(249, 115, 22, 0.7);
+}
+
+.triage-score-row {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 88px;
+  cursor: help;
+}
+
+.triage-score-critical { color: #f87171; }
+.triage-score-high { color: #fb923c; }
+.triage-score-medium { color: #fbbf24; }
+.triage-score-low { color: #38bdf8; }
+
+.triage-scorebar {
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--gray-300);
+  overflow: hidden;
+}
+
+.triage-scorebar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.triage-scorebar-critical { background: #ef4444; }
+.triage-scorebar-high { background: #f97316; }
+.triage-scorebar-medium { background: #f59e0b; }
+.triage-scorebar-low { background: #38bdf8; }

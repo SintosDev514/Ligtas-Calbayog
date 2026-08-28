@@ -9,7 +9,7 @@ import {
   Megaphone, MessageSquare,
   FolderOpen, Bell,
   UserCog, ShieldCheck, ClipboardList as AuditIcon, Settings,
-  LogOut, X
+  LogOut, X, ClipboardCheck
 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../supabase";
@@ -32,6 +32,7 @@ const navGroups = [
     label: "INCIDENTS",
     items: [
       { path: "/dashboard/reports", label: "Reports", icon: FileText },
+      { path: "/dashboard/report-triage", label: "Report Validation & Triage", icon: ClipboardCheck },
       { path: "/dashboard/active-incidents", label: "Active Incidents", icon: AlertTriangle },
       { path: "/dashboard/resolved-cases", label: "Resolved Cases", icon: CheckCircle },
       { path: "/dashboard/crime-statistics", label: "Crime Statistics", icon: BarChart3 },
@@ -234,7 +235,7 @@ export default function Layout() {
                     <item.icon size={18} />
                   </span>
                   <span className="nav-label">{item.label}</span>
-                  {(item.path === "/dashboard/reports" || item.path === "/dashboard/police-tracking") && pendingCount > 0 && (
+                  {(item.path === "/dashboard/reports" || item.path === "/dashboard/police-tracking" || item.path === "/dashboard/report-triage") && pendingCount > 0 && (
                     <span className="nav-badge">{pendingCount > 99 ? "99+" : pendingCount}</span>
                   )}
                 </NavLink>
