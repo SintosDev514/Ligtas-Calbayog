@@ -6,6 +6,7 @@ const EMERGENCY_TYPES = ["emergency", "robbery", "assault", "hit-and-run", "burg
 interface AlarmContextType {
   alarmCount: number;
   refreshAlarm: () => void;
+  playBackupAlert: () => void;
 }
 
 const AlarmContext = createContext<AlarmContextType | undefined>(undefined);
@@ -15,9 +16,12 @@ let emergencyBuffer: AudioBuffer | null = null;
 let emergencyLoadPromise: Promise<void> | null = null;
 let normalBuffer: AudioBuffer | null = null;
 let normalLoadPromise: Promise<void> | null = null;
+let backupBuffer: AudioBuffer | null = null;
+let backupLoadPromise: Promise<void> | null = null;
 let loopSource: AudioBufferSourceNode | null = null;
 let loopGain: GainNode | null = null;
 let isLooping = false;
+const soundedBackupIds = new Set<string>();
 
 // Create AudioContext immediately on module load
 try {
@@ -65,6 +69,47 @@ async function ensureNormalLoaded(): Promise<void> {
   return normalLoadPromise;
 }
 
+async function ensureBackupLoaded(): Promise<void> {
+  if (backupBuffer) return;
+  if (backupLoadPromise) return backupLoadPromise;
+  backupLoadPromise = (async () => {
+    try {
+      const res = await fetch("/backup_alert.wav");
+      const buf = await res.arrayBuffer();
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      backupBuffer = await audioCtx.decodeAudioData(buf);
+    } catch (e) {
+      console.error("Failed to load backup audio:", e);
+    }
+  })();
+  return backupLoadPromise;
+}
+
+async function playBackupBeep() {
+  if (!backupBuffer) {
+    try { await ensureBackupLoaded(); } catch {}
+    if (!backupBuffer) return;
+  }
+  if (!audioCtx) return;
+  try {
+    if (audioCtx.state === "suspended") {
+      await audioCtx.resume();
+    }
+    const source = audioCtx.createBufferSource();
+    source.buffer = backupBuffer;
+    source.loop = false;
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0.8;
+    source.connect(gain);
+    gain.connect(audioCtx.destination);
+    source.start();
+  } catch (e) {
+    console.warn("[AlarmContext] playBackupBeep failed:", e);
+  }
+}
+
 function stopLoop() {
   if (!isLooping) return;
   isLooping = false;
@@ -104,6 +149,7 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     ensureEmergencyLoaded();
     ensureNormalLoaded();
+    ensureBackupLoaded();
   }, []);
 
   const checkReports = useCallback(async () => {
@@ -121,6 +167,10 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       const normalCount = (data ?? []).filter(
         (r: any) => !EMERGENCY_TYPES.includes(r.crime_type?.toLowerCase()) && r.status === "pending"
       ).length;
+
+      const backupReports = (data ?? []).filter(
+        (r: any) => r.status === "needs-backup"
+      );
 
       setAlarmCount(emergencyCount);
 
@@ -140,6 +190,16 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         stopLoop();
+      }
+
+      const newlySounded = backupReports.some(
+        (r: any) => !soundedBackupIds.has(r.id) && r.status === "needs-backup"
+      );
+      for (const r of backupReports) {
+        soundedBackupIds.add(r.id);
+      }
+      if (newlySounded) {
+        playBackupBeep();
       }
     } catch (e) {
       console.error("[AlarmContext] checkReports error:", e);
@@ -173,6 +233,16 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "crime_reports" }, () => {
         checkReports();
       })
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "action_updates" },
+        (payload: any) => {
+          if (payload.new?.action_type === "backup_requested") {
+            playBackupBeep();
+          }
+          checkReports();
+        }
+      )
       .subscribe((status: string) => {
         console.log("[AlarmContext] realtime status:", status);
       });
@@ -187,7 +257,7 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
   }, [checkReports]);
 
   return (
-    <AlarmContext.Provider value={{ alarmCount, refreshAlarm: checkReports }}>
+    <AlarmContext.Provider value={{ alarmCount, refreshAlarm: checkReports, playBackupAlert: playBackupBeep }}>
       {children}
     </AlarmContext.Provider>
   );

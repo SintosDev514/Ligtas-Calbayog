@@ -31,8 +31,8 @@ const navGroups = [
   {
     label: "INCIDENTS",
     items: [
-      { path: "/dashboard/reports", label: "Reports", icon: FileText },
-      { path: "/dashboard/report-triage", label: "Report Validation & Triage", icon: ClipboardCheck },
+      { path: "/dashboard/reports", label: "Report List", icon: FileText },
+      { path: "/dashboard/report-triage", label: "Report Validation", icon: ClipboardCheck },
       { path: "/dashboard/active-incidents", label: "Active Incidents", icon: AlertTriangle },
       { path: "/dashboard/resolved-cases", label: "Resolved Cases", icon: CheckCircle },
       { path: "/dashboard/crime-statistics", label: "Crime Statistics", icon: BarChart3 },

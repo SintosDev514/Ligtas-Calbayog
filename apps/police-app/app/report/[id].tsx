@@ -12,12 +12,17 @@ import {
   Dimensions,
   Modal,
   FlatList,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "@shared/supabase/supabaseClient";
+import { upsertPoliceLocation } from "@shared/services/reportService";
 import { useAuth } from "../../context/AuthContext";
+import { useAlarm } from "../../context/AlarmContext";
 import { statusColors, crimeIcons, colors } from "../../constants/theme";
 import { openBestStreetView } from "@shared/utils/streetView";
 import MapView, { Marker } from "../../components/MapView";
@@ -28,6 +33,15 @@ import * as Location from "expo-location";
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const isVideoUrl = (url: string) => /\.(mp4|webm|mov|avi)$/i.test(url);
+
+const RESPONSE_TYPES = [
+  { value: "arrived", label: "Arrived on site" },
+  { value: "investigating", label: "Investigating" },
+  { value: "dispatch_sent", label: "Dispatch sent" },
+  { value: "suspect_detained", label: "Suspect detained" },
+  { value: "backup_requested", label: "Request backup" },
+  { value: "other", label: "Other / Notes" },
+];
 
 const Card = ({ children, style }: { children: React.ReactNode; style?: any }) => (
   <View
@@ -62,6 +76,7 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
 export default function ReportDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { profile } = useAuth();
+  const { playBackupAlert } = useAlarm();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [report, setReport] = useState<any>(null);
@@ -69,6 +84,12 @@ export default function ReportDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [requestingBackup, setRequestingBackup] = useState(false);
+  const [actionType, setActionType] = useState("arrived");
+  const [notes, setNotes] = useState("");
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsError, setDetailsError] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
   const [viewerZoom, setViewerZoom] = useState(1);
@@ -165,7 +186,12 @@ export default function ReportDetailScreen() {
         },
         (pos) => {
           const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+          const heading = typeof userHeading === "number" ? userHeading : pos.coords.heading ?? null;
           setUserLocation(loc);
+          if (profile?.id && report?.id) {
+            upsertPoliceLocation(profile.id, report.id, loc.latitude, loc.longitude, heading)
+              .catch((err) => console.warn("Failed to upsert police location:", err.message));
+          }
           if (typeof pos.coords.heading === "number" && pos.coords.heading > 0) {
             setUserHeading(pos.coords.heading);
           }
@@ -241,7 +267,9 @@ export default function ReportDetailScreen() {
         report_id: report.id,
         action_type: "resolved",
         officer_id: profile?.id,
-        description: `${profile?.full_name || "Officer"} resolved this report`,
+        description: notes.trim()
+          ? `${profile?.full_name || "Officer"}: ${notes.trim()}`
+          : `${profile?.full_name || "Officer"} resolved this report`,
         created_at: now,
       });
 
@@ -253,9 +281,83 @@ export default function ReportDetailScreen() {
     }
   };
 
+  const handleSaveDetails = async () => {
+    if (!report || saving) return;
+    if (!notes.trim()) {
+      setDetailsError(true);
+      Alert.alert("Response Details Required", "Please enter a note describing your response before saving.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const description = `${profile?.full_name || "Officer"}: ${notes.trim()}`;
+
+      if (actionType === "backup_requested") {
+        await supabase.from("action_updates").insert({
+          report_id: report.id,
+          action_type: "backup_requested",
+          officer_id: profile?.id,
+          description: `${profile?.full_name || "Officer"} requested backup; ${notes.trim()}`,
+          created_at: now,
+        });
+        await supabase
+          .from("crime_reports")
+          .update({ status: "needs-backup", updated_at: now })
+          .eq("id", report.id);
+        setReport((prev: any) => ({ ...prev, status: "needs-backup" }));
+        playBackupAlert();
+      } else {
+        const { error } = await supabase.from("action_updates").insert({
+          report_id: report.id,
+          action_type: actionType,
+          officer_id: profile?.id,
+          description,
+          created_at: now,
+        });
+        if (error) throw error;
+      }
+
+      setNotes("");
+      setDetailsError(false);
+      Alert.alert("Saved", "Response details has been recorded.");
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to save response details");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleStreetView = () => {
     if (!report?.latitude || !report?.longitude) return;
     openBestStreetView(report.latitude, report.longitude, Linking);
+  };
+
+  const handleRequestBackup = async () => {
+    if (!report || requestingBackup) return;
+    setRequestingBackup(true);
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase.from("action_updates").insert({
+        report_id: report.id,
+        action_type: "backup_requested",
+        officer_id: profile?.id,
+        description: `${profile?.full_name || "Officer"} requested backup for this incident`,
+        created_at: now,
+      });
+      if (error) throw error;
+      await supabase
+        .from("crime_reports")
+        .update({ status: "needs-backup", updated_at: now })
+        .eq("id", report.id);
+      setReport((prev: any) => ({ ...prev, status: "needs-backup" }));
+      playBackupAlert();
+      Alert.alert("Backup Requested", "Backup has been flagged for this incident.");
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to request backup");
+    } finally {
+      setRequestingBackup(false);
+    }
   };
 
   const evidenceUrls: string[] = report?.photo_url
@@ -398,7 +500,12 @@ export default function ReportDetailScreen() {
         </View>
       </SafeAreaView>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+      >
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 220 }}>
         {/* Reporter Info */}
         {resident && (
           <Card style={{ marginHorizontal: 16, marginTop: 16 }}>
@@ -654,7 +761,125 @@ export default function ReportDetailScreen() {
             </Card>
           </View>
         )}
+
+        {/* Response Details */}
+        {status === "in-progress" || status === "needs-backup" ? (
+          <View style={{ paddingHorizontal: 16, marginTop: 12 }}>
+            <Card>
+              <TouchableOpacity
+                onPress={() => setDetailsOpen(!detailsOpen)}
+                activeOpacity={0.7}
+                style={{ padding: 16, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}
+              >
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+                  <View style={{ width: 40, height: 40, borderRadius: 12, backgroundColor: "rgba(244,181,26,0.12)", justifyContent: "center", alignItems: "center" }}>
+                    <Ionicons name="clipboard" size={20} color={colors.accent} />
+                  </View>
+                  <View>
+                    <Text style={{ fontSize: 15, fontWeight: "700", color: "#fff" }}>Response Details</Text>
+                    <Text style={{ fontSize: 12, color: "rgba(255,255,255,0.35)", marginTop: 2 }}>
+                      {notes.trim() ? "Details added" : "Add response updates and findings"}
+                    </Text>
+                  </View>
+                </View>
+                <Ionicons name={detailsOpen ? "chevron-up" : "chevron-down"} size={18} color="rgba(255,255,255,0.35)" />
+              </TouchableOpacity>
+
+              {detailsOpen && (
+                <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+                  <SectionLabel>Update type</SectionLabel>
+                  <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 14 }}>
+                    {RESPONSE_TYPES.map((t) => {
+                      const selected = actionType === t.value;
+                      return (
+                        <TouchableOpacity
+                          key={t.value}
+                          onPress={() => setActionType(t.value)}
+                          activeOpacity={0.7}
+                          style={{
+                            paddingHorizontal: 12,
+                            paddingVertical: 8,
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            backgroundColor: selected ? "rgba(244,181,26,0.12)" : "rgba(255,255,255,0.03)",
+                            borderColor: selected ? "rgba(244,181,26,0.4)" : "rgba(255,255,255,0.08)",
+                          }}
+                        >
+                          <Text style={{ fontSize: 12, fontWeight: "600", color: selected ? colors.accent : "rgba(255,255,255,0.5)" }}>
+                            {t.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <SectionLabel>Findings / Notes</SectionLabel>
+                  <View
+                    style={{
+                      borderWidth: 1,
+                      borderColor: detailsError && !notes.trim() ? "#EF4444" : "rgba(255,255,255,0.1)",
+                      borderRadius: 12,
+                      backgroundColor: "rgba(255,255,255,0.03)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    <TextInput
+                      value={notes}
+                      onChangeText={(text) => {
+                        setNotes(text);
+                        if (text.trim()) setDetailsError(false);
+                      }}
+                      placeholder="Describe your response, findings, or actions taken..."
+                      placeholderTextColor="rgba(255,255,255,0.25)"
+                      multiline
+                      style={{
+                        color: "#fff",
+                        fontSize: 14,
+                        minHeight: 90,
+                        padding: 12,
+                        textAlignVertical: "top",
+                      }}
+                    />
+                  </View>
+                  {detailsError && !notes.trim() && (
+                    <Text style={{ color: "#EF4444", fontSize: 12, marginTop: 6, fontWeight: "600" }}>
+                      A note is required before saving.
+                    </Text>
+                  )}
+
+                  <TouchableOpacity
+                    onPress={handleSaveDetails}
+                    disabled={saving}
+                    activeOpacity={0.8}
+                    style={{
+                      marginTop: 14,
+                      backgroundColor: "rgba(244,181,26,0.12)",
+                      borderRadius: 12,
+                      paddingVertical: 14,
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 8,
+                      borderWidth: 1,
+                      borderColor: "rgba(244,181,26,0.3)",
+                    }}
+                  >
+                    {saving ? (
+                      <ActivityIndicator size="small" color={colors.accent} />
+                    ) : (
+                      <Ionicons name="save-outline" size={18} color={colors.accent} />
+                    )}
+                    <Text style={{ color: colors.accent, fontSize: 15, fontWeight: "700" }}>
+                      {saving ? "Saving..." : "Save Response Details"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </Card>
+          </View>
+        ) : null}
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Bottom Action Bar */}
       <View
@@ -700,44 +925,44 @@ export default function ReportDetailScreen() {
               {accepting ? "Accepting..." : "Accept & Respond"}
             </Text>
           </TouchableOpacity>
-        ) : status === "in-progress" ? (
-          <View style={{ flexDirection: "row", gap: 10 }}>
+        ) : status === "in-progress" || status === "needs-backup" ? (
+          <View style={{ flexDirection: "row", gap: 8 }}>
             {resident?.emergency_contact && (
               <TouchableOpacity
                 style={{
                   flex: 1,
                   backgroundColor: "rgba(59,130,246,0.12)",
-                  borderRadius: 14,
-                  paddingVertical: 16,
+                  borderRadius: 12,
+                  paddingVertical: 13,
                   flexDirection: "row",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: 8,
+                  gap: 6,
                   borderWidth: 1,
-                  borderColor: "rgba(59,130,246,0.2)",
+                  borderColor: "rgba(59,130,246,0.25)",
                 }}
                 onPress={() => Linking.openURL(`tel:${resident.emergency_contact}`)}
                 activeOpacity={0.8}
               >
-                <Ionicons name="call" size={18} color="#3B82F6" />
-                <Text style={{ color: "#60A5FA", fontSize: 14, fontWeight: "700" }}>Call</Text>
+                <Ionicons name="call" size={16} color="#3B82F6" />
+                <Text style={{ color: "#60A5FA", fontSize: 13, fontWeight: "700" }}>Call</Text>
               </TouchableOpacity>
             )}
             <TouchableOpacity
               style={{
-                flex: resident?.emergency_contact ? 1.2 : 1,
+                flex: 1,
                 backgroundColor: "#16A34A",
-                borderRadius: 14,
-                paddingVertical: 16,
+                borderRadius: 12,
+                paddingVertical: 13,
                 flexDirection: "row",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 10,
+                gap: 6,
                 shadowColor: "#16A34A",
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.3,
-                shadowRadius: 12,
-                elevation: 6,
+                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.25,
+                shadowRadius: 8,
+                elevation: 5,
               }}
               onPress={handleResolve}
               disabled={resolving}
@@ -746,10 +971,37 @@ export default function ReportDetailScreen() {
               {resolving ? (
                 <ActivityIndicator size="small" color="#fff" />
               ) : (
-                <Ionicons name="checkmark-done-circle" size={20} color="#fff" />
+                <Ionicons name="checkmark-done-circle" size={18} color="#fff" />
               )}
-              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
+              <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
                 {resolving ? "Resolving..." : "Resolve"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={{
+                flex: 1.2,
+                backgroundColor: report.status === "needs-backup" ? "rgba(239,68,68,0.08)" : "rgba(239,68,68,0.12)",
+                borderRadius: 12,
+                paddingVertical: 13,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+                borderWidth: 1,
+                borderColor: report.status === "needs-backup" ? "rgba(239,68,68,0.2)" : "rgba(239,68,68,0.3)",
+              }}
+              onPress={handleRequestBackup}
+              disabled={requestingBackup || report.status === "needs-backup"}
+              activeOpacity={0.8}
+            >
+              {requestingBackup ? (
+                <ActivityIndicator size="small" color="#F87171" />
+              ) : (
+                <Ionicons name={report.status === "needs-backup" ? "checkmark-circle" : "warning"} size={16} color="#F87171" />
+              )}
+              <Text style={{ color: "#F87171", fontSize: 13, fontWeight: "700" }}>
+                {requestingBackup ? "Requesting..." : report.status === "needs-backup" ? "Backup Sent" : "Backup"}
               </Text>
             </TouchableOpacity>
           </View>

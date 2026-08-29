@@ -9,6 +9,7 @@ interface AlarmContextType {
   alertBanner: string | null;
   setAlertBanner: (msg: string | null) => void;
   playEmergencyAlert: (report: any) => void;
+  playBackupAlert: () => void;
   stopAlertForReport: (reportId: string) => void;
   stopAllAlarms: () => void;
   triggerHaptics: () => Promise<void>;
@@ -22,6 +23,7 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
   const [soundsLoaded, setSoundsLoaded] = useState(false);
   const emergencySoundRef = useRef<Audio.Sound | null>(null);
   const normalSoundRef = useRef<Audio.Sound | null>(null);
+  const backupSoundRef = useRef<Audio.Sound | null>(null);
   const activeAlertIds = useRef<Set<string>>(new Set());
   const alertTimerRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
@@ -62,9 +64,19 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
           console.error("[AlarmContext] Failed to load normal sound:", e);
         }
 
+        try {
+          const { sound } = await Audio.Sound.createAsync(
+            require("../assets/backup_alert.wav"),
+            { volume: 0.8, shouldPlay: false }
+          );
+          if (mountedRef.current) backupSoundRef.current = sound;
+        } catch (e) {
+          console.error("[AlarmContext] Failed to load backup sound:", e);
+        }
+
         if (mountedRef.current) {
           setSoundsLoaded(true);
-          console.log("[AlarmContext] Audio loaded. Emergency:", !!emergencySoundRef.current, "Normal:", !!normalSoundRef.current);
+          console.log("[AlarmContext] Audio loaded. Emergency:", !!emergencySoundRef.current, "Normal:", !!normalSoundRef.current, "Backup:", !!backupSoundRef.current);
         }
       } catch (e) {
         console.error("[AlarmContext] Audio setup failed:", e);
@@ -79,8 +91,10 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       mountedRef.current = false;
       emergencySoundRef.current?.unloadAsync().catch(() => {});
       normalSoundRef.current?.unloadAsync().catch(() => {});
+      backupSoundRef.current?.unloadAsync().catch(() => {});
       emergencySoundRef.current = null;
       normalSoundRef.current = null;
+      backupSoundRef.current = null;
     };
   }, []);
 
@@ -129,7 +143,7 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
   const stopAllAudio = useCallback(async () => {
     try { Vibration.cancel(); } catch {}
 
-    for (const sound of [emergencySoundRef.current, normalSoundRef.current]) {
+    for (const sound of [emergencySoundRef.current, normalSoundRef.current, backupSoundRef.current]) {
       if (!sound) continue;
       try { await sound.setIsLoopingAsync(false); } catch {}
       try { await sound.stopAsync(); } catch {}
@@ -159,6 +173,20 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       console.warn("[AlarmContext] Sound ref not ready for:", label);
     }
   }, [triggerHaptics, forcePlaySound]);
+
+  const playBackupAlert = useCallback(() => {
+    try { Vibration.vibrate([0, 200, 100, 200]); } catch {}
+    const sound = backupSoundRef.current;
+    if (sound) {
+      forcePlaySound(sound);
+      setTimeout(() => {
+        sound.setIsLoopingAsync(false).catch(() => {});
+        sound.stopAsync().catch(() => {});
+      }, 1600);
+    } else {
+      console.warn("[AlarmContext] Backup sound ref not ready");
+    }
+  }, [forcePlaySound]);
 
   const stopAlertForReport = useCallback((reportId: string) => {
     activeAlertIds.current.delete(reportId);
@@ -191,6 +219,8 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       emergencySoundRef.current?.stopAsync().catch(() => {});
       normalSoundRef.current?.setIsLoopingAsync(false).catch(() => {});
       normalSoundRef.current?.stopAsync().catch(() => {});
+      backupSoundRef.current?.setIsLoopingAsync(false).catch(() => {});
+      backupSoundRef.current?.stopAsync().catch(() => {});
     };
   }, []);
 
@@ -200,6 +230,7 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
         alertBanner,
         setAlertBanner,
         playEmergencyAlert,
+        playBackupAlert,
         stopAlertForReport,
         stopAllAlarms,
         triggerHaptics,

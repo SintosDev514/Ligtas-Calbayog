@@ -35,6 +35,7 @@ export default function ReportsScreen() {
   const [selectedReport, setSelectedReport] = useState<any | null>(null);
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
   const [policeLocation, setPoliceLocation] = useState<{latitude: number; longitude: number} | null>(null);
+  const [policeHeading, setPoliceHeading] = useState<number | null>(null);
   const locationWatchRef = useRef<any>(null);
   const locationIntervalRef = useRef<number | null>(null);
 
@@ -108,13 +109,17 @@ export default function ReportsScreen() {
           (pos) => {
             const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
             setPoliceLocation(loc);
+            if (typeof pos.coords.heading === "number") setPoliceHeading(pos.coords.heading);
           },
         );
       } catch (err) {
         console.warn("Location watch failed:", err);
         if (!navigator.geolocation) return;
         const watchId = navigator.geolocation.watchPosition(
-          (pos) => setPoliceLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+          (pos) => {
+            setPoliceLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+            if (typeof pos.coords.heading === "number") setPoliceHeading(pos.coords.heading);
+          },
           (err) => console.warn("Geolocation error:", err.message),
           { enableHighAccuracy: true },
         );
@@ -135,7 +140,7 @@ export default function ReportsScreen() {
     if (!activeReportId || !policeLocation || !profile) return;
 
     const upsert = () => {
-      upsertPoliceLocation(profile.id, activeReportId, policeLocation.latitude, policeLocation.longitude)
+      upsertPoliceLocation(profile.id, activeReportId, policeLocation.latitude, policeLocation.longitude, policeHeading)
         .catch((err) => console.warn("Failed to upsert police location:", err.message));
     };
 
@@ -144,7 +149,7 @@ export default function ReportsScreen() {
     locationIntervalRef.current = id;
 
     return () => clearInterval(id);
-  }, [activeReportId, policeLocation, profile]);
+  }, [activeReportId, policeLocation, policeHeading, profile]);
 
   const loadResidentName = async (residentId: string) => {
     if (residents[residentId]) return;

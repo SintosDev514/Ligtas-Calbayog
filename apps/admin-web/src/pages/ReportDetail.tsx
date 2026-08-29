@@ -7,7 +7,7 @@ import {
   MessageSquare, Car, Shield, Eye, Phone, User,
   Image as ImageIcon, ExternalLink, Maximize2, X, Calendar, ImageOff,
   Video, Play, Ban, Send, PauseCircle, Crosshair, UserCog,
-  Volume2, VolumeX
+  Volume2, VolumeX, Navigation, Compass
 } from "lucide-react";
 
 const STATUSES = [
@@ -57,6 +57,16 @@ const getTimelineColor = (type: string) => {
   }
 };
 
+const RESPONSE_DETAIL_TYPES = [
+  "arrived",
+  "investigating",
+  "dispatch_sent",
+  "suspect_detained",
+  "other",
+  "notes",
+  "backup_requested",
+];
+
 const BUCKET = "report-photos";
 const SIGNED_URL_EXPIRY = 86400;
 
@@ -72,7 +82,7 @@ export default function ReportDetail() {
   const [actionUpdates, setActionUpdates] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-  const { refreshAlarm } = useAlarm();
+  const { refreshAlarm, playBackupAlert } = useAlarm();
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [lightboxLoading, setLightboxLoading] = useState(false);
   const [failedImages, setFailedImages] = useState<Set<number>>(new Set());
@@ -80,6 +90,11 @@ export default function ReportDetail() {
   const [updatingUser, setUpdatingUser] = useState(false);
   const [assignedOfficer, setAssignedOfficer] = useState<any>(null);
   const [acceptedAt, setAcceptedAt] = useState<string | null>(null);
+  const [officerLoc, setOfficerLoc] = useState<{ latitude: number; longitude: number; heading?: number | null } | null>(null);
+  const [routeData, setRouteData] = useState<any>(null);
+  const [routeDistance, setRouteDistance] = useState<string | null>(null);
+  const [routeDuration, setRouteDuration] = useState<string | null>(null);
+  const [relatedReports, setRelatedReports] = useState<any[]>([]);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const spokenIdRef = useRef<string | null>(null);
@@ -121,6 +136,7 @@ export default function ReportDetail() {
   useEffect(() => {
     if (!id) return;
     loadReport();
+    fetchOfficerLocation();
     const channel = supabase
       .channel(`report-${id}`)
       .on(
@@ -134,7 +150,13 @@ export default function ReportDetail() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "police_locations", filter: `report_id=eq.${id}` },
-        () => loadAssignedOfficer()
+        (payload: any) => {
+          const n = payload.new;
+          if (n?.latitude != null && n?.longitude != null) {
+            setOfficerLoc({ latitude: n.latitude, longitude: n.longitude, heading: n.heading });
+          }
+          loadAssignedOfficer();
+        }
       )
       .on(
         "postgres_changes",
@@ -152,6 +174,7 @@ export default function ReportDetail() {
     if (!id) return;
     const interval = setInterval(() => {
       loadAssignedOfficer();
+      fetchOfficerLocation();
     }, 5000);
     return () => clearInterval(interval);
   }, [id]);
@@ -178,6 +201,7 @@ export default function ReportDetail() {
         setUserStatus(u?.status || "approved");
       }
       setReport(r);
+      if (r?.crime_type) loadRelatedReports(r.crime_type, r.id);
 
       const { data: fb } = await supabase
         .from("report_feedback")
@@ -200,6 +224,21 @@ export default function ReportDetail() {
       console.error("Failed to load report:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadRelatedReports = async (crimeType: string, reportId: string) => {
+    try {
+      const { data } = await supabase
+        .from("crime_reports")
+        .select("id, crime_type, location_address, latitude, longitude, status, created_at")
+        .eq("crime_type", crimeType)
+        .neq("id", reportId)
+        .order("created_at", { ascending: false })
+        .limit(6);
+      setRelatedReports(data ?? []);
+    } catch (e) {
+      console.warn("Failed to load related reports:", e);
     }
   };
 
@@ -300,6 +339,56 @@ export default function ReportDetail() {
     }
   };
 
+  const fetchOfficerLocation = useCallback(async () => {
+    if (!id) return;
+    const query = supabase
+      .from("police_locations")
+      .select("latitude, longitude, heading")
+      .eq("report_id", id);
+    let data: any = null;
+    try {
+      const res = await query.maybeSingle();
+      data = res.data;
+      if (res.error && (res.error as any)?.message?.includes("heading")) {
+        // heading column not deployed yet; retry without it
+        const fallback = await supabase
+          .from("police_locations")
+          .select("latitude, longitude")
+          .eq("report_id", id)
+          .maybeSingle();
+        data = fallback.data;
+      }
+    } catch (e) {
+      console.warn("fetchOfficerLocation failed:", e);
+    }
+    if (data?.latitude != null && data?.longitude != null) {
+      setOfficerLoc({ latitude: data.latitude, longitude: data.longitude, heading: data.heading });
+    }
+  }, [id]);
+
+  const fetchRoute = useCallback(async (from: { latitude: number; longitude: number }) => {
+    if (!report) return;
+    if (report.latitude == null || report.longitude == null) return;
+    try {
+      const url = `https://router.project-osrm.org/route/v1/driving/${from.longitude},${from.latitude};${report.longitude},${report.latitude}?geometries=geojson&overview=full`;
+      const res = await fetch(url);
+      const json = await res.json();
+      if (json.code === "Ok" && json.routes?.length) {
+        const route = json.routes[0];
+        setRouteData({ geometry: route.geometry });
+        setRouteDistance(`${(route.distance / 1000).toFixed(1)} km`);
+        setRouteDuration(`${Math.round(route.duration / 60)} min`);
+      }
+    } catch (e) {
+      console.warn("Route fetch failed:", e);
+    }
+  }, [report]);
+
+  useEffect(() => {
+    if (!officerLoc) return;
+    fetchRoute(officerLoc);
+  }, [officerLoc, fetchRoute]);
+
   const updateUserStatus = async (status: string) => {
     setUpdatingUser(true);
     try {
@@ -334,6 +423,10 @@ export default function ReportDetail() {
               : "Police unit has been dispatched to the location",
           created_at: new Date().toISOString(),
         });
+      }
+
+      if (status === NEEDS_BACKUP) {
+        playBackupAlert();
       }
 
       if (status === "resolved") {
@@ -576,18 +669,80 @@ export default function ReportDetail() {
                   </div>
                 </div>
                 {report.latitude != null && report.longitude != null && (
-                  <div className="rd-map-box">
-                    <MapView
-                      latitude={report.latitude}
-                      longitude={report.longitude}
-                      label={report.crime_type?.replace(/-/g, " ")}
-                    />
-                  </div>
+                  <>
+                    <div className="rd-route-head">
+                      <span className="rd-route-head-title">Route Overview</span>
+                      {officerLoc && (
+                        <span className="rd-route-head-live">
+                          <span className="rd-route-live-dot" />
+                          Live
+                        </span>
+                      )}
+                    </div>
+                    <div className="rd-map-box">
+                      <MapView
+                        reportId={id!}
+                        latitude={report.latitude}
+                        longitude={report.longitude}
+                        label={`Incident: ${report.crime_type?.replace(/-/g, " ")}`}
+                        residentLatitude={report.resident?.latitude}
+                        residentLongitude={report.resident?.longitude}
+                        residentLabel={report.resident?.full_name || "Resident"}
+                        officerLoc={officerLoc}
+                        routeData={routeData}
+                      />
+                    </div>
+                    <div className="rd-route-stats">
+                      <div className="rd-route-stat">
+                        <div className="rd-route-stat-icon rd-route-stat-icon-blue">
+                          <Navigation size={16} />
+                        </div>
+                        <div className="rd-route-stat-value">{routeDistance || "—"}</div>
+                        <div className="rd-route-stat-label">Distance</div>
+                      </div>
+                      <div className="rd-route-stat">
+                        <div className="rd-route-stat-icon rd-route-stat-icon-green">
+                          <Clock size={16} />
+                        </div>
+                        <div className="rd-route-stat-value">{routeDuration || "—"}</div>
+                        <div className="rd-route-stat-label">Est. Time</div>
+                      </div>
+                      <div className="rd-route-stat">
+                        <div className="rd-route-stat-icon rd-route-stat-icon-indigo">
+                          <Compass size={16} />
+                        </div>
+                        <div className="rd-route-stat-value">
+                          {officerLoc ? "On Route" : "No Officer"}
+                        </div>
+                        <div className="rd-route-stat-label">Status</div>
+                      </div>
+                    </div>
+                    <div className="rd-map-legend">
+                      <div className="rd-map-legend-item">
+                        <span className="rd-map-legend-dot" style={{ background: "#DC2626" }} />
+                        Incident
+                      </div>
+                      {report.resident?.latitude != null && (
+                        <div className="rd-map-legend-item">
+                          <span className="rd-map-legend-dot" style={{ background: "#10B981" }} />
+                          Resident
+                        </div>
+                      )}
+                      <div className="rd-map-legend-item">
+                        <span className="rd-map-legend-dot" style={{ background: "#2563eb" }} />
+                        Officer
+                      </div>
+                      <div className="rd-map-legend-item">
+                        <span className="rd-map-legend-line" />
+                        Route
+                      </div>
+                    </div>
+                  </>
                 )}
               </div>
 
               {actionUpdates.length > 0 && (
-                <div className="rd-card rd-card-timeline" style={{ flex: "0 0 320px", minWidth: 0, "--rd-accent": "#8b5cf6" } as React.CSSProperties}>
+                <div className="rd-card rd-card-timeline" style={{ flex: "0 0 260px", minWidth: 0, "--rd-accent": "#8b5cf6" } as React.CSSProperties}>
                   <div className="rd-card-head">
                     <Clock size={13} />
                     <span>Action Timeline</span>
@@ -624,8 +779,89 @@ export default function ReportDetail() {
                   </div>
                 </div>
               )}
+
+              {actionUpdates.length > 0 && (
+                <div className="rd-card rd-card-response" style={{ flex: "0 0 260px", minWidth: 0, "--rd-accent": "#14b8a6" } as React.CSSProperties}>
+                  <div className="rd-card-head">
+                    <MessageSquare size={13} />
+                    <span>Response Details</span>
+                    <span className="rd-card-badge">
+                      {actionUpdates.filter((u: any) => RESPONSE_DETAIL_TYPES.includes(u.action_type)).length}
+                    </span>
+                  </div>
+                  <div className="rd-timeline">
+                    {actionUpdates
+                      .filter((u: any) => RESPONSE_DETAIL_TYPES.includes(u.action_type))
+                      .map((u: any, i: number, arr: any[]) => {
+                        const isLast = i === arr.length - 1;
+                        return (
+                          <div key={u.id} className="rd-tl-item">
+                            <div className="rd-tl-track">
+                              <div className="rd-tl-dot" style={{ borderColor: "#14b8a6" }} />
+                              {!isLast && <div className="rd-tl-line" style={{ background: "#14b8a6" }} />}
+                            </div>
+                            <div className="rd-tl-body">
+                              <div className="rd-tl-top">
+                                <span className="rd-tl-action">{u.action_type?.replace(/_/g, " ")}</span>
+                                <span className="rd-tl-time">
+                                  {formatDateShort(u.created_at)} at {formatTime(u.created_at)}
+                                </span>
+                              </div>
+                              {u.description && <p className="rd-tl-desc">{u.description}</p>}
+                              {u.officer && (
+                                <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 4, fontSize: 11, color: "var(--gray-400)" }}>
+                                  <Shield size={10} /> {u.officer.full_name} ({u.officer.rank})
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {actionUpdates.filter((u: any) => RESPONSE_DETAIL_TYPES.includes(u.action_type)).length === 0 && (
+                      <div style={{ fontSize: 12, color: "var(--gray-500)", fontStyle: "italic", padding: "8px 0" }}>
+                        No response details recorded yet.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+
+          {relatedReports.length > 0 && (
+            <div className="rd-card rd-card-related" style={{ "--rd-accent": "#f59e0b" } as React.CSSProperties}>
+              <div className="rd-card-head">
+                <AlertTriangle size={13} />
+                <span>Related Reports</span>
+                <span className="rd-card-badge">{relatedReports.length}</span>
+              </div>
+              <div className="rd-related-list">
+                {relatedReports.map((r) => {
+                  const rStatus = statusColors[r.status] || statusColors.dismissed;
+                  const RIcon = statusIcons[r.status] || Clock;
+                  return (
+                    <button
+                      key={r.id}
+                      className="rd-related-item"
+                      onClick={() => navigate(`/dashboard/reports/${r.id}`)}
+                    >
+                      <span className="rd-related-crime">{r.crime_type?.replace(/-/g, " ")}</span>
+                      <span className="rd-related-meta">
+                        <MapPin size={11} /> {r.location_address || "—"}
+                      </span>
+                      <span className="rd-related-meta">
+                        <Clock size={11} /> {formatDateShort(r.created_at)}
+                      </span>
+                      <span className="rd-related-status" style={{ color: rStatus.text }}>
+                        <RIcon size={11} />
+                        {r.status?.replace(/-/g, " ")}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="rd-side">
             <div className="rd-card rd-card-combo" style={{ "--rd-accent": "#14b8a6" } as React.CSSProperties}>
@@ -882,26 +1118,50 @@ export default function ReportDetail() {
 }
 
 function MapView({
+  reportId,
   latitude,
   longitude,
   label,
+  residentLatitude,
+  residentLongitude,
+  residentLabel,
+  officerLoc,
+  routeData,
 }: {
+  reportId: string;
   latitude: number;
   longitude: number;
   label?: string;
+  residentLatitude?: number | null;
+  residentLongitude?: number | null;
+  residentLabel?: string;
+  officerLoc?: { latitude: number; longitude: number; heading?: number | null } | null;
+  routeData?: { geometry: { coordinates: [number, number][] } } | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<any>(null);
+  const maplibreRef = useRef<any>(null);
+  const officerMarkerRef = useRef<any>(null);
+  const officerLocRef = useRef<any>(null);
+  const drawOfficerRef = useRef<(() => void) | null>(null);
+  const fitDoneRef = useRef(false);
+  const routeDataRef = useRef<any>(null);
 
+  // Initialize map once
   useEffect(() => {
     let map: any = null;
-    import("maplibre-gl").then(async (maplibregl) => {
-      if (!containerRef.current) return;
+    let cancelled = false;
+    import("maplibre-gl").then((maplibregl: any) => {
+      if (cancelled || !containerRef.current) return;
+      maplibreRef.current = maplibregl;
       map = new maplibregl.Map({
         container: containerRef.current,
         style: "https://tiles.openfreemap.org/styles/liberty",
         center: [longitude, latitude],
         zoom: 14,
       });
+      mapRef.current = map;
+
       new maplibregl.Marker({ color: "#DC2626" })
         .setLngLat([longitude, latitude])
         .setPopup(
@@ -911,31 +1171,153 @@ function MapView({
         )
         .addTo(map);
 
-      const { data: posts } = await supabase
-        .from("police_posts")
-        .select("id, name, latitude, longitude, address")
-        .order("name");
-      if (posts) {
-        for (const post of posts) {
-          if (post.latitude == null || post.longitude == null) continue;
-          const el = document.createElement("div");
-          el.className = "post-marker";
-          el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
-          new maplibregl.Marker({ element: el })
-            .setLngLat([post.longitude, post.latitude])
-            .setPopup(
-              new maplibregl.Popup({ offset: 25 }).setHTML(
-                `<div class="popup-content"><h4 style="display:flex;align-items:center;gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" style="width:16px;height:16px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> ${post.name}</h4>${post.address ? `<p>${post.address}</p>` : ""}</div>`
-              )
+      if (residentLatitude != null && residentLongitude != null) {
+        new maplibregl.Marker({ color: "#10B981" })
+          .setLngLat([residentLongitude, residentLatitude])
+          .setPopup(
+            new maplibregl.Popup().setHTML(
+              `<div class="popup-content"><h4>${residentLabel || "Resident"}</h4></div>`
             )
-            .addTo(map);
-        }
+          )
+          .addTo(map);
       }
+
+      map.on("load", () => {
+        map.addSource("route", {
+          type: "geojson",
+          data: { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [] } },
+        });
+        map.addLayer({
+          id: "route-line",
+          type: "line",
+          source: "route",
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: {
+            "line-color": "#EF4444",
+            "line-width": 5,
+            "line-opacity": 0.85,
+          },
+        });
+        // Render any route that was fetched before the map finished loading
+        if (routeDataRef.current?.geometry?.coordinates?.length) {
+          (map.getSource("route") as any)?.setData({
+            type: "Feature",
+            properties: {},
+            geometry: routeDataRef.current.geometry,
+          });
+          const bounds = routeDataRef.current.geometry.coordinates.reduce(
+            (b: any, c: [number, number]) => b.extend(c),
+            new maplibregl.LngLatBounds()
+          );
+          if (bounds && !fitDoneRef.current) {
+            map.fitBounds(bounds, { padding: 60, duration: 800 });
+            fitDoneRef.current = true;
+          }
+        }
+        // Render the officer arrow if its location arrived before the map loaded
+        drawOfficerRef.current?.();
+      });
+
+      const loadPosts = async () => {
+        try {
+          const { data: posts } = await supabase
+            .from("police_posts")
+            .select("id, name, latitude, longitude, address")
+            .order("name");
+          if (posts) {
+            for (const post of posts) {
+              if (post.latitude == null || post.longitude == null) continue;
+              const el = document.createElement("div");
+              el.className = "post-marker";
+              el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+              new maplibregl.Marker({ element: el })
+                .setLngLat([post.longitude, post.latitude])
+                .setPopup(
+                  new maplibregl.Popup({ offset: 25 }).setHTML(
+                    `<div class="popup-content"><h4 style="display:flex;align-items:center;gap:6px;"><svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="2" style="width:16px;height:16px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> ${post.name}</h4>${post.address ? `<p>${post.address}</p>` : ""}</div>`
+                  )
+                )
+                .addTo(map);
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to load police posts:", e);
+        }
+      };
+      loadPosts();
     });
     return () => {
+      cancelled = true;
       map?.remove();
+      mapRef.current = null;
     };
-  }, [latitude, longitude]);
+  }, [latitude, longitude, residentLatitude, residentLongitude, residentLabel, label]);
+
+  // Draw / update officer marker (plain blue police icon)
+  const drawOfficer = useCallback(() => {
+    const map = mapRef.current;
+    const maplibregl = maplibreRef.current;
+    const loc = officerLocRef.current;
+    if (!map || !maplibregl || !loc) return;
+
+    const el = document.createElement("div");
+    el.className = "rd-officer-marker";
+    el.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:26px;height:26px;"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>`;
+
+    let marker = officerMarkerRef.current;
+    if (marker) {
+      marker.getElement().innerHTML = el.innerHTML;
+      marker.getElement().className = el.className;
+      marker.setLngLat([loc.longitude, loc.latitude]);
+    } else {
+      marker = new maplibregl.Marker({ element: el })
+        .setLngLat([loc.longitude, loc.latitude])
+        .addTo(map);
+      officerMarkerRef.current = marker;
+    }
+  }, []);
+
+  useEffect(() => {
+    officerLocRef.current = officerLoc;
+    drawOfficerRef.current = drawOfficer;
+    if (officerLoc) drawOfficer();
+  }, [officerLoc, drawOfficer]);
+
+  // Draw the route line
+  useEffect(() => {
+    routeDataRef.current = routeData;
+
+    const map = mapRef.current;
+    if (!map) return;
+
+    const applyRoute = () => {
+      if (!routeData?.geometry?.coordinates?.length) return;
+      const src = map.getSource("route");
+      if (!src) return;
+      (src as any).setData({
+        type: "Feature",
+        properties: {},
+        geometry: routeData.geometry,
+      });
+      if (!fitDoneRef.current && maplibreRef.current) {
+        const bounds = routeData.geometry.coordinates.reduce(
+          (b: any, c: [number, number]) => b.extend(c),
+          new maplibreRef.current.LngLatBounds()
+        );
+        map.fitBounds(bounds, { padding: 60, duration: 800 });
+        fitDoneRef.current = true;
+      }
+    };
+
+    if (map.isStyleLoaded() && map.getSource("route")) {
+      applyRoute();
+    } else if (map.isStyleLoaded()) {
+      // source not created yet (shouldn't happen), re-check after a tick
+      setTimeout(applyRoute, 0);
+    }
+    // If the style is still loading, the map "load" handler applies latest routeDataRef.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routeData]);
 
   return <div ref={containerRef} style={{ width: "100%", height: "100%" }} />;
 }

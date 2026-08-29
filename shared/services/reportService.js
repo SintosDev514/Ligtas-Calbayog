@@ -270,33 +270,49 @@ export const appealPenalty = async (penaltyId, userId, message) => {
 
 /**
  * Upsert police officer's location for a specific report
+ * @param {string} officerId
+ * @param {string|null} reportId
+ * @param {number} latitude
+ * @param {number} longitude
+ * @param {number|null} [heading]
  */
-export const upsertPoliceLocation = async (officerId, reportId, latitude, longitude) => {
-  let query = supabase
-    .from("police_locations")
-    .select("id")
-    .eq("officer_id", officerId);
+export const upsertPoliceLocation = async (officerId, reportId, latitude, longitude, heading = null) => {
+  const write = async (withHeading) => {
+    const hasHeading = withHeading && typeof heading === "number" && !isNaN(heading);
+    const base = { latitude, longitude, updated_at: new Date().toISOString() };
+    const payload = hasHeading ? { ...base, heading } : base;
 
-  if (reportId) {
-    query = query.eq("report_id", reportId);
-  } else {
-    query = query.is("report_id", null);
-  }
+    let query = supabase
+      .from("police_locations")
+      .select("id")
+      .eq("officer_id", officerId);
+    if (reportId) {
+      query = query.eq("report_id", reportId);
+    } else {
+      query = query.is("report_id", null);
+    }
 
-  const { data: existing } = await query.maybeSingle();
+    const { data: existing } = await query.maybeSingle();
 
-  if (existing) {
+    if (existing) {
+      const { error } = await supabase
+        .from("police_locations")
+        .update(payload)
+        .eq("id", existing.id);
+      return error;
+    }
     const { error } = await supabase
       .from("police_locations")
-      .update({ latitude, longitude, updated_at: new Date().toISOString() })
-      .eq("id", existing.id);
-    if (error) throw new Error(error.message);
-  } else {
-    const { error } = await supabase
-      .from("police_locations")
-      .insert({ officer_id: officerId, report_id: reportId || null, latitude, longitude });
-    if (error) throw new Error(error.message);
+      .insert({ officer_id: officerId, report_id: reportId || null, ...payload });
+    return error;
+  };
+
+  let err = await write(true);
+  // If the heading column isn't deployed yet, retry without it so location still saves.
+  if (err && /column "heading"|heading.*does not exist|Could not find the 'heading'/i.test(err.message || "")) {
+    err = await write(false);
   }
+  if (err) throw new Error(err.message);
 };
 
 /**

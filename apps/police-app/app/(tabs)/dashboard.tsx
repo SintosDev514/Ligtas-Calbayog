@@ -31,6 +31,7 @@ export default function DashboardScreen() {
   const [mapStyle, setMapStyle] = useState<any>("light");
   const [showStylePicker, setShowStylePicker] = useState(false);
   const [userLocation, setUserLocation] = useState<{latitude: number; longitude: number} | null>(null);
+  const [userHeading, setUserHeading] = useState<number | null>(null);
   const [activeReportId, setActiveReportId] = useState<string | null>(null);
   const [policePosts, setPolicePosts] = useState<any[]>([]);
   const [mapRegion, setMapRegion] = useState({ latitude: 12.061, longitude: 124.596, latitudeDelta: 0.05, longitudeDelta: 0.05 });
@@ -115,12 +116,18 @@ export default function DashboardScreen() {
         if (status !== "granted") return;
         locationWatchRef.current = await Location.watchPositionAsync(
           { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 0 },
-          (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+          (pos) => {
+            setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+            if (typeof pos.coords.heading === "number") setUserHeading(pos.coords.heading);
+          },
         );
       } catch (err) {
         if (!navigator.geolocation) return;
         const watchId = navigator.geolocation.watchPosition(
-          (pos) => setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude }),
+          (pos) => {
+            setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
+            if (typeof pos.coords.heading === "number") setUserHeading(pos.coords.heading);
+          },
           () => {},
           { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 },
         );
@@ -137,9 +144,9 @@ export default function DashboardScreen() {
     if (!activeReportId && now - lastHeartbeatRef.current < 25000) return;
     if (activeReportId && now - lastHeartbeatRef.current < 5000) return;
     lastHeartbeatRef.current = now;
-    upsertPoliceLocation(profile.id, activeReportId, userLocation.latitude, userLocation.longitude)
+    upsertPoliceLocation(profile.id, activeReportId, userLocation.latitude, userLocation.longitude, userHeading)
       .catch(() => {});
-  }, [profile?.id, userLocation, activeReportId]);
+  }, [profile?.id, userLocation, userHeading, activeReportId]);
 
   const loadData = async () => {
     try {
