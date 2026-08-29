@@ -733,12 +733,6 @@ export default function ReportDetail() {
                     );
                   })}
                 </div>
-                {report.status !== NEEDS_BACKUP && report.status !== "resolved" && (
-                  <button className="rd-danger-btn" onClick={() => updateStatus(NEEDS_BACKUP)} disabled={updating}>
-                    <AlertTriangle size={11} />
-                    Request Backup
-                  </button>
-                )}
                 {report.status === NEEDS_BACKUP && (
                   <div className="rd-danger-alert">
                     <AlertTriangle size={13} />
