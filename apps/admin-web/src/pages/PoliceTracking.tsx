@@ -125,7 +125,7 @@ export default function PoliceTracking() {
   const [showReportPanel, setShowReportPanel] = useState(false);
   const [reports, setReports] = useState<ReportDetail[]>([]);
   const [focusedReportId, setFocusedReportId] = useState<string | null>(null);
-  const [mapStyle, setMapStyle] = useState("mapbox-dark");
+  const [mapStyle, setMapStyle] = useState("mapbox-satellite-streets");
 
   const mapStyles = [
     { id: "mapbox-dark", label: "Dark", url: "mapbox://styles/mapbox/dark-v11", icon: Moon },

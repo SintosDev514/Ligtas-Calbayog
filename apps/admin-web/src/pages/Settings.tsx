@@ -7,7 +7,7 @@ function getTheme(): "light" | "dark" {
     const stored = localStorage.getItem("admin-theme");
     if (stored === "light" || stored === "dark") return stored;
   }
-  return "dark";
+  return "light";
 }
 
 function setTheme(mode: "light" | "dark") {

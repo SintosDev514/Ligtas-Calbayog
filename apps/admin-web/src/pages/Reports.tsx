@@ -204,79 +204,61 @@ export default function Reports() {
 
         {filtered.length > 0 ? (
           <>
-            <div className="table-container">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Crime Type</th>
-                    <th>Resident</th>
-                    <th>Location</th>
-                    <th>Accepted By</th>
-                    <th>Status</th>
-                    <th>Date</th>
-                    <th style={{ width: 60 }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paged.map((r) => (
-                    <tr
-                      key={r.id}
-                      className="clickable-row"
-                      onClick={(e) => {
-                        if ((e.target as HTMLElement).closest("button")) return;
-                        navigate(`/dashboard/reports/${r.id}`);
-                      }}
-                    >
-                      <td style={{ textTransform: "capitalize", fontWeight: 600 }}>
+            <div className="report-grid">
+              {paged.map((r) => (
+                <div
+                  key={r.id}
+                  className="report-card report-card-clickable"
+                  onClick={() => navigate(`/dashboard/reports/${r.id}`)}
+                >
+                  <div className="report-card-head">
+                    <div className="report-card-crime">
+                      <span className={`report-icon report-icon-${r.status}`}>
+                        <FileText size={16} />
+                      </span>
+                      <span className="report-crime-type">
                         {r.crime_type?.replace(/-/g, " ")}
-                      </td>
-                      <td>
-                        <div style={{ fontWeight: 500 }}>{r.resident?.full_name || "Unknown"}</div>
-                        <div style={{ fontSize: 12, color: "var(--gray-400)" }}>
-                          {r.resident?.phone_number || ""}
-                        </div>
-                      </td>
-                      <td style={{ maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {r.location_address || `${r.latitude?.toFixed(4)}, ${r.longitude?.toFixed(4)}` || "—"}
-                      </td>
-                      <td style={{ fontSize: 13 }}>
-                        {r.assigned_officer ? (
-                          <div>
-                            <div style={{ fontWeight: 500 }}>{r.assigned_officer.full_name}</div>
-                            <div style={{ fontSize: 11, color: "var(--gray-400)" }}>
-                              {r.assigned_officer.rank} • #{r.assigned_officer.badge_id}
-                            </div>
-                          </div>
-                        ) : (
-                          <span style={{ color: "var(--gray-400)" }}>—</span>
-                        )}
-                      </td>
-                      <td>
-                        <span className={`badge badge-${r.status}`}>{r.status}</span>
-                      </td>
-                      <td style={{ color: "var(--gray-400)", fontSize: 13 }}>
+                      </span>
+                    </div>
+                    <span className={`badge badge-${r.status}`}>{r.status}</span>
+                  </div>
+
+                  <div className="report-card-body">
+                    <div className="report-card-resident">
+                      <span className="report-card-resident-name">
+                        {r.resident?.full_name || "Unknown"}
+                      </span>
+                      {r.resident?.phone_number && (
+                        <span className="report-card-phone">{r.resident.phone_number}</span>
+                      )}
+                    </div>
+                    <div className="report-card-address">
+                      {r.location_address || `${r.latitude?.toFixed(4)}, ${r.longitude?.toFixed(4)}` || "—"}
+                    </div>
+                  </div>
+
+                  <div className="report-card-foot">
+                    <div className="report-card-meta">
+                      <span className="report-date">
                         {formatDate(r.created_at)}
-                      </td>
-                      <td>
-                        <button
-                          onClick={() => promptDelete(r.id)}
-                          disabled={deleting}
-                          title="Delete report"
-                          style={{
-                            background: "none", border: "none", cursor: "pointer",
-                            color: "var(--gray-400)", padding: 4, borderRadius: 4,
-                            transition: "color 0.15s",
-                          }}
-                          onMouseOver={(e) => (e.currentTarget.style.color = "#ef4444")}
-                          onMouseOut={(e) => (e.currentTarget.style.color = "var(--gray-400)")}
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </span>
+                      {r.assigned_officer && (
+                        <span className="report-officer-chip" title="Accepted by">
+                          {r.assigned_officer.full_name}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      className="report-card-delete"
+                      onClick={(e) => { e.stopPropagation(); promptDelete(r.id); }}
+                      disabled={deleting}
+                      title="Delete report"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
 
             {totalPages > 1 && (

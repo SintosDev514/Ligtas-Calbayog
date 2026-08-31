@@ -10,9 +10,9 @@ import "./App.css";
 const savedTheme = (() => {
   try {
     const t = localStorage.getItem("admin-theme");
-    return t === "light" || t === "dark" ? t : "dark";
+    return t === "light" || t === "dark" ? t : "light";
   } catch {
-    return "dark";
+    return "light";
   }
 })();
 document.documentElement.setAttribute("data-theme", savedTheme);

@@ -79,7 +79,7 @@ export default function Layout() {
   const { refreshAlarm } = useAlarm();
   const navigate = useNavigate();
   const location = useLocation();
-  const [collapsed] = useState(true);
+  const [collapsed] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [bannerReport, setBannerReport] = useState<any | null>(null);
   const lastBannerId = useRef<string | null>(null);
@@ -254,7 +254,7 @@ export default function Layout() {
           </button>
         </div>
       </aside>
-      <main className="main-content sidebar-collapsed">
+      <main className="main-content">
         <Outlet />
       </main>
     </div>
