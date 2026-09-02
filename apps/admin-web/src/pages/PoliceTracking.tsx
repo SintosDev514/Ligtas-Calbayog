@@ -825,17 +825,18 @@ export default function PoliceTracking() {
 
       const el = document.createElement("div");
       el.className = `resident-marker${isRecent ? " active" : ""}`;
-      el.style.background = `${crimeColor}22`;
-      el.style.border = `2px solid ${crimeColor}`;
-      el.style.color = crimeColor;
-      el.style.fontWeight = "700";
-      el.style.fontSize = "14px";
-      el.textContent = initial;
-      if (isRecent) {
-        el.style.setProperty("--crime-pulse", `${crimeColor}66`);
-      }
+      el.style.setProperty("--crime-color", crimeColor);
+      el.style.setProperty("--crime-pulse", `${crimeColor}66`);
+      el.innerHTML = `
+        <div class="resident-marker-head">
+          <span>${initial}</span>
+        </div>
+      `;
 
-      const marker = new mapboxgl.Marker({ element: el })
+      const marker = new mapboxgl.Marker({
+        element: el,
+        anchor: "bottom",
+      })
         .setLngLat([r.longitude, r.latitude])
         .addTo(mapRef.current);
 

@@ -79,7 +79,7 @@ export default function Layout() {
   const { refreshAlarm } = useAlarm();
   const navigate = useNavigate();
   const location = useLocation();
-  const [collapsed] = useState(false);
+  const [collapsed] = useState(true);
   const [pendingCount, setPendingCount] = useState(0);
   const [bannerReport, setBannerReport] = useState<any | null>(null);
   const lastBannerId = useRef<string | null>(null);
@@ -249,7 +249,7 @@ export default function Layout() {
             {profile?.email || "Admin"}
           </div>
           <button className="logout-btn" onClick={handleLogout}>
-            <LogOut size={18} />
+            <span className="logout-icon-wrap"><LogOut size={18} /></span>
             <span className="nav-label">Logout</span>
           </button>
         </div>
