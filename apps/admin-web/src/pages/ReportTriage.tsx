@@ -15,7 +15,7 @@ const ITEMS_PER_PAGE = 15;
 
 const URGENCY_LEVELS = ["critical", "high", "medium", "low"] as const;
 const URGENCY_ORDER: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
-const DEFAULT_CRIME_TYPES = ["hit-and-run", "robbery", "theft", "assault", "vandalism", "burglary", "emergency", "others"];
+const DEFAULT_CRIME_TYPES = ["hit-and-run", "robbery", "theft", "assault", "vandalism", "burglary", "murder", "homicide", "physical-injury", "rape", "kidnapping", "carnapping", "arson", "estafa", "illegal-drugs", "illegal-gambling", "cybercrime", "domestic-violence", "child-abuse", "threats", "harassment", "trespassing", "disturbance", "emergency", "others"];
 
 // Reports the dispatch team has not acted on yet (first response targets)
 const FIRST_RESPONSE_STATUSES = ["pending", "under-review"];

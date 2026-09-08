@@ -2,7 +2,7 @@ import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
-} from "@react-navigation/native";
+} from "expo-router";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -12,6 +12,7 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { LocationProvider } from "@/context/LocationContext";
 import { MapStyleProvider } from "@/context/MapStyleContext";
 import { useAutoLogout } from "../hooks/useAutoLogout";
+import NotificationPopup from "../components/NotificationPopup";
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -46,6 +47,7 @@ export default function RootLayout() {
               />
             </Stack>
             <StatusBar style="light" />
+            <NotificationPopup />
           </ThemeProvider>
         </MapStyleProvider>
       </LocationProvider>

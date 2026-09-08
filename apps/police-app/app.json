@@ -5,7 +5,6 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "newArchEnabled": true,
     "icon": "./assets/iconlogo.png",
     "ios": {
       "supportsTablet": true,
@@ -29,7 +28,6 @@
     "plugins": [
       "expo-router",
       "expo-location",
-      "expo-av",
       "expo-image-picker",
       "expo-file-system",
       [
@@ -40,7 +38,13 @@
           "resizeMode": "contain",
           "backgroundColor": "#001A4D"
         }
-      ]
+      ],
+      "expo-image",
+      "expo-status-bar",
+      "expo-audio",
+      "expo-video",
+      "expo-font",
+      "expo-asset"
     ],
     "scheme": "ligtas-police",
     "extra": {

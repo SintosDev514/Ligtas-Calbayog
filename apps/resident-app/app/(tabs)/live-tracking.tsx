@@ -209,6 +209,7 @@ export default function LiveTrackingScreen() {
         scrollEnabled
         zoomEnabled
         showsUserLocation={false}
+        userLocation={residentLocation ?? undefined}
       >
         <UrlTile urlTemplate={tileUrl} />
 

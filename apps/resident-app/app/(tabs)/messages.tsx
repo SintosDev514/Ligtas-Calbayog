@@ -13,8 +13,7 @@ import {
   Image,
   Linking,
 } from "react-native";
-import { useFocusEffect } from "@react-navigation/native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../../../../shared/supabase/supabaseClient";

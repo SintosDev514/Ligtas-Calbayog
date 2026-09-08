@@ -20,7 +20,7 @@ import { supabase } from "@shared/supabase/supabaseClient";
 import { useAuth } from "../../context/AuthContext";
 import { useAlarm } from "../../context/AlarmContext";
 import { statusColors, crimeIcons, colors } from "../../constants/theme";
-import { reportsStyles as s } from "../styles/Reports.styles";
+import { reportsStyles as s } from "../../styles/Reports.styles";
 import MapView, { Marker } from "../../components/MapView";
 import { upsertPoliceLocation } from "@shared/services/reportService";
 

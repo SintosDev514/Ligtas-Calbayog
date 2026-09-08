@@ -80,6 +80,108 @@ const CRIME_META: Record<
     gradient: ["#3B82F6", "#2563EB"],
   },
 
+  murder: {
+    icon: "skull",
+    color: "#DC2626",
+    gradient: ["#DC2626", "#B91C1C"],
+  },
+
+  homicide: {
+    icon: "body",
+    color: "#9F1239",
+    gradient: ["#9F1239", "#881337"],
+  },
+
+  "physical-injury": {
+    icon: "bandage",
+    color: "#F43F5E",
+    gradient: ["#F43F5E", "#E11D48"],
+  },
+
+  rape: {
+    icon: "heart-dislike",
+    color: "#DB2777",
+    gradient: ["#DB2777", "#BE185D"],
+  },
+
+  kidnapping: {
+    icon: "lock-closed",
+    color: "#7C3AED",
+    gradient: ["#7C3AED", "#6D28D9"],
+  },
+
+  carnapping: {
+    icon: "car",
+    color: "#3B82F6",
+    gradient: ["#3B82F6", "#2563EB"],
+  },
+
+  arson: {
+    icon: "flame",
+    color: "#F97316",
+    gradient: ["#F97316", "#EA580C"],
+  },
+
+  estafa: {
+    icon: "cash",
+    color: "#D97706",
+    gradient: ["#D97706", "#B45309"],
+  },
+
+  "illegal-drugs": {
+    icon: "flask",
+    color: "#16A34A",
+    gradient: ["#16A34A", "#15803D"],
+  },
+
+  "illegal-gambling": {
+    icon: "dice",
+    color: "#0D9488",
+    gradient: ["#0D9488", "#0F766E"],
+  },
+
+  cybercrime: {
+    icon: "desktop",
+    color: "#0284C7",
+    gradient: ["#0284C7", "#0369A1"],
+  },
+
+  "domestic-violence": {
+    icon: "heart",
+    color: "#E11D48",
+    gradient: ["#E11D48", "#BE123C"],
+  },
+
+  "child-abuse": {
+    icon: "person-remove",
+    color: "#C026D3",
+    gradient: ["#C026D3", "#A21CAF"],
+  },
+
+  threats: {
+    icon: "alert-circle",
+    color: "#EA580C",
+    gradient: ["#EA580C", "#C2410C"],
+  },
+
+  harassment: {
+    icon: "megaphone",
+    color: "#0891B2",
+    gradient: ["#0891B2", "#0E7490"],
+  },
+
+  trespassing: {
+    icon: "enter",
+    color: "#059669",
+    gradient: ["#059669", "#047857"],
+  },
+
+  disturbance: {
+    icon: "volume-high",
+    color: "#475569",
+    gradient: ["#475569", "#334155"],
+  },
+
   others: {
     icon: "shield-half",
     color: "#64748B",
@@ -502,6 +604,7 @@ export default function ReportScreen() {
                       mapType="none"
                       mapStyle={mapStyle}
                       showsUserLocation
+                      userLocation={location?.latitude != null ? location : undefined}
                       showsCompass
                       loadingEnabled
                       initialRegion={{

@@ -5,9 +5,18 @@ const SUPABASE_URL = "https://rgqmuuxmucgbxrjjxsvh.supabase.co";
 const SUPABASE_ANON_KEY =
   "sb_publishable_u0FuERFW0mCtzknOQd19kA_55jVUKnx";
 
+const isServer = typeof window === "undefined";
+const storage = isServer
+  ? {
+      getItem: async () => null,
+      setItem: async () => {},
+      removeItem: async () => {},
+    }
+  : AsyncStorage;
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
-    storage: AsyncStorage,
+    storage,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,

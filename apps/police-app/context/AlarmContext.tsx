@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import { Vibration, Platform } from "react-native";
-import { Audio } from "expo-av";
+import { createAudioPlayer, setAudioModeAsync } from "expo-audio";
+import type { AudioPlayer } from "expo-audio";
 import * as Haptics from "expo-haptics";
 
 const EMERGENCY_TYPES = ["emergency", "robbery", "assault", "hit-and-run", "burglary", "theft"];
@@ -21,9 +22,9 @@ const AlarmContext = createContext<AlarmContextType | undefined>(undefined);
 export function AlarmProvider({ children }: { children: React.ReactNode }) {
   const [alertBanner, setAlertBanner] = useState<string | null>(null);
   const [soundsLoaded, setSoundsLoaded] = useState(false);
-  const emergencySoundRef = useRef<Audio.Sound | null>(null);
-  const normalSoundRef = useRef<Audio.Sound | null>(null);
-  const backupSoundRef = useRef<Audio.Sound | null>(null);
+  const emergencySoundRef = useRef<AudioPlayer | null>(null);
+  const normalSoundRef = useRef<AudioPlayer | null>(null);
+  const backupSoundRef = useRef<AudioPlayer | null>(null);
   const activeAlertIds = useRef<Set<string>>(new Set());
   const alertTimerRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
@@ -37,39 +38,35 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
       audioSetupRunning.current = true;
 
       try {
-        await Audio.setAudioModeAsync({
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: true,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: 1,
+        await setAudioModeAsync({
+          playsInSilentMode: true,
+          shouldPlayInBackground: true,
+          interruptionMode: "duckOthers",
         });
 
         try {
-          const { sound } = await Audio.Sound.createAsync(
-            require("../assets/emergency_alert.wav"),
-            { volume: 0.8, shouldPlay: false }
-          );
-          if (mountedRef.current) emergencySoundRef.current = sound;
+          const player = createAudioPlayer(require("../assets/emergency_alert.wav"));
+          player.volume = 0.8;
+          player.loop = true;
+          if (mountedRef.current) emergencySoundRef.current = player;
         } catch (e) {
           console.error("[AlarmContext] Failed to load emergency sound:", e);
         }
 
         try {
-          const { sound } = await Audio.Sound.createAsync(
-            require("../assets/normalreport.mp3"),
-            { volume: 0.8, shouldPlay: false }
-          );
-          if (mountedRef.current) normalSoundRef.current = sound;
+          const player = createAudioPlayer(require("../assets/normalreport.mp3"));
+          player.volume = 0.8;
+          player.loop = true;
+          if (mountedRef.current) normalSoundRef.current = player;
         } catch (e) {
           console.error("[AlarmContext] Failed to load normal sound:", e);
         }
 
         try {
-          const { sound } = await Audio.Sound.createAsync(
-            require("../assets/backup_alert.wav"),
-            { volume: 0.8, shouldPlay: false }
-          );
-          if (mountedRef.current) backupSoundRef.current = sound;
+          const player = createAudioPlayer(require("../assets/backup_alert.wav"));
+          player.volume = 0.8;
+          player.loop = true;
+          if (mountedRef.current) backupSoundRef.current = player;
         } catch (e) {
           console.error("[AlarmContext] Failed to load backup sound:", e);
         }
@@ -89,9 +86,9 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mountedRef.current = false;
-      emergencySoundRef.current?.unloadAsync().catch(() => {});
-      normalSoundRef.current?.unloadAsync().catch(() => {});
-      backupSoundRef.current?.unloadAsync().catch(() => {});
+      emergencySoundRef.current?.remove();
+      normalSoundRef.current?.remove();
+      backupSoundRef.current?.remove();
       emergencySoundRef.current = null;
       normalSoundRef.current = null;
       backupSoundRef.current = null;
@@ -122,32 +119,32 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     return EMERGENCY_TYPES.includes(crimeType?.toLowerCase() || "");
   };
 
-  const forcePlaySound = useCallback(async (sound: Audio.Sound) => {
+  const forcePlaySound = useCallback((player: AudioPlayer) => {
     try {
-      await sound.stopAsync();
+      player.pause();
     } catch {}
     try {
-      await sound.setPositionAsync(0);
+      player.seekTo(0);
     } catch {}
     try {
-      await sound.setIsLoopingAsync(true);
+      player.loop = true;
     } catch {}
     try {
-      await sound.setVolumeAsync(0.8);
+      player.volume = 0.8;
     } catch {}
     try {
-      await sound.playAsync();
+      player.play();
     } catch {}
   }, []);
 
   const stopAllAudio = useCallback(async () => {
     try { Vibration.cancel(); } catch {}
 
-    for (const sound of [emergencySoundRef.current, normalSoundRef.current, backupSoundRef.current]) {
-      if (!sound) continue;
-      try { await sound.setIsLoopingAsync(false); } catch {}
-      try { await sound.stopAsync(); } catch {}
-      try { await sound.setPositionAsync(0); } catch {}
+    for (const player of [emergencySoundRef.current, normalSoundRef.current, backupSoundRef.current]) {
+      if (!player) continue;
+      try { player.loop = false; } catch {}
+      try { player.pause(); } catch {}
+      try { player.seekTo(0); } catch {}
     }
   }, []);
 
@@ -176,12 +173,19 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
 
   const playBackupAlert = useCallback(() => {
     try { Vibration.vibrate([0, 200, 100, 200]); } catch {}
-    const sound = backupSoundRef.current;
-    if (sound) {
-      forcePlaySound(sound);
+    const player = backupSoundRef.current;
+    if (player) {
+      forcePlaySound(player);
       setTimeout(() => {
-        sound.setIsLoopingAsync(false).catch(() => {});
-        sound.stopAsync().catch(() => {});
+        try {
+          player.loop = false;
+        } catch {}
+        try {
+          player.pause();
+        } catch {}
+        try {
+          player.seekTo(0);
+        } catch {}
       }, 1600);
     } else {
       console.warn("[AlarmContext] Backup sound ref not ready");
@@ -215,12 +219,9 @@ export function AlarmProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (alertTimerRef.current) clearTimeout(alertTimerRef.current);
       activeAlertIds.current.clear();
-      emergencySoundRef.current?.setIsLoopingAsync(false).catch(() => {});
-      emergencySoundRef.current?.stopAsync().catch(() => {});
-      normalSoundRef.current?.setIsLoopingAsync(false).catch(() => {});
-      normalSoundRef.current?.stopAsync().catch(() => {});
-      backupSoundRef.current?.setIsLoopingAsync(false).catch(() => {});
-      backupSoundRef.current?.stopAsync().catch(() => {});
+      emergencySoundRef.current?.pause();
+      normalSoundRef.current?.pause();
+      backupSoundRef.current?.pause();
     };
   }, []);
 

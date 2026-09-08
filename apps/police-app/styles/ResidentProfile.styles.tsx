@@ -1,5 +1,5 @@
 import { StyleSheet } from "react-native";
-import { colors, spacing, borderRadius, fontSize, fontWeight, shadow } from "../../constants/theme";
+import { colors, spacing, borderRadius, fontSize, fontWeight, shadow } from "../constants/theme";
 
 export const residentProfileStyles = StyleSheet.create({
   container: {

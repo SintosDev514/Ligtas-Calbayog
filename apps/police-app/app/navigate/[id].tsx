@@ -10,7 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import MapView, { Marker } from "../../components/MapView";
-import { navigateStyles as s } from "../styles/Navigate.styles";
+import { navigateStyles as s } from "../../styles/Navigate.styles";
 import { openBestStreetView } from "@shared/utils/streetView";
 
 export default function NavigateScreen() {

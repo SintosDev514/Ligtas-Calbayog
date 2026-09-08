@@ -17,7 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "@shared/supabase/supabaseClient";
 import { statusColors, colors } from "../../constants/theme";
-import { residentProfileStyles as s } from "../styles/ResidentProfile.styles";
+import { residentProfileStyles as s } from "../../styles/ResidentProfile.styles";
 import MapView, { Marker } from "../../components/MapView";
 import { openBestStreetView } from "@shared/utils/streetView";
 

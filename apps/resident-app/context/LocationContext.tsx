@@ -29,6 +29,48 @@ const LocationContext = createContext<LocationContextType | undefined>(
   undefined,
 );
 
+function getAccuratePosition(): Promise<Location.LocationObject> {
+  return new Promise<Location.LocationObject>((resolve, reject) => {
+    let best: Location.LocationObject | null = null;
+    let watchSub: { remove: () => void } | null = null;
+    let settled = false;
+
+    const finish = (loc: Location.LocationObject | null, err: any) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      try { watchSub?.remove(); } catch {}
+      if (loc) resolve(loc);
+      else reject(err ?? new Error("no location fix"));
+    };
+
+    const timer = setTimeout(() => finish(best, null), 8000);
+
+    const takeBest = (obj: Location.LocationObject) => {
+      const acc = obj.coords.accuracy ?? Infinity;
+      const bestAcc = best?.coords.accuracy ?? Infinity;
+      if (!best || acc < bestAcc) best = obj;
+      if (acc <= 10) finish(best, null);
+    };
+
+    try {
+      Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 0 },
+        takeBest,
+      )
+        .then((sub) => {
+          watchSub = sub;
+          if (settled) {
+            try { sub.remove(); } catch {}
+          }
+        })
+        .catch((e) => finish(null, e));
+    } catch (e) {
+      finish(null, e);
+    }
+  });
+}
+
 export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -49,9 +91,14 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
+      let loc: Location.LocationObject | null = null;
+      try {
+        loc = await getAccuratePosition();
+      } catch (freshErr) {
+        const last = await Location.getLastKnownPositionAsync();
+        if (last) loc = last;
+        else throw freshErr;
+      }
 
       const { latitude, longitude } = loc.coords;
       let address = "Current Location";

@@ -1,9 +1,20 @@
 import { Platform } from "react-native";
+import { isRunningInExpoGo } from "expo";
 
 let Notifications = null;
 let handlerSet = false;
 
+// expo-notifications throws during module evaluation on Android in Expo Go
+// (SDK 53+ removed remote push there). Avoid importing it at all in that case.
+function expoNotificationsUnavailable() {
+  return Platform.OS === "android" && isRunningInExpoGo();
+}
+
 async function getNotifications() {
+  if (expoNotificationsUnavailable()) {
+    console.warn("expo-notifications skipped: unavailable in Expo Go on Android");
+    return null;
+  }
   if (!Notifications) {
     try {
       Notifications = await import("expo-notifications");
@@ -31,6 +42,7 @@ async function getNotifications() {
   return Notifications;
 }
 
+// Remote push tokens (Expo Push) are unavailable in Expo Go since SDK 53.
 export async function setupPushNotifications() {
   try {
     const N = await getNotifications();

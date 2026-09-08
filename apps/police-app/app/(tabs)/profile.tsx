@@ -16,7 +16,7 @@ import * as ImagePicker from "expo-image-picker";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "@shared/supabase/supabaseClient";
 import { colors } from "../../constants/theme";
-import { profileStyles as s } from "../styles/Profile.styles";
+import { profileStyles as s } from "../../styles/Profile.styles";
 
 const SUPABASE_URL = "https://rgqmuuxmucgbxrjjxsvh.supabase.co";
 

@@ -380,7 +380,7 @@ export default function EmergencyReportScreen() {
           {/* Legal Advisory */}
           <Animated.View style={[styles.legalCard, { opacity: fadeAnim }]}>
             <View style={styles.legalHeader}>
-              <Ionicons name="gavel" size={18} color="#FCD34D" />
+              <Ionicons name="shield-checkmark" size={18} color="#FCD34D" />
               <Text style={styles.legalTitle}>Legal Advisory</Text>
             </View>
             <Text style={styles.legalText}>

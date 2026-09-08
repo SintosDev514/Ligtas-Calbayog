@@ -303,7 +303,7 @@ export const styles = StyleSheet.create({
 
   greeting: {
     fontSize: 11,
-    color: "#94A3B8",
+    color: "#FFFFFF",
     marginBottom: 2,
     fontWeight: "600",
     textTransform: "uppercase",
@@ -444,6 +444,23 @@ export const styles = StyleSheet.create({
     alignItems: "center",
   },
 
+  contactAvatarWrap: {
+    position: "relative",
+  },
+
+  activeDot: {
+    position: "absolute",
+    right: -3,
+    bottom: -3,
+    width: 15,
+    height: 15,
+    borderRadius: 8,
+    backgroundColor: "#22C55E",
+    borderWidth: 2.5,
+    borderColor: "#FFFFFF",
+    zIndex: 5,
+  },
+
   contactAvatarText: {
     fontSize: 14,
     fontWeight: "700",
@@ -483,6 +500,15 @@ export const styles = StyleSheet.create({
     fontSize: 11,
     color: "#FFFFFF",
     marginTop: 2,
+    textShadowColor: "rgba(0,0,0,0.9)",
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 10,
+  },
+
+  mapCoordText: {
+    fontSize: 9,
+    color: "rgba(255,255,255,0.75)",
+    marginTop: 1,
     textShadowColor: "rgba(0,0,0,0.9)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 10,
@@ -604,6 +630,27 @@ export const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
     overflow: "hidden",
+  },
+
+  contactMapMarkerWrap: {
+    position: "relative",
+    width: 48,
+    height: 48,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  activeDotMap: {
+    position: "absolute",
+    right: 2,
+    bottom: 2,
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#22C55E",
+    borderWidth: 2.5,
+    borderColor: "#FFFFFF",
+    zIndex: 5,
   },
 
   contactMapMarkerPhoto: {

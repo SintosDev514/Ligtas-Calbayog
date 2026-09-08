@@ -21,7 +21,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { openBrowserAsync } from "expo-web-browser";
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import {
   fetchResidentReports,
@@ -69,6 +69,23 @@ const CRIME_ICONS: Record<string, string> = {
   assault: "alert-circle",
   vandalism: "hammer",
   burglary: "home-remove",
+  murder: "skull",
+  homicide: "body",
+  "physical-injury": "bandage",
+  rape: "heart-dislike",
+  kidnapping: "lock-closed",
+  carnapping: "car",
+  arson: "flame",
+  estafa: "cash",
+  "illegal-drugs": "flask",
+  "illegal-gambling": "dice",
+  cybercrime: "desktop",
+  "domestic-violence": "heart",
+  "child-abuse": "person-remove",
+  threats: "alert-circle",
+  harassment: "megaphone",
+  trespassing: "enter",
+  disturbance: "volume-high",
   others: "shield",
 };
 
@@ -79,6 +96,23 @@ const CRIME_COLORS: Record<string, string> = {
   assault: "#DC2626",
   vandalism: "#0891B2",
   burglary: "#2563EB",
+  murder: "#DC2626",
+  homicide: "#9F1239",
+  "physical-injury": "#F43F5E",
+  rape: "#DB2777",
+  kidnapping: "#7C3AED",
+  carnapping: "#3B82F6",
+  arson: "#F97316",
+  estafa: "#D97706",
+  "illegal-drugs": "#16A34A",
+  "illegal-gambling": "#0D9488",
+  cybercrime: "#0284C7",
+  "domestic-violence": "#E11D48",
+  "child-abuse": "#C026D3",
+  threats: "#EA580C",
+  harassment: "#0891B2",
+  trespassing: "#059669",
+  disturbance: "#475569",
   others: "#64748B",
 };
 
@@ -118,6 +152,25 @@ function parseEvidenceUrls(photoUrl: string | null | undefined): string[] {
 
 function isVideoUrl(url: string): boolean {
   return /\.(mp4|mov|avi|webm|mkv)$/i.test(url) || url.includes("/videos/");
+}
+
+function ViewerVideo({ url, shouldPlay }: { url: string; shouldPlay: boolean }) {
+  const player = useVideoPlayer(url, (p) => {
+    p.loop = false;
+  });
+  useEffect(() => {
+    if (shouldPlay) {
+      player.play();
+    }
+  }, [shouldPlay, player]);
+  return (
+    <VideoView
+      player={player}
+      style={styles.viewerVideo}
+      contentFit="contain"
+      nativeControls
+    />
+  );
 }
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
@@ -170,7 +223,7 @@ export default function MyReportsScreen() {
       const data = await fetchResidentReports(userId);
       setReports(data);
       data.forEach((r: any) => loadReportDetails(r.id));
-      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
+      Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: false }).start();
     } catch (e: any) {
       setError(e.message || "Failed to load reports.");
     } finally {
@@ -604,6 +657,7 @@ export default function MyReportsScreen() {
           renderItem={renderItem}
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
+          removeClippedSubviews={false}
           onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
           refreshControl={
             <RefreshControl
@@ -766,13 +820,7 @@ export default function MyReportsScreen() {
             {viewerUrls.map((url: string, idx: number) => (
               <View key={idx} style={styles.viewerPage}>
                 {isVideoUrl(url) ? (
-                  <Video
-                    source={{ uri: url }}
-                    style={styles.viewerVideo}
-                    useNativeControls
-                    resizeMode={ResizeMode.CONTAIN}
-                    shouldPlay={idx === viewerIndex}
-                  />
+                  <ViewerVideo url={url} shouldPlay={idx === viewerIndex} />
                 ) : (
                   <Image source={{ uri: url }} style={styles.viewerImage} resizeMode="contain" />
                 )}

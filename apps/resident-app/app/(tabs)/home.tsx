@@ -31,7 +31,7 @@ import {
 } from "../../../../shared/services/reportService";
 import { useLocation } from "../../context/LocationContext";
 import { useMapStyle } from "../../context/MapStyleContext";
-import { styles } from "./styles/HomeScreen.styles";
+import { styles } from "@/styles/HomeScreen.styles";
 import { getUnreadCount, fetchContactLocations } from "../../../../shared/services/messageService";
 
 export default function HomeScreen() {
@@ -60,6 +60,9 @@ export default function HomeScreen() {
   const [isConnected, setIsConnected] = useState(true);
   const [weather, setWeather] = useState<any>(null);
   const [showPhoneTip, setShowPhoneTip] = useState(true);
+  const [profileLocation, setProfileLocation] = useState<{latitude: number; longitude: number} | null>(null);
+
+  const effectiveLocation = location?.latitude ? location : profileLocation;
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -92,14 +95,21 @@ export default function HomeScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadData();
+      getLocation();
+      const locInterval = setInterval(() => {
+        getLocation();
+      }, 15000);
       setShowPhoneTip(true);
       phoneTipAnim.setValue(0);
       Animated.timing(phoneTipAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
       const tipTimeout = setTimeout(() => {
         Animated.timing(phoneTipAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => setShowPhoneTip(false));
       }, 5000);
-      return () => clearTimeout(tipTimeout);
-    }, [])
+      return () => {
+        clearTimeout(tipTimeout);
+        clearInterval(locInterval);
+      };
+    }, [getLocation])
   );
 
   useEffect(() => {
@@ -382,6 +392,9 @@ export default function HomeScreen() {
       setPolicePosts(posts.map((p: any) => ({ ...p, officers: officerMap[p.id] || [] })));
 
       setProfile(profileData);
+      if (profileData?.latitude && profileData?.longitude) {
+        setProfileLocation({ latitude: profileData.latitude, longitude: profileData.longitude });
+      }
       const photoField = profileData?.avatar_url || profileData?.id_photo_url;
       if (photoField) {
         const av = photoField;
@@ -571,7 +584,7 @@ export default function HomeScreen() {
               style={styles.welcomeTopRow}
               imageStyle={{ borderRadius: 20 }}
             >
-            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "#0F204B", opacity: 0.75 }} />
+            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "#0F204B", opacity: 0.85 }} />
             <View style={styles.welcomeLeft}>
               <View style={styles.avatarContainer}>
                 {profilePhoto ? (
@@ -688,8 +701,8 @@ export default function HomeScreen() {
                 mapType="none"
                 mapStyle={mapStyle}
                 region={{
-                  latitude: location?.latitude || 12.066,
-                  longitude: location?.longitude || 124.6,
+                  latitude: effectiveLocation?.latitude || 12.066,
+                  longitude: effectiveLocation?.longitude || 124.6,
                   latitudeDelta: 0.01,
                   longitudeDelta: 0.01,
                 }}
@@ -710,11 +723,11 @@ export default function HomeScreen() {
                 }}
               >
                 <UrlTile urlTemplate={tileUrl} />
-                {location?.latitude ? (
+                {effectiveLocation?.latitude ? (
                   <Marker
                     coordinate={{
-                      latitude: location.latitude,
-                      longitude: location.longitude,
+                      latitude: effectiveLocation.latitude,
+                      longitude: effectiveLocation.longitude,
                     }}
                     animated={isLiveLocationActive}
                   >
@@ -746,14 +759,17 @@ export default function HomeScreen() {
                         longitude: c.location.longitude,
                       }}
                     >
-                      <View style={[styles.contactMapMarker, {
-                        borderColor: isActive ? "#22C55E" : "#CBD5E1",
-                      }]}>
-                        {c.photoUrl ? (
-                          <Image source={{ uri: c.photoUrl }} style={styles.contactMapMarkerPhoto} />
-                        ) : (
-                          <Text style={styles.contactMapMarkerText}>{c.name?.[0]?.toUpperCase() || "?"}</Text>
-                        )}
+                      <View style={styles.contactMapMarkerWrap}>
+                        <View style={[styles.contactMapMarker, {
+                          borderColor: isActive ? "#22C55E" : "#CBD5E1",
+                        }]}>
+                          {c.photoUrl ? (
+                            <Image source={{ uri: c.photoUrl }} style={styles.contactMapMarkerPhoto} />
+                          ) : (
+                            <Text style={styles.contactMapMarkerText}>{c.name?.[0]?.toUpperCase() || "?"}</Text>
+                          )}
+                        </View>
+                        {isActive && <View style={styles.activeDotMap} />}
                       </View>
                     </Marker>
                   );
@@ -778,6 +794,11 @@ export default function HomeScreen() {
                 <Text style={styles.mapLocationLabel}>Location Status</Text>
                 <Text style={styles.mapLocationText} numberOfLines={1}>
                   {location?.address?.split(",")[0] ?? "Fetching location..."}
+                </Text>
+                <Text style={styles.mapCoordText} numberOfLines={1}>
+                  {location && location.latitude != null && location.longitude != null
+                    ? `Lat ${location.latitude.toFixed(5)}, Lng ${location.longitude.toFixed(5)}`
+                    : ""}
                 </Text>
               </View>
 
@@ -862,17 +883,20 @@ export default function HomeScreen() {
                           })
                         }
                       >
-                        <View style={[styles.contactAvatar, {
-                          backgroundColor: c.photoUrl ? "transparent" : colors[colorIdx],
-                          borderWidth: 3,
-                          borderColor: isActive ? "#22C55E" : "#CBD5E1",
-                          overflow: "hidden",
-                        }]}>
-                          {c.photoUrl ? (
-                            <Image source={{ uri: c.photoUrl }} style={{ width: 40, height: 40 }} />
-                          ) : (
-                            <Text style={styles.contactAvatarText}>{initials}</Text>
-                          )}
+                        <View style={styles.contactAvatarWrap}>
+                          <View style={[styles.contactAvatar, {
+                            backgroundColor: c.photoUrl ? "transparent" : colors[colorIdx],
+                            borderWidth: 3,
+                            borderColor: isActive ? "#22C55E" : "#CBD5E1",
+                            overflow: "hidden",
+                          }]}>
+                            {c.photoUrl ? (
+                              <Image source={{ uri: c.photoUrl }} style={{ width: 40, height: 40 }} />
+                            ) : (
+                              <Text style={styles.contactAvatarText}>{initials}</Text>
+                            )}
+                          </View>
+                          {isActive && <View style={styles.activeDot} />}
                         </View>
                       </TouchableOpacity>
                     );
@@ -964,7 +988,7 @@ export default function HomeScreen() {
         {showPhoneTip && (
           <Animated.View style={[styles.phoneTipContainer, { opacity: phoneTipAnim, transform: [{ translateY: phoneTipAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>
             <View style={styles.phoneTipBubble}>
-              <Ionicons name="wifi-off-outline" size={12} color="#EF4444" />
+              <Ionicons name="wifi-outline" size={12} color="#EF4444" />
               <Text style={styles.phoneTipText}>No internet?</Text>
               <View style={styles.phoneTipDivider} />
               <Ionicons name="call-outline" size={12} color="#F4B51A" />
@@ -1006,8 +1030,8 @@ export default function HomeScreen() {
             mapType="none"
             mapStyle={mapStyle}
             initialRegion={{
-              latitude: location?.latitude ?? 12.066,
-              longitude: location?.longitude ?? 124.6,
+              latitude: effectiveLocation?.latitude ?? 12.066,
+              longitude: effectiveLocation?.longitude ?? 124.6,
               latitudeDelta: 0.005,
               longitudeDelta: 0.005,
             }}
@@ -1023,16 +1047,16 @@ export default function HomeScreen() {
                 const officers = post.officers?.length
                   ? post.officers.join("\n")
                   : "No officers assigned";
-                Alert.alert(post.name, `Patrol Officers:\n${officers}`);
-              }
-            }}
-          >
+Alert.alert(post.name, `Patrol Officers:\n${officers}`);
+                }
+              }}
+            >
             <UrlTile urlTemplate={tileUrl} />
-            {location?.latitude && (
+            {effectiveLocation?.latitude && (
               <Marker
                 coordinate={{
-                  latitude: location.latitude,
-                  longitude: location.longitude,
+                  latitude: effectiveLocation.latitude,
+                  longitude: effectiveLocation.longitude,
                 }}
                 animated={isLiveLocationActive}
               >
@@ -1064,15 +1088,18 @@ export default function HomeScreen() {
                       longitude: c.location.longitude,
                     }}
                   >
-                    <View style={[styles.contactMapMarker, {
-                      borderColor: isActive ? "#22C55E" : "#CBD5E1",
-                    }]}>
-                      {c.photoUrl ? (
-                        <Image source={{ uri: c.photoUrl }} style={styles.contactMapMarkerPhoto} />
-                      ) : (
-                        <Text style={styles.contactMapMarkerText}>{c.name?.[0]?.toUpperCase() || "?"}</Text>
-                      )}
-                    </View>
+                    <View style={styles.contactMapMarkerWrap}>
+                        <View style={[styles.contactMapMarker, {
+                          borderColor: isActive ? "#22C55E" : "#CBD5E1",
+                        }]}>
+                          {c.photoUrl ? (
+                            <Image source={{ uri: c.photoUrl }} style={styles.contactMapMarkerPhoto} />
+                          ) : (
+                            <Text style={styles.contactMapMarkerText}>{c.name?.[0]?.toUpperCase() || "?"}</Text>
+                          )}
+                        </View>
+                        {isActive && <View style={styles.activeDotMap} />}
+                      </View>
                   </Marker>
                 );
               })}

@@ -9,7 +9,7 @@ import {
   StatusBar,
   ActivityIndicator,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Swipeable } from "react-native-gesture-handler";
@@ -22,7 +22,6 @@ import {
 } from "../../../../shared/services/messageService";
 import { getCached, setCache } from "../../../../shared/services/cacheService";
 import { setupPushNotifications, showLocalNotification } from "../../../../shared/services/pushService";
-import { useFocusEffect } from "@react-navigation/native";
 
 const TYPE_META: Record<string, { icon: string; color: string }> = {
   contact_request: { icon: "person-add", color: "#3B82F6" },

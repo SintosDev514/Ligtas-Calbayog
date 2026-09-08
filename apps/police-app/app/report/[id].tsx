@@ -27,7 +27,7 @@ import { statusColors, crimeIcons, colors } from "../../constants/theme";
 import { openBestStreetView } from "@shared/utils/streetView";
 import MapView, { Marker } from "../../components/MapView";
 import { Image as ExpoImage } from "expo-image";
-import { Video, ResizeMode } from "expo-av";
+import { VideoView, useVideoPlayer } from "expo-video";
 import * as Location from "expo-location";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -72,6 +72,30 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
     {children}
   </Text>
 );
+
+function FullscreenVideo({ url }: { url: string }) {
+  const player = useVideoPlayer(url, (p) => {
+    p.loop = false;
+  });
+  return (
+    <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, justifyContent: "center", alignItems: "center", padding: 20 }}>
+      <VideoView
+        player={player}
+        style={{ width: SCREEN_WIDTH, height: SCREEN_WIDTH * 0.6 }}
+        contentFit="contain"
+        nativeControls
+      />
+    </View>
+  );
+}
+
+function VideoThumbnail({ url }: { url: string }) {
+  const player = useVideoPlayer(url, (p) => {
+    p.muted = true;
+    p.loop = false;
+  });
+  return <VideoView player={player} style={{ width: "100%", height: "100%" }} contentFit="cover" nativeControls={false} />;
+}
 
 export default function ReportDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -429,18 +453,7 @@ export default function ReportDetailScreen() {
 
   const renderViewerItem = ({ item }: { item: string }) => {
     if (isVideoUrl(item)) {
-      return (
-        <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, justifyContent: "center", alignItems: "center", padding: 20 }}>
-          <Video
-            source={{ uri: item }}
-            style={{ width: SCREEN_WIDTH, height: SCREEN_WIDTH * 0.6 }}
-            resizeMode={ResizeMode.CONTAIN}
-            useNativeControls
-            shouldPlay={false}
-            isLooping={false}
-          />
-        </View>
-      );
+      return <FullscreenVideo url={item} />;
     }
     return (
       <View style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT, justifyContent: "center", alignItems: "center" }}>
@@ -455,7 +468,6 @@ export default function ReportDetailScreen() {
             source={{ uri: item }}
             style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT * 0.75 }}
             contentFit="contain"
-            enableZoomGesture
             transform={[{ scale: viewerZoom }]}
           />
         </ScrollView>
@@ -732,14 +744,7 @@ export default function ReportDetailScreen() {
                         >
                           {isVid ? (
                             <>
-                              <Video
-                                source={{ uri: url }}
-                                style={{ width: "100%", height: "100%" }}
-                                resizeMode={ResizeMode.COVER}
-                                shouldPlay={false}
-                                isMuted
-                                useNativeControls={false}
-                              />
+                              <VideoThumbnail url={url} />
                               <View style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, justifyContent: "center", alignItems: "center", backgroundColor: "rgba(0,0,0,0.35)" }}>
                                 <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.9)", justifyContent: "center", alignItems: "center" }}>
                                   <Ionicons name="play" size={16} color="#000" style={{ marginLeft: 2 }} />

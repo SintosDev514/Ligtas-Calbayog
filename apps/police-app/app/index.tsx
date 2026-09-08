@@ -13,7 +13,7 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../context/AuthContext";
-import { authStyles as s } from "./styles/Auth.styles";
+import { authStyles as s } from "../styles/Auth.styles";
 
 export default function SignInScreen() {
   const router = useRouter();

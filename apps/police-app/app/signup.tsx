@@ -14,7 +14,7 @@ import { useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth, SignUpData } from "../context/AuthContext";
-import { authStyles as s } from "./styles/Auth.styles";
+import { authStyles as s } from "../styles/Auth.styles";
 
 const RANKS = [
   "Patrolman",
