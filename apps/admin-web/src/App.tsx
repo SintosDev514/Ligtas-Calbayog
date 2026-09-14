@@ -18,7 +18,6 @@ import PoliceApprovals from "./pages/PoliceApprovals";
 import DutyAssignment from "./pages/DutyAssignment";
 import Performance from "./pages/Performance";
 import CrimeStatistics from "./pages/CrimeStatistics";
-import CrimeHeatmap from "./pages/CrimeHeatmap";
 import ResponseTime from "./pages/ResponseTime";
 import ResidentFeedback from "./pages/ResidentFeedback";
 import Evidence from "./pages/Evidence";
@@ -113,7 +112,6 @@ export default function App() {
         <Route path="duty-assignment" element={<DutyAssignment />} />
         <Route path="performance" element={<Performance />} />
         <Route path="crime-statistics" element={<CrimeStatistics />} />
-        <Route path="crime-heatmap" element={<CrimeHeatmap />} />
         <Route path="response-time" element={<ResponseTime />} />
         <Route path="resident-feedback" element={<ResidentFeedback />} />
         <Route path="evidence" element={<Evidence />} />
