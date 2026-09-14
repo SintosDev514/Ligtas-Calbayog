@@ -8,208 +8,38 @@ import {
   RefreshControl,
   Animated,
   StatusBar,
-  ActivityIndicator,
   ScrollView,
-  Image,
-  Platform,
-  TextInput,
-  Alert,
-  Modal,
-  Dimensions,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { openBrowserAsync } from "expo-web-browser";
-import { VideoView, useVideoPlayer } from "expo-video";
+import { useBottomBarScroll } from "../../context/BottomBarContext";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
+import { fetchResidentReports } from "../../../../shared/services/reportService";
 import {
-  fetchResidentReports,
-  fetchReportFeedback,
-  fetchActionUpdates,
-  subscribeToReportUpdates,
-  cancelReport,
-  getActivePenalty,
-  appealPenalty,
-} from "../../../../shared/services/reportService";
-import { useMapStyle } from "../../context/MapStyleContext";
-import MapView, { Marker, UrlTile } from "../../components/MapView";
-
-const STATUS_META: Record<string, { bg: string; text: string; icon: string; label: string; accent: string; gradient: string[] }> = {
-  pending: {
-    bg: "#FEF3C7", text: "#D97706", icon: "time-outline", label: "Pending", accent: "#F59E0B",
-    gradient: ["#FFF8E1", "#FFF3CD"],
-  },
-  "under-review": {
-    bg: "#DBEAFE", text: "#2563EB", icon: "eye-outline", label: "Reviewing", accent: "#3B82F6",
-    gradient: ["#E8F0FE", "#DBEAFE"],
-  },
-  "in-progress": {
-    bg: "#EDE9FE", text: "#7C3AED", icon: "sync-outline", label: "In Progress", accent: "#8B5CF6",
-    gradient: ["#F3EEFF", "#EDE9FE"],
-  },
-  resolved: {
-    bg: "#D1FAE5", text: "#059669", icon: "checkmark-circle-outline", label: "Resolved", accent: "#10B981",
-    gradient: ["#E6F9F0", "#D1FAE5"],
-  },
-  dismissed: {
-    bg: "#F1F5F9", text: "#64748B", icon: "close-circle-outline", label: "Dismissed", accent: "#94A3B8",
-    gradient: ["#F8FAFC", "#F1F5F9"],
-  },
-  cancelled: {
-    bg: "#FEE2E2", text: "#DC2626", icon: "close-circle-outline", label: "Cancelled", accent: "#EF4444",
-    gradient: ["#FEF2F2", "#FEE2E2"],
-  },
-};
-
-const CRIME_ICONS: Record<string, string> = {
-  "hit-and-run": "car-sport",
-  robbery: "skull",
-  theft: "bag-remove",
-  assault: "alert-circle",
-  vandalism: "hammer",
-  burglary: "home-remove",
-  murder: "skull",
-  homicide: "body",
-  "physical-injury": "bandage",
-  rape: "heart-dislike",
-  kidnapping: "lock-closed",
-  carnapping: "car",
-  arson: "flame",
-  estafa: "cash",
-  "illegal-drugs": "flask",
-  "illegal-gambling": "dice",
-  cybercrime: "desktop",
-  "domestic-violence": "heart",
-  "child-abuse": "person-remove",
-  threats: "alert-circle",
-  harassment: "megaphone",
-  trespassing: "enter",
-  disturbance: "volume-high",
-  others: "shield",
-};
-
-const CRIME_COLORS: Record<string, string> = {
-  "hit-and-run": "#EF4444",
-  robbery: "#7C3AED",
-  theft: "#F59E0B",
-  assault: "#DC2626",
-  vandalism: "#0891B2",
-  burglary: "#2563EB",
-  murder: "#DC2626",
-  homicide: "#9F1239",
-  "physical-injury": "#F43F5E",
-  rape: "#DB2777",
-  kidnapping: "#7C3AED",
-  carnapping: "#3B82F6",
-  arson: "#F97316",
-  estafa: "#D97706",
-  "illegal-drugs": "#16A34A",
-  "illegal-gambling": "#0D9488",
-  cybercrime: "#0284C7",
-  "domestic-violence": "#E11D48",
-  "child-abuse": "#C026D3",
-  threats: "#EA580C",
-  harassment: "#0891B2",
-  trespassing: "#059669",
-  disturbance: "#475569",
-  others: "#64748B",
-};
-
-const FILTERS = [
-  { id: "all", label: "All Reports", icon: "grid-outline" },
-  { id: "pending", label: "Pending", icon: "time-outline" },
-  { id: "under-review", label: "Reviewing", icon: "eye-outline" },
-  { id: "in-progress", label: "In Progress", icon: "sync-outline" },
-  { id: "resolved", label: "Resolved", icon: "checkmark-circle-outline" },
-  { id: "dismissed", label: "Dismissed", icon: "close-circle-outline" },
-  { id: "cancelled", label: "Cancelled", icon: "close-circle-outline" },
-];
-
-function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("en-PH", {
-    month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit",
-  });
-}
-
-function getTimeAgo(dateStr: string) {
-  const now = Date.now();
-  const diff = now - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
-}
-
-function parseEvidenceUrls(photoUrl: string | null | undefined): string[] {
-  if (!photoUrl) return [];
-  return photoUrl.split(",").map((u: string) => u.trim()).filter(Boolean);
-}
-
-function isVideoUrl(url: string): boolean {
-  return /\.(mp4|mov|avi|webm|mkv)$/i.test(url) || url.includes("/videos/");
-}
-
-function ViewerVideo({ url, shouldPlay }: { url: string; shouldPlay: boolean }) {
-  const player = useVideoPlayer(url, (p) => {
-    p.loop = false;
-  });
-  useEffect(() => {
-    if (shouldPlay) {
-      player.play();
-    }
-  }, [shouldPlay, player]);
-  return (
-    <VideoView
-      player={player}
-      style={styles.viewerVideo}
-      contentFit="contain"
-      nativeControls
-    />
-  );
-}
-
-const SCREEN_WIDTH = Dimensions.get("window").width;
+  STATUS_META,
+  CRIME_ICONS,
+  CRIME_COLORS,
+  FILTERS,
+  formatDate,
+  getTimeAgo,
+} from "../../constants/reportMeta";
 
 export default function MyReportsScreen() {
   const router = useRouter();
+  const { onScroll } = useBottomBarScroll();
   const params = useLocalSearchParams();
-  const { tileUrl, mapStyle } = useMapStyle();
   const [reports, setReports] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [selectedFilter, setSelectedFilter] = useState((params.filter as string) || "all");
-  const [reportFeedback, setReportFeedback] = useState<Record<string, any>>({});
-  const [actionUpdates, setActionUpdates] = useState<Record<string, any[]>>({});
-  const [loadingFeedback, setLoadingFeedback] = useState<Set<string>>(new Set());
-  const subscriptionsRef = useRef<Record<string, any>>({});
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancellingReport, setCancellingReport] = useState<any>(null);
-  const [cancelResult, setCancelResult] = useState<{ penalty: string | null; cancel_count: number } | null>(null);
-  const [showPenaltyModal, setShowPenaltyModal] = useState(false);
-  const [activePenalty, setActivePenalty] = useState<any>(null);
-  const [showAppealModal, setShowAppealModal] = useState(false);
-  const [appealMessage, setAppealMessage] = useState("");
-  const [submittingAppeal, setSubmittingAppeal] = useState(false);
-  const [viewerVisible, setViewerVisible] = useState(false);
-  const [viewerUrls, setViewerUrls] = useState<string[]>([]);
-  const [viewerIndex, setViewerIndex] = useState(0);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadReports();
-    return () => {
-      Object.values(subscriptionsRef.current).forEach((sub) => {
-        supabase.removeChannel(sub);
-      });
-    };
   }, []);
 
   const loadReports = async (isRefresh = false) => {
@@ -222,7 +52,6 @@ export default function MyReportsScreen() {
       if (!userId) { setError("Not logged in. Please sign in to view your reports."); return; }
       const data = await fetchResidentReports(userId);
       setReports(data);
-      data.forEach((r: any) => loadReportDetails(r.id));
       Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: false }).start();
     } catch (e: any) {
       setError(e.message || "Failed to load reports.");
@@ -232,79 +61,14 @@ export default function MyReportsScreen() {
     }
   };
 
-  const loadReportDetails = async (reportId: string) => {
-    try {
-      setLoadingFeedback((prev) => new Set(prev).add(reportId));
-      const feedback = await fetchReportFeedback(reportId);
-      setReportFeedback((prev) => ({ ...prev, [reportId]: feedback }));
-      const updates = await fetchActionUpdates(reportId);
-      setActionUpdates((prev) => ({ ...prev, [reportId]: updates }));
-      const subscription = subscribeToReportUpdates(reportId, (payload: any) => {
-        if (payload.type === "feedback") {
-          setReportFeedback((prev) => ({ ...prev, [reportId]: payload.data }));
-        } else if (payload.type === "action_update") {
-          setActionUpdates((prev) => ({
-            ...prev,
-            [reportId]: [...(prev[reportId] || []), payload.data].sort(
-              (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-            ),
-          }));
-        } else {
-          setReports((prev) => prev.map((r) => (r.id === reportId ? payload : r)));
-        }
-      });
-      subscriptionsRef.current[reportId] = subscription;
-    } catch (err) {
-      console.error("Failed to load report details:", err);
-    } finally {
-      setLoadingFeedback((prev) => { const u = new Set(prev); u.delete(reportId); return u; });
-    }
-  };
-
-  const handleCancel = async () => {
-    if (!cancellingReport) return;
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      const userId = session?.session?.user?.id;
-      if (!userId) return;
-      const result = await cancelReport(cancellingReport.id, userId);
-      setCancelResult(result);
-      const data = await fetchResidentReports(userId);
-      setReports(data);
-      setShowCancelModal(false);
-      setShowPenaltyModal(true);
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to cancel report.");
-    } finally {
-      setCancellingReport(null);
-    }
-  };
-
-  const handleAppeal = async () => {
-    if (!appealMessage.trim() || !activePenalty) return;
-    try {
-      setSubmittingAppeal(true);
-      const { data: session } = await supabase.auth.getSession();
-      const userId = session?.session?.user?.id;
-      if (!userId) return;
-      await appealPenalty(activePenalty.id, userId, appealMessage.trim());
-      Alert.alert("Appeal Submitted", "Your appeal has been sent for review.");
-      setShowAppealModal(false);
-      setAppealMessage("");
-      setActivePenalty(null);
-      setShowPenaltyModal(false);
-    } catch (err: any) {
-      Alert.alert("Error", err.message || "Failed to submit appeal.");
-    } finally {
-      setSubmittingAppeal(false);
-    }
-  };
-
   const renderItem = ({ item, index }: { item: any; index: number }) => {
     const status = item.status?.toLowerCase() || "pending";
     const statusMeta = STATUS_META[status] ?? STATUS_META["pending"];
     const crimeIcon = CRIME_ICONS[item.crime_type] ?? "alert-circle";
     const crimeColor = CRIME_COLORS[item.crime_type] ?? "#64748B";
+    const crimeLabel = item.crime_type
+      ? item.crime_type.split("-").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
+      : "Unknown Incident";
 
     return (
       <Animated.View
@@ -321,211 +85,42 @@ export default function MyReportsScreen() {
           },
         ]}
       >
-        <View style={styles.card}>
-          <View style={styles.cardInner}>
-            {/* Card Header */}
-            <View style={styles.cardHeader}>
-              <View style={[styles.crimeIconCircle, { backgroundColor: statusMeta.accent }]}>
-                <Ionicons name={crimeIcon as any} size={22} color="#fff" />
-              </View>
-
-              <View style={styles.headerContent}>
-                <Text style={styles.crimeType}>
-                  {item.crime_type
-                    ? item.crime_type.split("-").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
-                    : "Unknown Incident"}
-                </Text>
-                <View style={styles.headerMeta}>
-                  <Ionicons name="time-outline" size={11} color="#94A3B8" />
-                  <Text style={styles.reportDate}>{getTimeAgo(item.created_at)}</Text>
+        <TouchableOpacity
+          style={styles.cardShadow}
+          activeOpacity={0.9}
+          onPress={() => router.push({ pathname: "/report-detail", params: { id: item.id } } as any)}
+        >
+          <View style={styles.card}>
+            <View style={styles.cardInner}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.crimeIconCircle, { backgroundColor: crimeColor + "1A" }]}>
+                  <Ionicons name={crimeIcon as any} size={22} color={crimeColor} />
                 </View>
-              </View>
 
-              <View style={[styles.statusBadge, { backgroundColor: statusMeta.bg }]}>
-                {status === "in-progress" && <View style={styles.statusLiveDot} />}
-                <Ionicons name={statusMeta.icon as any} size={10} color={statusMeta.text} />
-                <Text style={[styles.statusText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
-              </View>
-            </View>
-
-            <View style={styles.divider} />
-
-            {/* Description */}
-            {!!item.description && (
-              <View style={styles.expandedBlock}>
-                <Text style={styles.blockLabel}>Description</Text>
-                <Text style={styles.blockText}>{item.description}</Text>
-              </View>
-            )}
-
-            {/* Evidence */}
-            {!!item.photo_url && (() => {
-              const evidenceUrls = parseEvidenceUrls(item.photo_url);
-              if (evidenceUrls.length === 0) return null;
-              return (
-                <View style={styles.expandedBlock}>
-                  <Text style={styles.blockLabel}>Evidence ({evidenceUrls.length})</Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                    <View style={{ flexDirection: "row", gap: 8 }}>
-                      {evidenceUrls.map((url: string, idx: number) => (
-                        <TouchableOpacity
-                          key={idx}
-                          activeOpacity={0.8}
-                          onPress={() => {
-                            setViewerUrls(evidenceUrls);
-                            setViewerIndex(idx);
-                            setViewerVisible(true);
-                          }}
-                          style={styles.imageFrame}
-                        >
-                          {isVideoUrl(url) ? (
-                            <View style={[styles.evidenceImage, { backgroundColor: "#1E293B", justifyContent: "center", alignItems: "center" }]}>
-                              <Ionicons name="play-circle" size={32} color="#fff" />
-                            </View>
-                          ) : (
-                            <Image source={{ uri: url }} style={styles.evidenceImage} resizeMode="cover" />
-                          )}
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </ScrollView>
-                </View>
-              );
-            })()}
-
-            {/* Location - Map instead of coordinates */}
-            {item.latitude !== undefined && item.longitude !== undefined ? (
-              <View style={styles.expandedBlock}>
-                <Text style={styles.blockLabel}>Location</Text>
-                {!!item.location_address && (
-                  <View style={styles.locationAddressRow}>
-                    <Ionicons name="location" size={14} color="#3B82F6" />
-                    <Text style={styles.locationAddressText}>{item.location_address}</Text>
+                <View style={styles.headerContent}>
+                  <Text style={styles.crimeType} numberOfLines={1}>{crimeLabel}</Text>
+                  <View style={styles.headerMeta}>
+                    <Ionicons name="calendar-outline" size={11} color="#94A3B8" />
+                    <Text style={styles.reportDate} numberOfLines={1} ellipsizeMode="tail">{formatDate(item.created_at)}</Text>
+                    <Text style={styles.headerDot}>{"\u2022"}</Text>
+                    <Text style={styles.reportDate} numberOfLines={1} ellipsizeMode="tail">{getTimeAgo(item.created_at)}</Text>
                   </View>
-                )}
-                <View style={styles.mapContainer}>
-                  <MapView
-                    style={styles.map}
-                    initialRegion={{
-                      latitude: item.latitude,
-                      longitude: item.longitude,
-                      latitudeDelta: 0.01,
-                      longitudeDelta: 0.01,
-                    }}
-                    mapStyle={mapStyle}
-                    scrollEnabled={false}
-                    zoomEnabled={false}
-                    pointerEvents="none"
-                  >
-                    <UrlTile urlTemplate={tileUrl} />
-                    <Marker
-                      coordinate={{ latitude: item.latitude, longitude: item.longitude }}
-                      pinColor={crimeColor}
-                      title={item.crime_type ? item.crime_type.split("-").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ") : "Incident"}
-                    />
-                  </MapView>
+                </View>
+
+                <View style={[styles.statusBadge, { backgroundColor: statusMeta.bg, borderColor: statusMeta.text + "2E" }]}>
+                  {status === "in-progress" && <View style={styles.statusLiveDot} />}
+                  <Ionicons name={statusMeta.icon as any} size={11} color={statusMeta.text} />
+                  <Text style={[styles.statusText, { color: statusMeta.text }]}>{statusMeta.label}</Text>
                 </View>
               </View>
-            ) : !!item.location_address ? (
-              <View style={styles.expandedBlock}>
-                <Text style={styles.blockLabel}>Location</Text>
-                <View style={styles.locationAddressRow}>
-                  <Ionicons name="location" size={14} color="#3B82F6" />
-                  <Text style={styles.locationAddressText}>{item.location_address}</Text>
-                </View>
-              </View>
-            ) : null}
 
-            {/* Police Feedback */}
-            {loadingFeedback.has(item.id) ? (
-              <View style={styles.expandedBlock}>
-                <Text style={styles.blockLabel}>Police Response</Text>
-                <ActivityIndicator size="small" color="#8B5CF6" />
+              <View style={styles.detailsBtn}>
+                <Text style={styles.detailsBtnText}>View Details</Text>
+                <Ionicons name="chevron-forward" size={14} color="#0F204B" />
               </View>
-            ) : reportFeedback[item.id] ? (
-              <View style={styles.feedbackBlock}>
-                <View style={styles.feedbackHeader}>
-                  <View style={styles.feedbackIconCircle}>
-                    <Ionicons name="shield-checkmark" size={14} color="#10B981" />
-                  </View>
-                  <Text style={styles.feedbackTitle}>Police Response</Text>
-                </View>
-                {reportFeedback[item.id].officer_name && (
-                  <View style={styles.feedbackRow}>
-                    <Ionicons name="person-outline" size={13} color="#059669" />
-                    <Text style={styles.feedbackValue}>{reportFeedback[item.id].officer_name}</Text>
-                  </View>
-                )}
-                {reportFeedback[item.id].response_message && (
-                  <View style={styles.feedbackRow}>
-                    <Ionicons name="chatbubble-outline" size={13} color="#059669" />
-                    <Text style={[styles.feedbackValue, { flex: 1 }]}>{reportFeedback[item.id].response_message}</Text>
-                  </View>
-                )}
-                {reportFeedback[item.id].estimated_arrival && (
-                  <View style={styles.feedbackRow}>
-                    <Ionicons name="time-outline" size={13} color="#059669" />
-                    <Text style={styles.feedbackValue}>ETA: {reportFeedback[item.id].estimated_arrival}</Text>
-                  </View>
-                )}
-                {reportFeedback[item.id].created_at && (
-                  <Text style={styles.feedbackTime}>{formatDate(reportFeedback[item.id].created_at)}</Text>
-                )}
-              </View>
-            ) : null}
-
-            {/* Action Timeline */}
-            {actionUpdates[item.id] && actionUpdates[item.id].length > 0 && (
-              <View style={styles.expandedBlock}>
-                <Text style={styles.blockLabel}>Action Timeline</Text>
-                <View style={styles.timelineContainer}>
-                  {actionUpdates[item.id].map((update, idx) => (
-                    <View key={idx} style={styles.timelineItem}>
-                      <View style={styles.timelineDot}>
-                        <View style={[styles.timelineDotInner, { backgroundColor: statusMeta.accent }]} />
-                      </View>
-                      {idx < actionUpdates[item.id].length - 1 && <View style={[styles.timelineLine, { backgroundColor: statusMeta.accent + "30" }]} />}
-                      <View style={styles.timelineContent}>
-                        <Text style={styles.updateTitle}>{update.action_type}</Text>
-                        {update.description && <Text style={styles.updateDescription}>{update.description}</Text>}
-                        <Text style={styles.updateTime}>{formatDate(update.created_at)}</Text>
-                      </View>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* Reference ID */}
-            <View style={styles.refRow}>
-              <Ionicons name="finger-print" size={12} color="#94A3B8" />
-              <Text style={styles.refText}>ID: {item.id?.toString().toUpperCase().slice(0, 8)}</Text>
-            </View>
-
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-              {status === "in-progress" && (
-                <TouchableOpacity
-                  style={styles.trackBtn}
-                  onPress={() => router.push({ pathname: "/(tabs)/live-tracking" as any, params: { reportId: item.id } })}
-                >
-                  <View style={styles.trackLiveDot} />
-                  <Ionicons name="navigate" size={18} color="#fff" />
-                  <Text style={styles.trackBtnText}>Track Police</Text>
-                </TouchableOpacity>
-              )}
-              {status !== "cancelled" && status !== "resolved" && status !== "dismissed" && (
-                <TouchableOpacity
-                  style={styles.cancelBtn}
-                  onPress={() => { setCancellingReport(item); setShowCancelModal(true); }}
-                >
-                  <Ionicons name="close-circle-outline" size={15} color="#EF4444" />
-                  <Text style={styles.cancelBtnText}>Cancel Report</Text>
-                </TouchableOpacity>
-              )}
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
       </Animated.View>
     );
   };
@@ -547,9 +142,6 @@ export default function MyReportsScreen() {
       {/* Header */}
       <SafeAreaView edges={["top"]} style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-            <Ionicons name="arrow-back" size={22} color="#fff" />
-          </TouchableOpacity>
           <View style={styles.headerTitleGroup}>
             <Text style={styles.headerTitle}>My Reports</Text>
             <Text style={styles.headerSub}>{totalReports} total incident{totalReports !== 1 ? "s" : ""}</Text>
@@ -658,7 +250,11 @@ export default function MyReportsScreen() {
           contentContainerStyle={styles.list}
           showsVerticalScrollIndicator={false}
           removeClippedSubviews={false}
-          onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+          onScroll={(e) => {
+            onScroll(e);
+            scrollY.setValue(e.nativeEvent.contentOffset.y);
+          }}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}
@@ -670,165 +266,6 @@ export default function MyReportsScreen() {
           }
         />
       )}
-
-      {/* Cancel Modal */}
-      <Modal visible={showCancelModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <View style={[styles.modalIconCircle, { backgroundColor: "#FEF2F2" }]}>
-              <Ionicons name="warning" size={28} color="#EF4444" />
-            </View>
-            <Text style={styles.modalTitle}>Cancel Report?</Text>
-            <Text style={styles.modalText}>
-              This will mark your report as cancelled. Repeated cancellations may result in restrictions or a ban on submitting new reports.
-            </Text>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setShowCancelModal(false); setCancellingReport(null); }}>
-                <Text style={styles.modalCancelText}>Keep Report</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleCancel}>
-                <Text style={styles.modalConfirmText}>Yes, Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Penalty Modal */}
-      <Modal visible={showPenaltyModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            {cancelResult?.penalty === "warning" && (
-              <>
-                <View style={[styles.modalIconCircle, { backgroundColor: "#FEF3C7" }]}>
-                  <Ionicons name="alert-circle" size={28} color="#D97706" />
-                </View>
-                <Text style={styles.modalTitle}>Warning</Text>
-                <Text style={styles.modalText}>This is your 1st cancellation. Please be mindful — further cancellations may lead to restrictions.</Text>
-              </>
-            )}
-            {cancelResult?.penalty === "restriction" && (
-              <>
-                <View style={[styles.modalIconCircle, { backgroundColor: "#FEE2E2" }]}>
-                  <Ionicons name="ban" size={28} color="#DC2626" />
-                </View>
-                <Text style={styles.modalTitle}>Account Restricted</Text>
-                <Text style={styles.modalText}>You have cancelled 2 reports. Your account is now restricted from submitting new reports. You may appeal.</Text>
-              </>
-            )}
-            {cancelResult?.penalty === "ban" && (
-              <>
-                <View style={[styles.modalIconCircle, { backgroundColor: "#FEE2E2" }]}>
-                  <Ionicons name="bug" size={28} color="#DC2626" />
-                </View>
-                <Text style={styles.modalTitle}>Account Banned</Text>
-                <Text style={styles.modalText}>You have cancelled 3+ reports. Your account has been banned from submitting reports. You may appeal.</Text>
-              </>
-            )}
-            {!cancelResult?.penalty && (
-              <>
-                <View style={[styles.modalIconCircle, { backgroundColor: "#D1FAE5" }]}>
-                  <Ionicons name="checkmark-circle" size={28} color="#059669" />
-                </View>
-                <Text style={styles.modalTitle}>Report Cancelled</Text>
-                <Text style={styles.modalText}>Your report has been cancelled successfully.</Text>
-              </>
-            )}
-            <View style={styles.modalActions}>
-              {cancelResult?.penalty === "restriction" || cancelResult?.penalty === "ban" ? (
-                <>
-                  <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setShowPenaltyModal(false); setCancelResult(null); }}>
-                    <Text style={styles.modalCancelText}>Close</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.modalConfirmBtn} onPress={async () => {
-                    const { data: session } = await supabase.auth.getSession();
-                    const uid = session?.session?.user?.id;
-                    if (uid) { const p = await getActivePenalty(uid); setActivePenalty(p); }
-                    setShowPenaltyModal(false);
-                    setShowAppealModal(true);
-                  }}>
-                    <Text style={styles.modalConfirmText}>Appeal</Text>
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <TouchableOpacity style={styles.modalConfirmBtn} onPress={() => { setShowPenaltyModal(false); setCancelResult(null); }}>
-                  <Text style={styles.modalConfirmText}>OK</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Appeal Modal */}
-      <Modal visible={showAppealModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalBox}>
-            <View style={[styles.modalIconCircle, { backgroundColor: "#DBEAFE" }]}>
-              <Ionicons name="chatbubble-ellipses" size={28} color="#2563EB" />
-            </View>
-            <Text style={styles.modalTitle}>Submit Appeal</Text>
-            <Text style={styles.modalText}>
-              Explain why you believe the penalty should be removed. A review will be conducted by the Calbayog City Police Department.
-            </Text>
-            <TextInput
-              style={styles.appealInput}
-              placeholder="Write your appeal here..."
-              placeholderTextColor="#94A3B8"
-              multiline
-              value={appealMessage}
-              onChangeText={setAppealMessage}
-              textAlignVertical="top"
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setShowAppealModal(false); setAppealMessage(""); setActivePenalty(null); }}>
-                <Text style={styles.modalCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalConfirmBtn, (!appealMessage.trim() || submittingAppeal) && { opacity: 0.5 }]}
-                onPress={handleAppeal}
-                disabled={!appealMessage.trim() || submittingAppeal}
-              >
-                {submittingAppeal ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.modalConfirmText}>Submit Appeal</Text>}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Evidence Viewer Modal */}
-      <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
-        <View style={styles.viewerOverlay}>
-          <StatusBar backgroundColor="rgba(0,0,0,0.95)" barStyle="light-content" />
-          <TouchableOpacity style={styles.viewerCloseBtn} onPress={() => setViewerVisible(false)}>
-            <Ionicons name="close" size={28} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.viewerCounter}>
-            {viewerIndex + 1} / {viewerUrls.length}
-          </Text>
-          <ScrollView
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            contentOffset={{ x: viewerIndex * SCREEN_WIDTH, y: 0 }}
-            onMomentumScrollEnd={(e) => {
-              const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-              setViewerIndex(idx);
-            }}
-            style={styles.viewerScroll}
-          >
-            {viewerUrls.map((url: string, idx: number) => (
-              <View key={idx} style={styles.viewerPage}>
-                {isVideoUrl(url) ? (
-                  <ViewerVideo url={url} shouldPlay={idx === viewerIndex} />
-                ) : (
-                  <Image source={{ uri: url }} style={styles.viewerImage} resizeMode="contain" />
-                )}
-              </View>
-            ))}
-          </ScrollView>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -1036,23 +473,23 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
   cardContainer: {
-    marginBottom: 14,
+    marginBottom: 12,
   },
   card: {
     backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: "hidden",
+  },
+  cardShadow: {
+    borderRadius: 18,
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 8 },
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.18,
-    shadowRadius: 24,
-    elevation: 8,
+    shadowRadius: 26,
+    elevation: 10,
   },
   cardInner: {
-    padding: 16,
-  },
-  accentStripe: {
-    height: 0,
+    padding: 14,
   },
   cardHeader: {
     flexDirection: "row",
@@ -1062,12 +499,16 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(15, 32, 75, 0.08)",
     justifyContent: "center",
     alignItems: "center",
   },
   headerContent: {
     flex: 1,
     marginLeft: 12,
+    marginRight: 8,
+    minWidth: 0,
   },
   crimeType: {
     fontSize: 15,
@@ -1080,11 +521,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 3,
     gap: 4,
+    flexShrink: 1,
+    minWidth: 0,
+  },
+  headerDot: {
+    fontSize: 11,
+    color: "#CBD5E1",
+    marginHorizontal: 2,
+    flexShrink: 0,
   },
   reportDate: {
     fontSize: 11,
     color: "#94A3B8",
     fontWeight: "500",
+    flexShrink: 1,
   },
   statusBadge: {
     flexDirection: "row",
@@ -1093,6 +543,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     borderRadius: 20,
     gap: 4,
+    borderWidth: 1.5,
   },
   statusLiveDot: {
     width: 6,
@@ -1105,425 +556,19 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
   },
-  descriptionCollapsed: {
-    fontSize: 13,
-    color: "#64748B",
-    marginTop: 12,
-    lineHeight: 18,
-  },
-  collapsedEvidenceThumb: {
-    marginTop: 10,
-    height: 100,
-    borderRadius: 10,
-    overflow: "hidden",
-    position: "relative",
-  },
-  collapsedEvidenceImage: {
-    width: "100%",
-    height: "100%",
-  },
-  collapsedEvidenceOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+  detailsBtn: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 4,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  collapsedEvidenceLabel: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  liveBadgeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(239, 68, 68, 0.08)",
     marginTop: 12,
     paddingVertical: 10,
-    paddingHorizontal: 12,
     borderRadius: 10,
+    backgroundColor: "#EEF2F7",
   },
-  liveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#EF4444",
-    marginRight: 8,
-  },
-  liveBadgeText: {
-    flex: 1,
+  detailsBtnText: {
     fontSize: 12,
     fontWeight: "700",
-    color: "#DC2626",
-    letterSpacing: 0.2,
-  },
-  expandedSection: {
-    marginTop: 14,
-  },
-  divider: {
-    height: 0,
-    backgroundColor: "transparent",
-    marginBottom: 14,
-  },
-  expandedBlock: {
-    marginBottom: 16,
-  },
-  blockLabel: {
-    fontSize: 10,
-    color: "#94A3B8",
-    fontWeight: "700",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
-    marginBottom: 8,
-  },
-  blockText: {
-    fontSize: 13,
-    color: "#334155",
-    lineHeight: 20,
-  },
-  imageFrame: {
-    borderRadius: 12,
-    overflow: "hidden",
-    height: 180,
-    width: 180,
-  },
-  evidenceImage: {
-    width: "100%",
-    height: "100%",
-  },
-  locationAddressRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 6,
-    marginBottom: 10,
-    backgroundColor: "#F8FAFC",
-    padding: 10,
-    borderRadius: 10,
-  },
-  locationAddressText: {
-    fontSize: 12,
-    color: "#334155",
-    flex: 1,
-    lineHeight: 17,
-  },
-  mapContainer: {
-    height: 160,
-    borderRadius: 12,
-    overflow: "hidden",
-  },
-  map: {
-    flex: 1,
-  },
-  feedbackBlock: {
-    backgroundColor: "#F0FDF4",
-    borderRadius: 12,
-    padding: 14,
-    borderLeftWidth: 3,
-    borderLeftColor: "#10B981",
-    marginBottom: 16,
-  },
-  feedbackIconCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#D1FAE5",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 8,
-  },
-  feedbackHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  feedbackTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#059669",
-  },
-  feedbackRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginBottom: 8,
-    gap: 8,
-  },
-  feedbackValue: {
-    fontSize: 12,
-    color: "#1F2937",
-    lineHeight: 18,
-  },
-  feedbackTime: {
-    fontSize: 11,
-    color: "#94A3B8",
-    marginTop: 8,
-    marginLeft: 36,
-  },
-  timelineContainer: {
-    marginTop: 4,
-    paddingLeft: 4,
-  },
-  timelineItem: {
-    flexDirection: "row",
-    marginBottom: 4,
-    position: "relative",
-  },
-  timelineDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#F8FAFC",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1,
-  },
-  timelineDotInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-  },
-  timelineLine: {
-    position: "absolute",
-    left: 11.5,
-    top: 24,
-    bottom: -4,
-    width: 2,
-  },
-  timelineContent: {
-    flex: 1,
-    marginLeft: 12,
-    paddingBottom: 16,
-  },
-  updateTitle: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#0F172A",
-    textTransform: "capitalize",
-  },
-  updateDescription: {
-    fontSize: 12,
-    color: "#64748B",
-    marginTop: 2,
-    lineHeight: 16,
-  },
-  updateTime: {
-    fontSize: 11,
-    color: "#94A3B8",
-    marginTop: 4,
-  },
-  refRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#F8FAFC",
-    padding: 10,
-    borderRadius: 8,
-    marginBottom: 12,
-  },
-  refText: {
-    fontSize: 11,
-    color: "#64748B",
-    fontWeight: "600",
-    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-    letterSpacing: 0.5,
-  },
-  actionButtons: {
-    gap: 8,
-  },
-  trackLiveDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#fff",
-  },
-  trackBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 13,
-    borderRadius: 12,
-    backgroundColor: "#DC2626",
-    gap: 8,
-    shadowColor: "#DC2626",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  trackBtnText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "800",
-    letterSpacing: 0.3,
-  },
-  cancelBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: "#FEF2F2",
-    gap: 6,
-  },
-  cancelBtnText: {
-    color: "#DC2626",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  expandIndicator: {
-    alignItems: "center",
-    paddingTop: 8,
-    marginTop: 12,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(15, 32, 75, 0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 24,
-  },
-  modalBox: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    padding: 24,
-    width: "100%",
-    maxWidth: 340,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
-    elevation: 10,
-  },
-  modalIconCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#0F172A",
-    marginBottom: 8,
-  },
-  modalText: {
-    fontSize: 13,
-    color: "#64748B",
-    textAlign: "center",
-    lineHeight: 20,
-    marginBottom: 20,
-  },
-  modalActions: {
-    flexDirection: "row",
-    gap: 10,
-    width: "100%",
-  },
-  modalCancelBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: "#F1F5F9",
-    alignItems: "center",
-  },
-  modalCancelText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#64748B",
-  },
-  modalConfirmBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: "#0F204B",
-    alignItems: "center",
-  },
-  modalConfirmText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  appealInput: {
-    width: "100%",
-    minHeight: 100,
-    backgroundColor: "#F8FAFC",
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 13,
-    color: "#0F172A",
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-  viewerOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.95)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  viewerCloseBtn: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 50 : 30,
-    right: 16,
-    zIndex: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  viewerCounter: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 55 : 35,
-    left: 0,
-    right: 0,
-    textAlign: "center",
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-    zIndex: 10,
-  },
-  viewerScroll: {
-    flex: 1,
-    width: "100%",
-  },
-  viewerPage: {
-    width: SCREEN_WIDTH,
-    height: "100%",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  viewerImage: {
-    width: SCREEN_WIDTH - 20,
-    height: "80%",
-  },
-  viewerVideo: {
-    width: SCREEN_WIDTH - 20,
-    height: "60%",
-  },
-  videoContainer: {
-    width: SCREEN_WIDTH - 40,
-    height: "60%",
-    borderRadius: 12,
-    overflow: "hidden",
-    backgroundColor: "#1E293B",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  videoPlaceholder: {
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 10,
-  },
-  videoLabel: {
-    color: "#94A3B8",
-    fontSize: 14,
-    fontWeight: "500",
+    color: "#0F204B",
   },
 });

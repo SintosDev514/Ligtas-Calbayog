@@ -14,8 +14,10 @@ import {
   Linking,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useBottomBarScroll } from "../../context/BottomBarContext";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import {
   fetchContacts,
@@ -30,6 +32,7 @@ const RELATIONSHIPS = ["Family", "Friend", "Relative", "Spouse", "Neighbor"];
 
 export default function MessagesScreen() {
   const router = useRouter();
+  const { onScroll } = useBottomBarScroll();
   const [contacts, setContacts] = useState<any[]>([]);
   const [latestMessages, setLatestMessages] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
@@ -133,6 +136,7 @@ export default function MessagesScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      AsyncStorage.setItem("@ligtas_messages_last_seen", new Date().toISOString()).catch(() => {});
       const refreshLatest = async () => {
         try {
           const { data: session } = await supabase.auth.getSession();
@@ -288,10 +292,12 @@ export default function MessagesScreen() {
 
       <SafeAreaView edges={["top"]} style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.push("/(tabs)/home")} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="#0F204B" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Messages</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+              <Ionicons name="chevron-back" size={22} color="#0F204B" />
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>Messages</Text>
+          </View>
           <View style={{ flexDirection: "row", gap: 8 }}>
             <TouchableOpacity
               style={styles.addBtn}
@@ -357,6 +363,8 @@ export default function MessagesScreen() {
         <ScrollView
           style={styles.list}
           contentContainerStyle={{ paddingBottom: 40 }}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
         >
           {uniqueContacts.map((contact, idx) => (
             <TouchableOpacity

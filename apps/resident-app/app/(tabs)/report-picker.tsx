@@ -10,6 +10,7 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useBottomBarScroll } from "../../context/BottomBarContext";
 
 const CRIME_CATEGORIES = [
   { id: "hit-and-run", label: "Hit & Run", icon: "car-sport-outline", color: "#EF4444" },
@@ -40,6 +41,7 @@ const CRIME_CATEGORIES = [
 
 export default function ReportPickerScreen() {
   const router = useRouter();
+  const { onScroll } = useBottomBarScroll();
 
   return (
     <View style={styles.container}>
@@ -47,14 +49,14 @@ export default function ReportPickerScreen() {
       <SafeAreaView edges={["top"]} style={styles.header}>
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={22} color="#0F204B" />
+            <Ionicons name="chevron-back" size={22} color="#0F204B" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Report an Incident</Text>
           <View style={{ width: 38 }} />
         </View>
       </SafeAreaView>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} onScroll={onScroll} scrollEventThrottle={16}>
         <Text style={styles.subtitle}>What type of incident would you like to report?</Text>
 
         <View style={styles.grid}>

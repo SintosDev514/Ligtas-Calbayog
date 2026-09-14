@@ -61,6 +61,21 @@ export const styles = StyleSheet.create({
     alignItems: "center",
   },
 
+  headerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+
+  headerMsgBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: "rgba(255,255,255,0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
   headerNotifBadge: {
     position: "absolute",
     top: -3,
@@ -109,55 +124,61 @@ export const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: "center",
-    backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
-    paddingTop: 18,
+    backgroundColor: "#0b1e63",
+    paddingTop: 14,
     paddingBottom: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowColor: "#0b1e63",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 20,
   },
 
   bottomBarRow: {
     flexDirection: "row",
     alignItems: "center",
     width: "100%",
+    paddingHorizontal: 8,
   },
 
   bottomBarItem: {
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 2,
+    justifyContent: "center",
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+
+  bottomBarItemActive: {
+    backgroundColor: "rgba(244, 181, 26, 0.15)",
   },
 
   bottomBarCenterCircle: {
     position: "absolute",
-    top: -26,
-    width: 52,
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#0F204B",
+    top: -28,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#12318c",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#0F204B",
+    borderWidth: 2,
+    borderColor: "#F4B51A",
+    shadowColor: "#0b1e63",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 12,
-    elevation: 10,
+    shadowOpacity: 0.5,
+    shadowRadius: 14,
+    elevation: 12,
   },
 
   bottomBarCenterRing: {
     position: "absolute",
-    top: -30,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    top: -32,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     borderWidth: 2,
-    borderColor: "#F4B51A",
+    borderColor: "rgba(244, 181, 26, 0.35)",
     backgroundColor: "transparent",
   },
 
@@ -174,7 +195,7 @@ export const styles = StyleSheet.create({
   phoneTipBubble: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#0F204B",
+    backgroundColor: "#12318c",
     borderRadius: 12,
     paddingHorizontal: 10,
     paddingVertical: 7,
@@ -213,16 +234,20 @@ export const styles = StyleSheet.create({
     borderTopWidth: 6,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "#0F204B",
+    borderTopColor: "#12318c",
   },
 
   bottomBarLabel: {
     fontSize: 10,
     fontWeight: "600",
-    color: "#64748B",
-    marginTop: 1,
+    color: "rgba(255,255,255,0.55)",
+    marginTop: 3,
     textAlign: "center",
     overflow: "hidden",
+  },
+
+  bottomBarLabelActive: {
+    color: "#F4B51A",
   },
 
   bottomBarBadge: {
@@ -308,6 +333,9 @@ export const styles = StyleSheet.create({
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.8,
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 
   userName: {
@@ -315,6 +343,9 @@ export const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#F4B51A",
     marginBottom: 6,
+    textShadowColor: "rgba(0,0,0,0.8)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
 
   badge: {
@@ -377,11 +408,14 @@ export const styles = StyleSheet.create({
   },
 
   sosCircleText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "800",
     color: "#FFFFFF",
-    marginTop: 1,
-    letterSpacing: 1.5,
+    marginTop: 2,
+    letterSpacing: 0.5,
+    textAlign: "center",
+    paddingHorizontal: 4,
+    lineHeight: 13,
   },
 
   sosHoldHint: {
@@ -552,22 +586,6 @@ export const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: "rgba(0,0,0,0.55)",
     overflow: "hidden",
-  },
-
-  mapStyleBtn: {
-    width: 34,
-    height: 34,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  expandBtn: {
-    width: 34,
-    height: 34,
-    justifyContent: "center",
-    alignItems: "center",
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255,255,255,0.15)",
   },
 
   markerWrapper: {
@@ -905,46 +923,6 @@ export const styles = StyleSheet.create({
     color: "#64748B",
     marginTop: 3,
     lineHeight: 16,
-  },
-
-  /* ==========================================
-       MODAL
-    ========================================== */
-
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "#000000",
-  },
-
-  fullMap: {
-    flex: 1,
-  },
-
-  modalBtnsRow: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 60 : 40,
-    left: 20,
-    right: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
-  closeBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  modalStyleBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 999,
-    backgroundColor: "rgba(0,0,0,0.55)",
-    justifyContent: "center",
-    alignItems: "center",
   },
 
   /* ==========================================

@@ -1,14 +1,37 @@
-import React, { useCallback, useRef, useEffect, useMemo, useState, forwardRef } from "react";
+import React, { useCallback, useRef, useEffect, useMemo, forwardRef } from "react";
 import { View, Platform } from "react-native";
 import Constants from "expo-constants";
-import { MAPBOX_ACCESS_TOKEN } from "./mapboxData";
 
 const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
 
 const MAP_PAGE = "/map.html";
-const MAP_VERSION = 13;
+const MAP_VERSION = 34;
 
-function mapBaseUrl(): string {
+// The self-contained map page (HTML + inline MapLibre engine) is bundled directly
+// into the JavaScript bundle as a string. This avoids ALL file:// / asset-extraction /
+// dev-server resolution problems that break standalone (release) APKs:
+//  - expo-asset's Asset.fromModule() returns an empty URI unless expo-updates is
+//    installed, so extraction throws in a standalone APK.
+//  - A scheme-less URL like "/map.html?v=34" makes Android WebView load
+//    file:///map.html -> net::ERR_FILE_NOT_FOUND (DOMAIN_UNDEFINED).
+// Loading the HTML inline via <WebView source={{ html }}> works identically in
+// Expo Go and in an installed APK, and all network resources (MapLibre JS/CSN,
+// tile URLs, avatars) are absolute HTTPS URLs.
+const MAP_HTML: string | null = (() => {
+  try {
+    const mod = require("@/assets/map-page-html.js");
+    return typeof mod === "string" ? mod : null;
+  } catch {
+    return null;
+  }
+})();
+
+/**
+ * Returns an absolute base URL (scheme + host) for the dev/metro server, or null
+ * when running without one (e.g. a release/standalone APK). Never returns a
+ * scheme-less or relative value so WebView can not be pointed at a bogus file:// URL.
+ */
+function mapBaseUrl(): string | null {
   if (typeof window !== "undefined" && window.location && window.location.origin) {
     return window.location.origin;
   }
@@ -19,10 +42,13 @@ function mapBaseUrl(): string {
     const port = parts[1] || "8081";
     return "http://" + hostname + ":" + port;
   }
-  return "";
+  return null;
 }
 
-const MAP_URL = mapBaseUrl() + MAP_PAGE + "?v=" + MAP_VERSION + "&token=" + encodeURIComponent(MAPBOX_ACCESS_TOKEN);
+function mapServerUrl(): string | null {
+  const base = mapBaseUrl();
+  return base ? base + MAP_PAGE + "?v=" + MAP_VERSION : null;
+}
 
 const Marker: React.FC<any> = () => null;
 Marker.displayName = "Marker";
@@ -34,7 +60,7 @@ const UrlTile: React.FC<any> = () => null;
 UrlTile.displayName = "UrlTile";
 
 const MapView = forwardRef<any, any>((
-  { style, children, onMarkerPress, onPress, initialRegion, region, mapStyle, mapType, userLocation, showsUserLocation, scrollEnabled, zoomEnabled, rotateEnabled, pitchEnabled, pointerEvents, ...props },
+  { style, children, onMarkerPress, onPress, initialRegion, region, mapStyle, mapType, userLocation, showsUserLocation, focus: focusLocation, scrollEnabled, zoomEnabled, rotateEnabled, pitchEnabled, pointerEvents, ...props },
   ref,
 ) => {
   const webViewRef = useRef<any>(null);
@@ -43,9 +69,28 @@ const MapView = forwardRef<any, any>((
   const onMarkerPressRef = useRef(onMarkerPress);
   const onPressRef = useRef(onPress);
   const dragHandlerRef = useRef<any>(null);
-  const lastRegionRef = useRef<string>("");
-  const lastRegionLatLngRef = useRef<{ latitude: number; longitude: number } | null>(null);
-  const webViewSource = useMemo(() => ({ uri: MAP_URL }), []);
+  const markersConfirmedRef = useRef(false);
+
+  const webViewSource = useMemo(() => {
+    if (Platform.OS === "web") {
+      const serverUrl = mapServerUrl();
+      return { uri: serverUrl || "about:blank" };
+    }
+    // Native: load the self-contained HTML directly from the JS bundle. This is the
+    // exact same page that the dev server used to serve in Expo Go, so behaviour is
+    // identical in Expo Go and in a standalone APK.
+    if (MAP_HTML) {
+      return { html: MAP_HTML };
+    }
+    // Extremely unlikely fallback (MAP_HTML is embedded in the bundle). Only ever
+    // return an absolute URL that has a scheme + host so the WebView is never given
+    // a scheme-less path that resolves to a non-existent file:/// URL.
+    const serverUrl = mapServerUrl();
+    if (serverUrl) {
+      return { uri: serverUrl };
+    }
+    return { html: "<!DOCTYPE html><html><body style=\"background:#F1F5F9\"></body></html>" };
+  }, []);
 
   const effectiveRegion = region || initialRegion;
   const zoom = effectiveRegion
@@ -75,8 +120,8 @@ const MapView = forwardRef<any, any>((
         walk(mc);
         if (icon && ["post-pin", "warning", "shield", "person", "location"].indexOf(icon) === -1) icon = null;
         markers.push({
-          latitude: coordinate.latitude,
-          longitude: coordinate.longitude,
+          latitude: Number(coordinate.latitude),
+          longitude: Number(coordinate.longitude),
           color: pinColor || "#3B82F6",
           title: title || null,
           iconName: icon,
@@ -89,6 +134,19 @@ const MapView = forwardRef<any, any>((
     });
     return markers;
   }, [children]);
+
+  const markerDataSig = useMemo(
+    () =>
+      JSON.stringify(
+        markerData.map((m: any) =>
+          [m.latitude, m.longitude, m.color, m.title || "", m.iconName || "", m.imageUrl || "", m.animated ? 1 : 0, m.draggable ? 1 : 0].join("|"),
+        ),
+      ),
+    [markerData],
+  );
+
+  const latestMarkerDataRef = useRef(markerData);
+  latestMarkerDataRef.current = markerData;
 
   const polylineData = useMemo(() => {
     const polylines: any[] = [];
@@ -115,7 +173,7 @@ const MapView = forwardRef<any, any>((
     return url || OSM_TILES;
   }, [children]);
 
-  const sendToWebView = useCallback((msg: any) => {
+const sendToWebView = useCallback((msg: any) => {
     try {
       const data = JSON.stringify(msg);
       if (Platform.OS === "web") {
@@ -126,58 +184,49 @@ const MapView = forwardRef<any, any>((
     } catch {}
   }, []);
 
-  const photoDataRef = useRef<{ [url: string]: string }>({});
-  const [, forceRender] = useState(0);
-
-  const markerData2 = useMemo(() => {
-    return markerData.map((m) => {
-      if (m.imageUrl && m.imageUrl.indexOf("data:") !== 0) {
-        const b64 = photoDataRef.current[m.imageUrl];
-        if (b64) return { ...m, imageUrl: b64 };
-      }
-      return m;
-    });
-  }, [markerData]);
+  const focusRef = useRef(focusLocation);
 
   useEffect(() => {
-    let alive = true;
-    const urls = Array.from(new Set(
-      markerData.map((m: any) => m.imageUrl).filter((u: any) => u && u.indexOf("data:") !== 0),
-    ));
-    urls.forEach(async (u: string) => {
-      if (photoDataRef.current[u]) return;
-      try {
-        const res = await fetch(u);
-        const blob = await res.blob();
-        const b64 = await new Promise<string>((resolve, reject) => {
-          const fr = new FileReader();
-          fr.onloadend = () => resolve(String(fr.result || ""));
-          fr.onerror = () => reject(new Error("read"));
-          fr.readAsDataURL(blob);
-        });
-        if (alive && b64 && !photoDataRef.current[u]) {
-          photoDataRef.current[u] = b64;
-          forceRender((x) => x + 1);
-        }
-      } catch {}
-    });
-    return () => { alive = false; };
-  }, [markerData]);
+    focusRef.current = focusLocation;
+    if (!readyRef.current) return;
+    if (focusLocation?.latitude != null && focusLocation?.longitude != null) {
+      sendToWebView({ type: "focus", ...focusLocation });
+    }
+  }, [focusLocation, sendToWebView]);
 
-  const sendMapState = useCallback(() => {
+  const sendInit = useCallback(() => {
     sendToWebView({
       type: "init",
       region: { latitude: effectiveRegion?.latitude ?? 12.07, longitude: effectiveRegion?.longitude ?? 124.6, zoom },
       interactive: { scroll: scrollEnabled, zoom: zoomEnabled, rotate: rotateEnabled, pitch: pitchEnabled },
     });
+  }, [effectiveRegion, zoom, sendToWebView, scrollEnabled, zoomEnabled, rotateEnabled, pitchEnabled]);
+
+  const sendTiles = useCallback(() => {
     sendToWebView({ type: "tiles", url: tileUrl });
-    if (mapStyle) sendToWebView({ type: "setStyle", style: mapStyle });
-    sendToWebView({ type: "markers", data: markerData2 });
+  }, [tileUrl, sendToWebView]);
+
+  const sendMarkers = useCallback(() => {
+    sendToWebView({ type: "markers", data: latestMarkerDataRef.current });
+  }, [sendToWebView]);
+
+  const sendPolylines = useCallback(() => {
     sendToWebView({ type: "polylines", data: polylineData });
+  }, [polylineData, sendToWebView]);
+
+  const sendMapState = useCallback(() => {
+    sendInit();
+    sendTiles();
+    if (mapStyle) sendToWebView({ type: "setStyle", style: mapStyle });
+    sendMarkers();
+    sendPolylines();
     if (userLocation?.latitude != null && userLocation?.longitude != null) {
       sendToWebView({ type: "userLocation", latitude: userLocation.latitude, longitude: userLocation.longitude });
     }
-  }, [effectiveRegion, zoom, tileUrl, mapStyle, markerData2, polylineData, userLocation, sendToWebView, scrollEnabled, zoomEnabled, rotateEnabled, pitchEnabled]);
+    if (focusRef.current?.latitude != null && focusRef.current?.longitude != null) {
+      sendToWebView({ type: "focus", ...focusRef.current });
+    }
+  }, [sendInit, sendTiles, sendMarkers, sendPolylines, mapStyle, userLocation, sendToWebView]);
 
   const onMessage = useCallback((event: any) => {
     try {
@@ -201,6 +250,9 @@ const MapView = forwardRef<any, any>((
         const coord = { latitude: msg.data.latitude, longitude: msg.data.longitude };
         dragHandlerRef.current?.({ nativeEvent: { coordinate: coord }, coordinate: coord });
       }
+      if (msg.type === "markerCount") {
+        markersConfirmedRef.current = (msg.count || 0) > 0;
+      }
     } catch {}
   }, [sendMapState]);
 
@@ -216,28 +268,42 @@ const MapView = forwardRef<any, any>((
   }, [onFrameMessage]);
 
   useEffect(() => {
-    if (readyRef.current) sendMapState();
-  }, [sendMapState, markerData, polylineData, tileUrl]);
+    if (readyRef.current) sendInit();
+  }, [sendInit]);
+
+  useEffect(() => {
+    if (readyRef.current) sendTiles();
+  }, [sendTiles]);
+
+  useEffect(() => {
+    if (readyRef.current) sendMarkers();
+  }, [markerDataSig, sendMarkers]);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const tick = setInterval(() => {
+      if (!readyRef.current) return;
+      if (markersConfirmedRef.current) {
+        clearInterval(tick);
+        return;
+      }
+      sendMarkers();
+      if (userLocation?.latitude != null && userLocation?.longitude != null) {
+        sendToWebView({ type: "userLocation", latitude: userLocation.latitude, longitude: userLocation.longitude });
+      }
+    }, 1200);
+    const stop = setTimeout(() => clearInterval(tick), 12000);
+    return () => { clearInterval(tick); clearTimeout(stop); };
+  }, [markerDataSig, sendMarkers, sendToWebView, userLocation?.latitude, userLocation?.longitude]);
+
+  useEffect(() => {
+    if (readyRef.current) sendPolylines();
+  }, [sendPolylines]);
 
   useEffect(() => {
     if (!readyRef.current || !effectiveRegion) return;
-    const lat = effectiveRegion.latitude;
-    const lng = effectiveRegion.longitude;
-    const key = `${lat},${lng}`;
-    if (key === lastRegionRef.current) return;
-    lastRegionRef.current = key;
-    const prev = lastRegionLatLngRef.current;
-    lastRegionLatLngRef.current = { latitude: lat, longitude: lng };
-    if (!prev) return;
-    const far = Math.abs(lat - prev.latitude) > 0.01 || Math.abs(lng - prev.longitude) > 0.01;
-    if (!far) return;
-    sendToWebView({ type: "regionChange", latitude: lat, longitude: lng, zoom: null });
-  }, [effectiveRegion, sendToWebView]);
-
-  useEffect(() => {
-    if (!readyRef.current) return;
     if (mapStyle) sendToWebView({ type: "setStyle", style: mapStyle });
-  }, [mapStyle, sendToWebView]);
+  }, [mapStyle, effectiveRegion, sendToWebView]);
 
   useEffect(() => {
     if (!readyRef.current) return;
@@ -251,7 +317,7 @@ const MapView = forwardRef<any, any>((
   if (Platform.OS === "web") {
     return (
       <View style={[{ flex: 1, overflow: "hidden", backgroundColor: "#F1F5F9" }, style]} pointerEvents={pointerEvents}>
-        <iframe ref={iframeRef} src={MAP_URL} style={{ width: "100%", height: "100%", border: 0 }} title="Map" />
+        <iframe ref={iframeRef} src={mapServerUrl() || "about:blank"} style={{ width: "100%", height: "100%", border: 0 }} title="Map" />
       </View>
     );
   }
@@ -273,6 +339,10 @@ const MapView = forwardRef<any, any>((
         setBuiltInZoomControls={false}
         setDisplayZoomControls={false}
         removeClippedSubviews={false}
+        allowFileAccess
+        allowFileAccessFromFileURLs
+        allowUniversalAccessFromFileURLs
+        mixedContentMode="always"
       />
     </View>
   );

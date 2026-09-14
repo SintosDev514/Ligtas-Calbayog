@@ -322,6 +322,29 @@ export const fetchPendingRequests = async (userId) => {
   return data ?? [];
 };
 
+export const getMessageBadgeCount = async (userId, lastSeenAt) => {
+  let count = 0;
+  try {
+    const { count: pendingRequests, error: reqError } = await supabase
+      .from("contact_requests")
+      .select("*", { count: "exact", head: true })
+      .eq("to_user_id", userId)
+      .eq("status", "pending");
+    if (!reqError) count += pendingRequests ?? 0;
+  } catch {}
+  if (lastSeenAt) {
+    try {
+      const { count: newMessages, error: msgError } = await supabase
+        .from("messages")
+        .select("*", { count: "exact", head: true })
+        .eq("receiver_id", userId)
+        .gt("created_at", lastSeenAt);
+      if (!msgError) count += newMessages ?? 0;
+    } catch {}
+  }
+  return count;
+};
+
 export const fetchNotifications = async (userId) => {
   const { data, error } = await supabase
     .from("notifications")
@@ -365,6 +388,14 @@ export const deleteNotification = async (notificationId) => {
     .from("notifications")
     .delete()
     .eq("id", notificationId);
+  if (error) throw new Error(error.message);
+};
+
+export const deleteAllNotifications = async (userId) => {
+  const { error } = await supabase
+    .from("notifications")
+    .delete()
+    .eq("user_id", userId);
   if (error) throw new Error(error.message);
 };
 

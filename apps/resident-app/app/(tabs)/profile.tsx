@@ -18,7 +18,9 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useBottomBarScroll } from "../../context/BottomBarContext";
 import * as ImagePicker from "expo-image-picker";
+import { File } from "expo-file-system";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import { fetchResidentProfile } from "../../../../shared/services/reportService";
 
@@ -65,6 +67,7 @@ function MenuItem({
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const { onScroll } = useBottomBarScroll();
   const [profile, setProfile] = useState<any>(null);
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -289,11 +292,7 @@ export default function ProfileScreen() {
       }
 
       const formData = new FormData();
-      formData.append("file", {
-        uri: photoUri,
-        type: "image/png",
-        name: fileName,
-      } as any);
+      formData.append("file", new File(photoUri), fileName);
 
       const uploadRes = await fetch(
         `https://rgqmuuxmucgbxrjjxsvh.supabase.co/storage/v1/object/profile-photos/${filePath}`,
@@ -438,12 +437,6 @@ export default function ProfileScreen() {
       {/* SIMPLE HEADER */}
       <SafeAreaView style={styles.simpleHeader}>
         <View style={styles.headerRow}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backBtn}
-          >
-            <Ionicons name="arrow-back" size={22} color="#0F204B" />
-          </TouchableOpacity>
           <Text style={styles.simpleHeaderTitle}>My Profile</Text>
           <View style={{ width: 38 }} />
         </View>
@@ -453,6 +446,8 @@ export default function ProfileScreen() {
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: 100 }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
         {isLoading && (
           <View

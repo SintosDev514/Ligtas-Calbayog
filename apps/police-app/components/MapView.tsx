@@ -43,6 +43,8 @@ interface MarkerProps {
   markerHtml?: string;
   animate?: boolean;
   heading?: number;
+  clusterGroup?: string;
+  id?: string;
   children?: React.ReactNode;
 }
 

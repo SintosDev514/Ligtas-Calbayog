@@ -1,20 +1,22 @@
 import React, { useCallback, useRef, useEffect, useMemo, forwardRef } from "react";
 import { View, Platform } from "react-native";
 
-const MAPILLARY_TOKEN = "MLY|27240407492254490|a5c94f86b7fb9a1e9728f1eddcb49110";
-
 const HTML = `
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#F1F5F9}
 #map{width:100%;height:100%}
+.leaflet-div-icon{background:transparent;border:none}
+.leaflet-popup-content-wrapper{border-radius:8px;font-size:12px;font-family:sans-serif}
+.leaflet-popup-content{margin:8px 10px;max-width:220px}
+.leaflet-popup-close-button{font-size:16px;padding:2px 6px}
 .marker{width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:pointer;background-size:cover;background-position:center;display:flex;align-items:center;justify-content:center;overflow:hidden}
 .marker-img{width:100%;height:100%;border-radius:50%;object-fit:cover}
 @keyframes emergency-pulse-1{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.5)}100%{box-shadow:0 0 0 16px rgba(239,68,68,0)}}
@@ -22,176 +24,64 @@ html,body{width:100%;height:100%;overflow:hidden;background:#F1F5F9}
 @keyframes emergency-glow{0%,100%{filter:drop-shadow(0 0 4px rgba(239,68,68,0.4))}50%{filter:drop-shadow(0 0 10px rgba(239,68,68,0.7))}}
 @keyframes user-pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,0.5)}70%{box-shadow:0 0 0 12px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}}
 .marker-animate{animation:emergency-pulse-1 1.4s ease-out infinite,emergency-glow 2s ease-in-out infinite}
+.marker-animate::after{content:'';position:absolute;top:-2px;left:-2px;right:-2px;bottom:-2px;border-radius:50%;animation:emergency-pulse-2 1.4s ease-out infinite;pointer-events:none}
 .user-location-animate{animation:user-pulse 2.5s infinite}
-.mapboxgl-popup-content{font-size:12px;padding:8px 10px;border-radius:8px;font-family:sans-serif;max-width:220px}
-.mapboxgl-popup-close-button{font-size:16px;padding:2px 6px}
+.report-dot{width:15px;height:15px;border-radius:50%;background:var(--pc);border:2px solid #fff;cursor:pointer;position:relative;overflow:visible;animation:report-pulse 1.6s ease-out infinite}
+@keyframes report-pulse{0%{box-shadow:0 0 0 0 var(--pulse-1)}70%{box-shadow:0 0 0 15px var(--pulse-2)}100%{box-shadow:0 0 0 0 var(--pulse-2)}}
 </style>
 </head>
 <body>
 <div id="map"></div>
 <script>
 (function(){
-var TOKEN = '${MAPILLARY_TOKEN}';
-var TILE_URL = 'https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=' + encodeURIComponent(TOKEN);
-
 var STYLE_TILES = {
   light: 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',
   dark: 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
   street: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
 };
-
-var currentStyle = 'light';
-
-var STYLE_NAMES = ['light', 'dark', 'street'];
 var STYLE_ATTR = {
   light: '© CARTO',
   dark: '© CARTO',
   street: '© OpenStreetMap'
 };
+var currentStyle = 'street';
 
-var map = new maplibregl.Map({
-  container: 'map',
-  style: {
-    version: 8,
-    sources: Object.fromEntries(STYLE_NAMES.map(function(k) {
-      return ['tiles-'+k, { type: 'raster', tiles: [STYLE_TILES[k]], tileSize: 256, attribution: STYLE_ATTR[k] }];
-    })),
-    layers: STYLE_NAMES.map(function(k) {
-      return { id: 'tiles-'+k, type: 'raster', source: 'tiles-'+k, layout: { visibility: k === currentStyle ? 'visible' : 'none' } };
-    })
-  },
-  attributionControl: true,
-  center: [124.6, 12.07],
+var map = L.map('map', {
+  center: [12.07, 124.6],
   zoom: 11,
-  pitch: 0,
-  bearing: 0,
-  maxPitch: 85
+  minZoom: 1,
+  maxZoom: 19,
+  attributionControl: true,
+  zoomControl: false,
+  scrollWheelZoom: true,
+  dragging: true
 });
 
-var _initialPitch = null;
-var _initialBearing = null;
+var tileLayer = null;
+function setMapStyle(style) {
+  currentStyle = style;
+  if (tileLayer) map.removeLayer(tileLayer);
+  tileLayer = L.tileLayer(STYLE_TILES[style] || STYLE_TILES.light, {
+    attribution: STYLE_ATTR[style] || STYLE_ATTR.light,
+    maxZoom: 19
+  }).addTo(map);
+}
+setMapStyle('street');
+
 var loaded = false;
 var ready = false;
 var pendingMarkers = [];
 
-function setMapStyle(style) {
-  currentStyle = style;
-  STYLE_NAMES.forEach(function(s) {
-    map.setLayoutProperty('tiles-' + s, 'visibility', s === style ? 'visible' : 'none');
-  });
+window.addEventListener('resize', function() { map.invalidateSize(); });
+if (typeof ResizeObserver !== 'undefined') {
+  var ro = new ResizeObserver(function() { map.invalidateSize(); });
+  ro.observe(document.getElementById('map'));
 }
+map.on('moveend', function() { map.invalidateSize(); });
+setTimeout(function() { try { map.invalidateSize(); } catch(e) {} }, 300);
+setTimeout(function() { try { map.invalidateSize(); } catch(e) {} }, 1200);
 
-map.on('load', function() {
-  loaded = true;
-  if (_initialPitch != null) {
-    map.setPitch(_initialPitch);
-  }
-  if (_initialBearing != null) {
-    map.setBearing(_initialBearing);
-  }
-
-  map.addSource('mapillary', {
-    type: 'vector',
-    tiles: [TILE_URL],
-    minzoom: 0,
-    maxzoom: 14
-  });
-
-  map.addLayer({
-    id: 'mly-overview',
-    type: 'circle',
-    source: 'mapillary',
-    'source-layer': 'overview',
-    minzoom: 0,
-    maxzoom: 6,
-    paint: {
-      'circle-color': '#05CB63',
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 0, 1.5, 5, 4],
-      'circle-opacity': 0.75
-    }
-  });
-
-  map.addLayer({
-    id: 'mly-sequences',
-    type: 'line',
-    source: 'mapillary',
-    'source-layer': 'sequence',
-    minzoom: 6,
-    layout: { 'line-cap': 'round', 'line-join': 'round' },
-    paint: {
-      'line-color': '#05CB63',
-      'line-width': ['interpolate', ['linear'], ['zoom'], 6, 1.5, 12, 3, 14, 2, 18, 3],
-      'line-opacity': 0.8
-    }
-  });
-
-  map.addLayer({
-    id: 'mly-images',
-    type: 'circle',
-    source: 'mapillary',
-    'source-layer': 'image',
-    minzoom: 14,
-    paint: {
-      'circle-color': '#05CB63',
-      'circle-radius': ['interpolate', ['linear'], ['zoom'], 14, 4, 18, 9],
-      'circle-opacity': 0.95,
-      'circle-stroke-color': '#fff',
-      'circle-stroke-width': 1.5,
-      'circle-stroke-opacity': 0.7
-    }
-  });
-
-  map.on('mouseenter', 'mly-sequences', function() { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'mly-sequences', function() { map.getCanvas().style.cursor = ''; });
-  map.on('mouseenter', 'mly-images', function() { map.getCanvas().style.cursor = 'pointer'; });
-  map.on('mouseleave', 'mly-images', function() { map.getCanvas().style.cursor = ''; });
-
-  if (pendingMarkers.length) {
-    doAddMarkers(pendingMarkers);
-    pendingMarkers = [];
-  }
-
-  if (!ready) {
-    ready = true;
-    postMsg('ready', {});
-  }
-});
-
-function clearRoute() {
-  try {
-    if (map.getSource('route')) {
-      map.removeLayer('route-line');
-      map.removeSource('route');
-    }
-  } catch(e) {}
-}
-
-function setRoute(data) {
-  clearRoute();
-  if (!data || !data.geometry) return;
-  map.addSource('route', {
-    type: 'geojson',
-    data: { type: 'Feature', properties: {}, geometry: data.geometry }
-  });
-  map.addLayer({
-    id: 'route-line',
-    type: 'line',
-    source: 'route',
-    layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: {
-      'line-color': '#EF4444',
-      'line-width': 5,
-      'line-opacity': 0.85
-    }
-  });
-  var coords = data.geometry.coordinates;
-  if (coords && coords.length > 0) {
-    var bounds = coords.reduce(function(b, c) {
-      return b.extend(c);
-    }, new maplibregl.LngLatBounds(coords[0], coords[0]));
-    map.fitBounds(bounds, { padding: 80, maxZoom: 16, duration: 1000 });
-  }
-}
+loaded = true;
 
 function postMsg(type, data) {
   var msg = JSON.stringify({ type: type, data: data || {} });
@@ -203,21 +93,39 @@ function postMsg(type, data) {
   }
 }
 
+var markerLayer = L.layerGroup().addTo(map);
+var clusterLayer = L.layerGroup().addTo(map);
+var routeLayer = null;
 var markers = [];
-var arrowEl = null;
 var arrowMarker = null;
 
 function updateArrowHeading(heading) {
-  if (arrowEl && arrowEl.parentNode) {
-    arrowEl.innerHTML = '<svg width="30" height="30" viewBox="0 0 30 30" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.4));"><circle cx="15" cy="15" r="13" fill="rgba(59,130,246,0.25)" stroke="#3B82F6" stroke-width="2.5"/><g transform="rotate(' + heading + ', 15, 15)"><polygon points="15,3 21,22 15,17 9,22" fill="#3B82F6" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></g></svg>';
-  }
+  if (!arrowMarker) return;
+  var el = arrowMarker.getElement();
+  if (!el) return;
+  var svg = el.querySelector('svg');
+  var g = svg && svg.querySelector('g');
+  if (g) g.setAttribute('transform', 'rotate(' + heading + ', 15, 15)');
 }
 
 function doAddMarkers(list) {
-  markers.forEach(function(m) { m.remove(); });
+  markerLayer.clearLayers();
+  clusterLayer.clearLayers();
   markers = [];
+  arrowMarker = null;
+
+  var clusterable = [];
+  var regular = [];
 
   list.forEach(function(m) {
+    if (m.clusterGroup) {
+      clusterable.push(m);
+      return;
+    }
+    regular.push(m);
+  });
+
+  regular.forEach(function(m) {
     var isUserLoc = m.color === '#3B82F6' && !m.animate;
     var isCustom = !!m.markerHtml;
     var hasHeading = typeof m.heading === 'number' && !isNaN(m.heading);
@@ -225,7 +133,6 @@ function doAddMarkers(list) {
     var el = document.createElement('div');
 
     if (isArrow) {
-      arrowEl = el;
       el.style.width = '30px';
       el.style.height = '30px';
       el.style.borderRadius = '50%';
@@ -236,17 +143,12 @@ function doAddMarkers(list) {
       el.innerHTML = '<svg width="30" height="30" viewBox="0 0 30 30" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.4));"><circle cx="15" cy="15" r="13" fill="rgba(59,130,246,0.25)" stroke="#3B82F6" stroke-width="2.5"/><g transform="rotate(' + m.heading + ', 15, 15)"><polygon points="15,3 21,22 15,17 9,22" fill="#3B82F6" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/></g></svg>';
       el.classList.add('user-location-animate');
     } else if (isCustom) {
-      el.style.width = '26px';
-      el.style.height = '26px';
-      el.style.borderRadius = '50%';
+      el.style.position = 'relative';
       el.style.display = 'flex';
+      el.style.flexDirection = 'column';
       el.style.alignItems = 'center';
-      el.style.justifyContent = 'center';
       el.style.cursor = 'pointer';
-      el.style.overflow = 'hidden';
-      el.style.background = 'rgba(0,0,0,0.6)';
-      el.style.border = '2px solid rgba(251,191,36,0.6)';
-      el.style.boxShadow = '0 2px 8px rgba(0,0,0,0.4)';
+      el.style.overflow = 'visible';
       el.innerHTML = m.markerHtml;
     } else {
       el.style.position = 'relative';
@@ -259,8 +161,8 @@ function doAddMarkers(list) {
       el.style.cursor = 'pointer';
       el.style.overflow = 'visible';
       el.className = 'marker' + (m.animate ? ' marker-animate' : '') + (isUserLoc ? ' user-location-animate' : '');
-      el.style.background = m.animate ? '#EF4444' : (m.color || '#3B82F6');
-      el.style.border = '2px solid ' + (m.animate ? '#FCA5A5' : '#fff');
+      el.style.background = m.color || '#3B82F6';
+      el.style.border = '2px solid #fff';
       el.style.boxShadow = isUserLoc
         ? '0 1px 4px rgba(0,0,0,0.25), 0 0 0 1.5px rgba(59,130,246,0.3)'
         : '0 2px 8px rgba(0,0,0,0.35)';
@@ -275,25 +177,81 @@ function doAddMarkers(list) {
       el.appendChild(img);
     }
 
-    var popup = null;
+    var size = isArrow ? 30 : (isCustom ? 30 : (isUserLoc ? 18 : 26));
+    var anchor = isArrow ? 15 : (isCustom ? 15 : (isUserLoc ? 9 : 13));
+    var icon = L.divIcon({
+      html: el.outerHTML,
+      className: 'leaflet-div-icon',
+      iconSize: [size, size],
+      iconAnchor: [anchor, anchor]
+    });
+
+    var marker = L.marker([m.latitude, m.longitude], { icon: icon }).addTo(markerLayer);
+
+    if (isArrow) arrowMarker = marker;
+
     if (m.popupHtml) {
-      popup = new maplibregl.Popup({ offset: 25, closeButton: true, closeOnClick: false, maxWidth: '300px' }).setHTML(m.popupHtml);
+      marker.bindPopup(m.popupHtml, { offset: [0, -13], maxWidth: '300px', closeButton: true, autoClose: false, closeOnClick: false });
     } else if (m.title) {
-      popup = new maplibregl.Popup({ offset: 25, closeButton: true, closeOnClick: false }).setText(m.title);
+      marker.bindPopup(m.title, { offset: [0, -13] });
     }
 
-    var marker = new maplibregl.Marker({ element: el })
-      .setLngLat([m.longitude, m.latitude])
-      .addTo(map);
-
-    if (popup) marker.setPopup(popup);
-
-    el.addEventListener('click', function() {
+    marker.on('click', function() {
       postMsg('markerPress', { latitude: m.latitude, longitude: m.longitude });
     });
 
     markers.push(marker);
   });
+
+  syncClusters(clusterable);
+}
+
+function hexToRgba(hex, alpha) {
+  var h = hex.replace('#','');
+  if (h.length === 3) h = h.split('').map(function(c){return c+c;}).join('');
+  var n = parseInt(h, 16);
+  return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + alpha + ')';
+}
+
+function syncClusters(list) {
+  (list || []).forEach(function(m) {
+    var color = m.color || '#f59e0b';
+    var el = document.createElement('div');
+    el.className = 'report-dot';
+    el.style.background = color;
+    el.style.setProperty('--pc', color);
+    el.style.setProperty('--pulse-1', hexToRgba(color, 0.5));
+    el.style.setProperty('--pulse-2', hexToRgba(color, 0));
+    var icon = L.divIcon({ html: el.outerHTML, className: 'leaflet-div-icon', iconSize: [15, 15], iconAnchor: [7.5, 7.5] });
+    var marker = L.marker([m.latitude, m.longitude], { icon: icon }).addTo(clusterLayer);
+    if (m.title) marker.bindPopup(m.title, { offset: [0, -8] });
+    marker.on('click', function() {
+      postMsg('markerPress', { latitude: m.latitude, longitude: m.longitude, id: m.id || null, title: m.title || null });
+    });
+  });
+}
+
+function clearRoute() {
+  if (routeLayer) {
+    map.removeLayer(routeLayer);
+    routeLayer = null;
+  }
+}
+
+function setRoute(data) {
+  clearRoute();
+  if (!data || !data.geometry) return;
+  var coords = data.geometry.coordinates;
+  var latlngs = coords.map(function(c) { return [c[1], c[0]]; });
+  if (!latlngs.length) return;
+
+  routeLayer = L.polyline(latlngs, {
+    color: '#EF4444',
+    weight: 5,
+    opacity: 0.85,
+    lineJoin: 'round',
+    lineCap: 'round'
+  }).addTo(map);
 }
 
 function addMarkers(list) {
@@ -302,23 +260,14 @@ function addMarkers(list) {
 }
 
 map.on('click', function(e) {
-  postMsg('mapPress', { latitude: e.lngLat.lat, longitude: e.lngLat.lng });
+  postMsg('mapPress', { latitude: e.latlng.lat, longitude: e.latlng.lng });
 });
 
 function onRCMessage(e) {
   try {
     var msg = JSON.parse(e.data);
     if (msg.type === 'init' && msg.region) {
-      map.setCenter([msg.region.longitude, msg.region.latitude]);
-      if (msg.region.zoom) map.setZoom(msg.region.zoom);
-      if (msg.region.pitch != null) {
-        if (loaded) { map.setPitch(msg.region.pitch); }
-        else { _initialPitch = msg.region.pitch; }
-      }
-      if (msg.region.bearing != null) {
-        if (loaded) { map.setBearing(msg.region.bearing); }
-        else { _initialBearing = msg.region.bearing; }
-      }
+      map.setView([msg.region.latitude, msg.region.longitude], msg.region.zoom, { animate: true });
     }
     if (msg.type === 'markers') {
       addMarkers(msg.data || []);
@@ -339,13 +288,15 @@ function onRCMessage(e) {
 }
 window.addEventListener('message', onRCMessage);
 document.addEventListener('message', onRCMessage);
+
+postMsg('ready', {});
 })();
 <\/script>
 </body>
 </html>
 `;
 
-const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialRegion, mapStyle = "light", routeData, pitch, bearing, userHeading, ...props }, ref) => {
+const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialRegion, mapStyle = "street", routeData, pitch, bearing, userHeading, ...props }, ref) => {
   const webViewRef = useRef<any>(null);
   const readyRef = useRef(false);
   const onMarkerPressRef = useRef(onMarkerPress);
@@ -356,7 +307,7 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
     const markers: any[] = [];
     React.Children.forEach(children, (child: any) => {
       if (child?.type?.displayName === "Marker") {
-        const { coordinate, pinColor, title, popupHtml, markerHtml, children: mc } = child.props;
+        const { coordinate, pinColor, title, popupHtml, markerHtml, clusterGroup, id, children: mc } = child.props;
         let imageUrl = null;
         if (mc) {
           const arr = React.Children.toArray(mc);
@@ -375,6 +326,8 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
           imageUrl,
           animate: !!child.props.animate,
           heading: typeof child.props.heading === "number" ? child.props.heading : null,
+          clusterGroup: clusterGroup || null,
+          id: id || null,
         });
       }
     });
@@ -385,8 +338,28 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
   const zoom = region
     ? Math.round(Math.log2(360 / Math.max(region.latitudeDelta || 0.05, 0.001)))
     : 11;
-  const markers = extractMarkers(children);
-  markersRef.current = markers;
+  const markers = useMemo(() => {
+    const list = extractMarkers(children);
+    return {
+      list,
+      sig: JSON.stringify(
+        list.map((m: any) =>
+          [
+            m.latitude,
+            m.longitude,
+            m.color,
+            m.title || "",
+            m.animate ? 1 : 0,
+            m.clusterGroup || "",
+            m.id || "",
+            m.popupHtml ? 1 : 0,
+            m.markerHtml ? 1 : 0,
+          ].join("|"),
+        ),
+      ),
+    };
+  }, [children, extractMarkers]);
+  markersRef.current = markers.list;
   onMarkerPressRef.current = onMarkerPress;
 
   const sendToWebView = useCallback((msg: any) => {
@@ -419,6 +392,8 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
             latitude: msg.data.latitude,
             longitude: msg.data.longitude,
           },
+          id: msg.data.id || undefined,
+          title: msg.data.title || undefined,
         });
       }
     } catch {}
@@ -426,10 +401,10 @@ const MapView = forwardRef<any, any>(({ style, children, onMarkerPress, initialR
 
   useEffect(() => {
     if (!readyRef.current) return;
-    if (markers.length > 0) {
-      sendToWebView({ type: "markers", data: markers });
+    if (markers.list.length > 0) {
+      sendToWebView({ type: "markers", data: markers.list });
     }
-  }, [markers, sendToWebView]);
+  }, [markers.sig, sendToWebView]);
 
   useEffect(() => {
     if (!readyRef.current) return;

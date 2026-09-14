@@ -50,6 +50,21 @@ export const fetchResidentReports = async (userId) => {
 };
 
 /**
+ * Fetch a single crime report owned by a resident
+ */
+export const fetchResidentReport = async (userId, reportId) => {
+  const { data, error } = await supabase
+    .from("crime_reports")
+    .select("*")
+    .eq("resident_id", userId)
+    .eq("id", reportId)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data;
+};
+
+/**
  * Fetch PNP announcements (public)
  */
 export const fetchAnnouncements = async () => {

@@ -1,10 +1,10 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../supabase";
 import { useAlarm } from "../context/AlarmContext";
 import type { CrimeReport } from "../types";
 import { useToast } from "../context/ToastContext";
-import { Search, Filter, FileText, ChevronLeft, ChevronRight, Trash2, AlertTriangle, X } from "lucide-react";
+import { Search, Filter, FileText, ChevronLeft, ChevronRight, ChevronDown, Trash2, AlertTriangle, X, Network } from "lucide-react";
 
 const ITEMS_PER_PAGE = 15;
 
@@ -20,6 +20,9 @@ export default function Reports() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const deleteIdRef = useRef<string | null>(null);
+  const [showRelatedModal, setShowRelatedModal] = useState(false);
+  const [expandedType, setExpandedType] = useState<string | null>(null);
+  const [relatedSearch, setRelatedSearch] = useState("");
 
   useEffect(() => {
     loadReports();
@@ -141,6 +144,23 @@ export default function Reports() {
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paged = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
+  const groups = useMemo(() => {
+    const map = new Map<string, CrimeReport[]>();
+    for (const r of reports) {
+      const key = r.crime_type || "unknown";
+      const arr = map.get(key) || [];
+      arr.push(r);
+      map.set(key, arr);
+    }
+    return [...map.entries()]
+      .map(([crimeType, items]) => ({ crimeType, items }))
+      .sort((a, b) => b.items.length - a.items.length);
+  }, [reports]);
+
+  const visibleGroups = relatedSearch
+    ? groups.filter((g) => g.crimeType.toLowerCase().includes(relatedSearch.toLowerCase()))
+    : groups;
+
   useEffect(() => {
     setPage(1);
   }, [filter, search]);
@@ -199,6 +219,14 @@ export default function Reports() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <button
+            className="btn btn-sm btn-primary"
+            onClick={() => { setRelatedSearch(""); setExpandedType(null); setShowRelatedModal(true); }}
+            style={{ whiteSpace: "nowrap", display: "inline-flex", alignItems: "center", gap: 6 }}
+          >
+            <Network size={15} />
+            Generate Related Reports
+          </button>
           <span className="filter-count">{filtered.length} results</span>
         </div>
 
@@ -380,6 +408,133 @@ export default function Reports() {
                 <Trash2 size={15} />
                 {deleting ? "Deleting..." : "Delete"}
               </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {showRelatedModal && (
+        <>
+          <div
+            onClick={() => setShowRelatedModal(false)}
+            style={{
+              position: "fixed", inset: 0, zIndex: 9998,
+              background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)",
+              animation: "fadeIn 0.2s ease-out",
+            }}
+          />
+          <div
+            style={{
+              position: "fixed", top: "50%", left: "50%", transform: "translate(-50%,-50%)",
+              zIndex: 9999, width: 640, maxWidth: "94vw", maxHeight: "82vh",
+              background: "var(--gray-100)", borderRadius: 14,
+              border: "1px solid rgba(255,255,255,0.08)",
+              boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
+              animation: "alertSlideIn 0.3s cubic-bezier(0.16,1,0.3,1)",
+              overflow: "hidden",
+              display: "flex", flexDirection: "column",
+            }}
+          >
+            <div style={{
+              padding: "20px 24px 16px",
+              display: "flex", alignItems: "flex-start", gap: 14,
+              borderBottom: "1px solid var(--gray-300)",
+            }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: 12,
+                background: "rgba(245,158,11,0.15)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                flexShrink: 0,
+              }}>
+                <Network size={22} color="#f59e0b" />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 16, fontWeight: 700, color: "var(--gray-900)", marginBottom: 4 }}>
+                  Related Reports by Crime Type
+                </div>
+                <div style={{ fontSize: 13, color: "var(--gray-500)", lineHeight: 1.5 }}>
+                  {groups.length} crime types · {reports.length} total reports. Click a type to expand, then a report to open it.
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRelatedModal(false)}
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: "var(--gray-500)", padding: 2, lineHeight: 0,
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: "14px 24px", borderBottom: "1px solid var(--gray-300)", position: "relative" }}>
+              <Search size={14} style={{ position: "absolute", left: 38, top: "50%", transform: "translateY(-50%)", color: "var(--gray-400)" }} />
+              <input
+                className="search-input"
+                style={{ paddingLeft: 40, minWidth: 0 }}
+                placeholder="Filter by crime type..."
+                value={relatedSearch}
+                onChange={(e) => setRelatedSearch(e.target.value)}
+              />
+            </div>
+
+            <div style={{ padding: 14, overflowY: "auto", flex: 1 }}>
+              {visibleGroups.length === 0 ? (
+                <div style={{ fontSize: 13, color: "var(--gray-500)", textAlign: "center", padding: "30px 0" }}>
+                  No crime types match "{relatedSearch}"
+                </div>
+              ) : (
+                visibleGroups.map((g) => {
+                  const open = expandedType === g.crimeType;
+                  return (
+                    <div key={g.crimeType} style={{ marginBottom: 8 }}>
+                      <button
+                        onClick={() => setExpandedType(open ? null : g.crimeType)}
+                        style={{
+                          width: "100%", display: "flex", alignItems: "center", gap: 10,
+                          background: "var(--gray-100)", border: "1px solid var(--gray-300)",
+                          borderRadius: "var(--radius-md)", padding: "10px 12px",
+                          cursor: "pointer", textAlign: "left",
+                          transition: "border-color 0.15s, background 0.15s",
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(245,158,11,0.06)"; e.currentTarget.style.borderColor = "#f59e0b"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "var(--gray-100)"; e.currentTarget.style.borderColor = "var(--gray-300)"; }}
+                      >
+                        <span style={{ fontSize: 12, color: "var(--gray-400)", lineHeight: 0 }}>
+                          {open ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                        </span>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "var(--gray-800)", textTransform: "capitalize" }}>
+                          {g.crimeType.replace(/-/g, " ")}
+                        </span>
+                        <span className="badge badge-active">{g.items.length} report{g.items.length !== 1 ? "s" : ""}</span>
+                      </button>
+                      {open && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 6, paddingLeft: 8 }}>
+                          {g.items.map((r) => (
+                            <button
+                              key={r.id}
+                              onClick={() => navigate(`/dashboard/reports/${r.id}`)}
+                              className="rd-related-item"
+                              style={{ width: "100%" }}
+                            >
+                              <span className="rd-related-crime">
+                                {r.resident?.full_name || "Unknown"} — {r.crime_type?.replace(/-/g, " ")}
+                              </span>
+                              <span className="rd-related-meta">
+                                {formatDate(r.created_at)}
+                                {r.location_address ? ` · ${r.location_address}` : ""}
+                              </span>
+                              <span>
+                                <span className={`badge badge-${r.status}`}>{r.status}</span>
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </>

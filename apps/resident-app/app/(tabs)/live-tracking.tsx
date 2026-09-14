@@ -184,8 +184,8 @@ export default function LiveTrackingScreen() {
         <StatusBar barStyle="light-content" />
         <View style={styles.errorCircle}><Ionicons name="alert-circle-outline" size={48} color="#EF4444" /></View>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.backBtnLarge} onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={16} color="#fff" /><Text style={styles.backBtnLargeText}>Go Back</Text>
+        <TouchableOpacity style={styles.backBtnLarge} onPress={() => router.replace("/(tabs)/home" as any)}>
+          <Text style={styles.backBtnLargeText}>Go Home</Text>
         </TouchableOpacity>
       </View>
     );

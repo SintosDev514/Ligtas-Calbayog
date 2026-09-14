@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
+import { File } from "expo-file-system";
 import { useAuth } from "../../context/AuthContext";
 import { supabase } from "@shared/supabase/supabaseClient";
 import { colors } from "../../constants/theme";
@@ -78,11 +79,7 @@ export default function ProfileScreen() {
       }
 
       const formData = new FormData();
-      formData.append("file", {
-        uri,
-        type: "image/jpeg",
-        name: filename,
-      } as any);
+      formData.append("file", new File(uri), filename);
 
       const res = await fetch(
         `${SUPABASE_URL}/storage/v1/object/profile-photos/${filename}`,

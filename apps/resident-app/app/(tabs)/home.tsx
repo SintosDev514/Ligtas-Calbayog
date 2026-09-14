@@ -12,7 +12,6 @@ import {
   ImageBackground,
   Alert,
   ActivityIndicator,
-  Modal,
   Vibration,
   StyleSheet,
 } from "react-native";
@@ -31,12 +30,15 @@ import {
 } from "../../../../shared/services/reportService";
 import { useLocation } from "../../context/LocationContext";
 import { useMapStyle } from "../../context/MapStyleContext";
+import { useBottomBarScroll } from "../../context/BottomBarContext";
 import { styles } from "@/styles/HomeScreen.styles";
-import { getUnreadCount, fetchContactLocations } from "../../../../shared/services/messageService";
+import { getUnreadCount, fetchContactLocations, getMessageBadgeCount } from "../../../../shared/services/messageService";
+import { useNotifications } from "../../context/NotificationsContext";
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { onScroll } = useBottomBarScroll();
   const {
     location,
     isLocating,
@@ -44,36 +46,47 @@ export default function HomeScreen() {
     getLocation,
     toggleLiveLocation,
   } = useLocation();
-  const { tileUrl, mapStyle, setMapStyle } = useMapStyle();
+  const { tileUrl, mapStyle } = useMapStyle();
 
   const [profile, setProfile] = useState<any>(null);
   const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
   const [policeNumber, setPoliceNumber] = useState<string | null>("117");
   const [stats, setStats] = useState({ total: 0, pending: 0, active: 0, resolved: 0 });
   const [announcements, setAnnouncements] = useState<any[]>([]);
-  const [mapExpanded, setMapExpanded] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const { unreadCount, setUnreadCount, open: openNotifications } = useNotifications();
+  const [messageCount, setMessageCount] = useState(0);
   const [contacts, setContacts] = useState<any[]>([]);
   const [policePosts, setPolicePosts] = useState<any[]>([]);
   const [sosIsHolding, setSosIsHolding] = useState(false);
   const [sosHoldSeconds, setSosHoldSeconds] = useState(3);
   const [isConnected, setIsConnected] = useState(true);
   const [weather, setWeather] = useState<any>(null);
-  const [showPhoneTip, setShowPhoneTip] = useState(true);
   const [profileLocation, setProfileLocation] = useState<{latitude: number; longitude: number} | null>(null);
+  const [mapFitRegion, setMapFitRegion] = useState<any>(null);
+  const locRef = useRef(location);
+  const lastFitRegionRef = useRef<string | null>(null);
+  useEffect(() => {
+    locRef.current = location;
+  }, [location]);
 
   const effectiveLocation = location?.latitude ? location : profileLocation;
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
-  const bottomBarAnim = useRef(new Animated.Value(0)).current;
-  const phoneTipAnim = useRef(new Animated.Value(0)).current;
-  const lastScrollY = useRef(0);
-  const isBarVisible = useRef(true);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const liveBadgeAnim = useRef(new Animated.Value(1)).current;
   const sosPulseAnim = useRef(new Animated.Value(1)).current;
   const sosRingAnim = useRef(new Animated.Value(0)).current;
+
+  const homeMapCenterRef = useRef<any>(null);
+  if (!homeMapCenterRef.current) {
+    homeMapCenterRef.current = {
+      latitude: effectiveLocation?.latitude ?? 12.066,
+      longitude: effectiveLocation?.longitude ?? 124.6,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    };
+  }
 
   useEffect(() => {
     Animated.parallel([
@@ -92,24 +105,29 @@ export default function HomeScreen() {
     loadData();
   }, []);
 
+  const refreshMessageBadge = React.useCallback(async () => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const userId = session?.session?.user?.id;
+      if (!userId) return;
+      const lastSeen = await AsyncStorage.getItem("@ligtas_messages_last_seen");
+      const count = await getMessageBadgeCount(userId, lastSeen || null);
+      setMessageCount(count);
+    } catch {}
+  }, []);
+
   useFocusEffect(
     React.useCallback(() => {
       loadData();
       getLocation();
+      refreshMessageBadge();
       const locInterval = setInterval(() => {
         getLocation();
       }, 15000);
-      setShowPhoneTip(true);
-      phoneTipAnim.setValue(0);
-      Animated.timing(phoneTipAnim, { toValue: 1, duration: 400, useNativeDriver: true }).start();
-      const tipTimeout = setTimeout(() => {
-        Animated.timing(phoneTipAnim, { toValue: 0, duration: 400, useNativeDriver: true }).start(() => setShowPhoneTip(false));
-      }, 5000);
       return () => {
-        clearTimeout(tipTimeout);
         clearInterval(locInterval);
       };
-    }, [getLocation])
+    }, [getLocation, refreshMessageBadge])
   );
 
   useEffect(() => {
@@ -146,6 +164,7 @@ export default function HomeScreen() {
           (payload) => {
             const msg = payload.new as any;
             loadData();
+            refreshMessageBadge();
           },
         )
         .subscribe();
@@ -158,6 +177,7 @@ export default function HomeScreen() {
           { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` },
           () => {
             getUnreadCount(userId).then(setUnreadCount).catch(() => {});
+            refreshMessageBadge();
           },
         )
         .subscribe();
@@ -331,7 +351,7 @@ export default function HomeScreen() {
       if (finished) {
         Vibration.vibrate(200);
         setSosIsHolding(false);
-        router.push("/emergency-report" as any);
+        router.push("/(tabs)/report-picker" as any);
       }
     });
   };
@@ -452,28 +472,58 @@ export default function HomeScreen() {
         }
       }
     }
-    const allContacts = (familyData || []).map((c: any) => ({
+    const uniqueFamily = (familyData || [])
+      .filter((c: any, i: number, arr: any[]) => {
+        const key = c.contact_user_id || c.id;
+        const firstIdx = arr.findIndex((x: any) => (x.contact_user_id || x.id) === key);
+        if (firstIdx !== i) return false;
+        return !(c.contact_user_id && c.contact_user_id === userId);
+      });
+    const allContacts = uniqueFamily.map((c: any) => ({
       ...c,
       hasLocation: locatedIds.has(c.id),
       location: locations.find((l: any) => l.id === c.id),
       photoUrl: photoMap[c.contact_user_id] || null,
     }));
     setContacts(allContacts);
+
+    const fitPoints: { latitude: number; longitude: number }[] = [];
+    if (effectiveLocation?.latitude != null && effectiveLocation.longitude != null) {
+      fitPoints.push({ latitude: effectiveLocation.latitude, longitude: effectiveLocation.longitude });
+    }
+    for (const post of posts) {
+      if (post.latitude != null && post.longitude != null) {
+        fitPoints.push({ latitude: Number(post.latitude), longitude: Number(post.longitude) });
+      }
+    }
+    if (fitPoints.length > 0) {
+      const lats = fitPoints.map((p) => p.latitude);
+      const lngs = fitPoints.map((p) => p.longitude);
+      const fitLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+      const fitLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+      const fitKey = `${fitLat.toFixed(4)},${fitLng.toFixed(4)},${fitPoints.length}`;
+      if (lastFitRegionRef.current !== fitKey) {
+        lastFitRegionRef.current = fitKey;
+        if (fitPoints.length === 1) {
+          setMapFitRegion({ latitude: fitLat, longitude: fitLng, zoom: 16 });
+        } else {
+          const padLat = Math.max((Math.max(...lats) - Math.min(...lats)) * 0.25, 0.003);
+          const padLng = Math.max((Math.max(...lngs) - Math.min(...lngs)) * 0.25, 0.003);
+          setMapFitRegion({
+            latitude: fitLat,
+            longitude: fitLng,
+            zoom: 15,
+            north: Math.max(...lats) + padLat,
+            south: Math.min(...lats) - padLat,
+            east: Math.max(...lngs) + padLng,
+            west: Math.min(...lngs) - padLng,
+          });
+        }
+      }
+    }
   } catch (error) {
     console.log(error);
   }
-  };
-
-  const cycleMapStyle = () => {
-    const order = ["light", "dark", "satellite"];
-    const idx = order.indexOf(mapStyle);
-    setMapStyle(order[(idx + 1) % order.length]);
-  };
-
-  const getMapStyleIcon = () => {
-    if (mapStyle === "light") return "sunny-outline";
-    if (mapStyle === "dark") return "moon-outline";
-    return "globe-outline";
   };
 
   const handleLogout = () => {
@@ -494,39 +544,8 @@ export default function HomeScreen() {
   const firstName = profile?.full_name?.split(" ")[0] ?? "Resident";
   const lastName = profile?.full_name?.split(" ").pop() ?? "";
 
-  const handleProfile = () => router.push("/(tabs)/profile" as any);
+  const handleNotifications = () => openNotifications();
   const handleMessages = () => router.push("/(tabs)/messages" as any);
-  const handleNotifications = () => router.push("/(tabs)/notifications" as any);
-  const handleReport = () => router.push("/(tabs)/report-picker" as any);
-  const handleAnnouncements = () => router.push("/(tabs)/announcements" as any);
-  const handleCallPolice = async () => {
-    const url = `tel:${policeNumber ?? "117"}`;
-    const supported = await Linking.canOpenURL(url);
-    if (supported) await Linking.openURL(url);
-    else
-      Alert.alert("Cannot place call", "Your device cannot make phone calls.");
-  };
-
-  const handleScroll = (event: any) => {
-    const currentY = event.nativeEvent.contentOffset.y;
-    if (currentY > lastScrollY.current && isBarVisible.current && currentY > 20) {
-      isBarVisible.current = false;
-      Animated.timing(bottomBarAnim, {
-        toValue: 1,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
-    } else if (currentY < lastScrollY.current && !isBarVisible.current) {
-      isBarVisible.current = true;
-      Animated.timing(bottomBarAnim, {
-        toValue: 0,
-        duration: 250,
-        useNativeDriver: true,
-      }).start();
-    }
-    lastScrollY.current = currentY;
-  };
-
   const getTimeGreeting = () => {
     const hour = new Date().getHours();
     const safetyTips = ["Keep safe!", "Stay alert!", "Keep your GPS on", "Be careful out there!", "Stay safe!"];
@@ -552,21 +571,31 @@ export default function HomeScreen() {
             </View>
             <Text style={styles.headerTitle}>Ligtas Calbayog</Text>
           </View>
-          <TouchableOpacity style={styles.headerNotifBtn} onPress={handleNotifications}>
-            <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.7)" />
-            {unreadCount > 0 && (
-              <View style={styles.headerNotifBadge}>
-                <Text style={styles.headerNotifBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.headerMsgBtn} onPress={handleMessages}>
+              <Ionicons name="chatbubble-ellipses-outline" size={20} color="rgba(255,255,255,0.7)" />
+              {messageCount > 0 && (
+                <View style={styles.headerNotifBadge}>
+                  <Text style={styles.headerNotifBadgeText}>{messageCount > 9 ? "9+" : messageCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerNotifBtn} onPress={handleNotifications}>
+              <Ionicons name="notifications-outline" size={20} color="rgba(255,255,255,0.7)" />
+              {unreadCount > 0 && (
+                <View style={styles.headerNotifBadge}>
+                  <Text style={styles.headerNotifBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
         </LinearGradient>
       </SafeAreaView>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
-        onScroll={handleScroll}
+        onScroll={onScroll}
         scrollEventThrottle={16}
       >
         {/* Welcome Card */}
@@ -584,7 +613,28 @@ export default function HomeScreen() {
               style={styles.welcomeTopRow}
               imageStyle={{ borderRadius: 20 }}
             >
-            <View style={{ ...StyleSheet.absoluteFillObject, backgroundColor: "#0F204B", opacity: 0.85 }} />
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "#0F204B",
+                opacity: 0.55,
+              }}
+            />
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "#000",
+                opacity: 0.25,
+              }}
+            />
             <View style={styles.welcomeLeft}>
               <View style={styles.avatarContainer}>
                 {profilePhoto ? (
@@ -633,7 +683,7 @@ export default function HomeScreen() {
                       style={styles.sosCircle}
                     >
                       <Ionicons name="warning" size={24} color="#FFFFFF" />
-                      <Text style={styles.sosCircleText}>SOS</Text>
+                      <Text style={styles.sosCircleText}>Hold to report</Text>
                       {sosIsHolding && (
                         <Text style={styles.sosHoldCounter}>{sosHoldSeconds}</Text>
                       )}
@@ -700,27 +750,8 @@ export default function HomeScreen() {
                 style={styles.map}
                 mapType="none"
                 mapStyle={mapStyle}
-                region={{
-                  latitude: effectiveLocation?.latitude || 12.066,
-                  longitude: effectiveLocation?.longitude || 124.6,
-                  latitudeDelta: 0.01,
-                  longitudeDelta: 0.01,
-                }}
-                onMarkerPress={(e: any) => {
-                  const coord = e?.coordinate || e?.nativeEvent?.coordinate;
-                  if (!coord) return;
-                  const post = policePosts.find(
-                    (p: any) =>
-                      Math.abs(p.latitude - coord.latitude) < 0.001 &&
-                      Math.abs(p.longitude - coord.longitude) < 0.001,
-                  );
-                  if (post) {
-                    const officers = post.officers?.length
-                      ? post.officers.join("\n")
-                      : "No officers assigned";
-                    Alert.alert(post.name, `Patrol Officers:\n${officers}`);
-                  }
-                }}
+                initialRegion={homeMapCenterRef.current}
+                focus={mapFitRegion}
               >
                 <UrlTile urlTemplate={tileUrl} />
                 {effectiveLocation?.latitude ? (
@@ -745,48 +776,20 @@ export default function HomeScreen() {
                     </View>
                   </Marker>
                 ) : null}
-                {contacts.filter((c: any) => c.hasLocation && c.location?.latitude).map((c: any) => {
-                  const isActive = c.location?.updated_at
-                    ? Date.now() - new Date(c.location.updated_at).getTime() < 3600000
-                    : false;
-                  const colors = ["#1D4ED8", "#DC2626", "#D97706", "#059669", "#7C3AED", "#DB2777", "#0891B2"];
-                  const colorIdx = c.id ? c.id.toString().length % colors.length : 0;
-                  return (
+                {policePosts.map((post) =>
+                  post.latitude != null && post.longitude != null ? (
                     <Marker
-                      key={c.id}
+                      key={post.id}
                       coordinate={{
-                        latitude: c.location.latitude,
-                        longitude: c.location.longitude,
+                        latitude: Number(post.latitude),
+                        longitude: Number(post.longitude),
                       }}
-                    >
-                      <View style={styles.contactMapMarkerWrap}>
-                        <View style={[styles.contactMapMarker, {
-                          borderColor: isActive ? "#22C55E" : "#CBD5E1",
-                        }]}>
-                          {c.photoUrl ? (
-                            <Image source={{ uri: c.photoUrl }} style={styles.contactMapMarkerPhoto} />
-                          ) : (
-                            <Text style={styles.contactMapMarkerText}>{c.name?.[0]?.toUpperCase() || "?"}</Text>
-                          )}
-                        </View>
-                        {isActive && <View style={styles.activeDotMap} />}
-                      </View>
-                    </Marker>
-                  );
-                })}
-                {policePosts.map((post) => {
-                  const officerText = post.officers?.length
-                    ? `\n\nPatrol Officers:\n• ${post.officers.join("\n• ")}`
-                    : "\n\nNo officers assigned";
-                  return (
-                    <Marker
-                      key={`post-${post.id}`}
-                      coordinate={{ latitude: post.latitude, longitude: post.longitude }}
-                      iconName="post-pin"
-                      title={`${post.name}${officerText}`}
+                      iconName="shield"
+                      pinColor="#0F204B"
+                      title={post.name}
                     />
-                  );
-                })}
+                  ) : null,
+                )}
               </MapView>
 
               {/* Location Status Overlay */}
@@ -797,7 +800,8 @@ export default function HomeScreen() {
                 </Text>
                 <Text style={styles.mapCoordText} numberOfLines={1}>
                   {location && location.latitude != null && location.longitude != null
-                    ? `Lat ${location.latitude.toFixed(5)}, Lng ${location.longitude.toFixed(5)}`
+                    ? `Lat ${location.latitude.toFixed(5)}, Lng ${location.longitude.toFixed(5)}` +
+                      (location.accuracy != null ? ` (±${Math.round(location.accuracy)}m)` : "")
                     : ""}
                 </Text>
               </View>
@@ -820,22 +824,6 @@ export default function HomeScreen() {
               </Animated.View>
 
               <View style={styles.mapBtnsRow}>
-                <TouchableOpacity
-                  style={styles.mapStyleBtn}
-                  onPress={cycleMapStyle}
-                >
-                  <Ionicons
-                    name={getMapStyleIcon()}
-                    size={18}
-                    color="#fff"
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={styles.expandBtn}
-                  onPress={() => setMapExpanded(true)}
-                >
-                  <Ionicons name="expand-outline" size={20} color="#fff" />
-                </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.locationIconBtn}
                   onPress={toggleLiveLocation}
@@ -868,7 +856,7 @@ export default function HomeScreen() {
                       : false;
                     return (
                       <TouchableOpacity
-                        key={c.id}
+                        key={c.contact_user_id || c.id}
                         activeOpacity={0.7}
                         onPress={() =>
                           router.push({
@@ -945,7 +933,7 @@ export default function HomeScreen() {
                   {(announcement.image_url || announcement.video_url) && (
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 4 }}>
                       {announcement.image_url && (
-                        <Text style={{ fontSize: 11, color: "#3B82F6" }}>📷 Photo</Text>
+                        <Text style={{ fontSize: 11, color: "#3B82F6" }}>Photo</Text>
                       )}
                       {announcement.video_url && (
                         <Text style={{ fontSize: 11, color: "#DC2626" }}>🎬 Video</Text>
@@ -962,182 +950,8 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <View style={{ height: 80 }} />
+        <View style={{ height: 90 }} />
       </ScrollView>
-
-      {/* Bottom Bar */}
-      <Animated.View
-        style={[
-          styles.bottomBar,
-          {
-            paddingBottom: 8 + insets.bottom,
-            transform: [{
-              translateY: bottomBarAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0, 150],
-              }),
-            }],
-          },
-        ]}
-      >
-        <View style={styles.bottomBarCenterRing} />
-        <TouchableOpacity style={styles.bottomBarCenterCircle} onPress={handleCallPolice} activeOpacity={0.7}>
-          <Ionicons name="call" size={20} color="#F4B51A" />
-          <Text style={{ fontSize: 6, fontWeight: "800", color: "#F4B51A", marginTop: 2, letterSpacing: 0.5 }}>PNP</Text>
-        </TouchableOpacity>
-        {showPhoneTip && (
-          <Animated.View style={[styles.phoneTipContainer, { opacity: phoneTipAnim, transform: [{ translateY: phoneTipAnim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }]}>
-            <View style={styles.phoneTipBubble}>
-              <Ionicons name="wifi-outline" size={12} color="#EF4444" />
-              <Text style={styles.phoneTipText}>No internet?</Text>
-              <View style={styles.phoneTipDivider} />
-              <Ionicons name="call-outline" size={12} color="#F4B51A" />
-              <Text style={styles.phoneTipText2}>You can still call PNP!</Text>
-            </View>
-            <View style={styles.phoneTipArrow} />
-          </Animated.View>
-        )}
-        <View style={styles.bottomBarRow}>
-          <TouchableOpacity style={styles.bottomBarItem} onPress={handleReport}>
-            <Ionicons name="add-circle-outline" size={24} color="#DC2626" />
-            <Text style={styles.bottomBarLabel} numberOfLines={1}>Report</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.bottomBarItem} onPress={handleMessages}>
-            <Ionicons name="chatbubbles-outline" size={22} color="#64748B" />
-            <Text style={styles.bottomBarLabel} numberOfLines={1}>Messages</Text>
-          </TouchableOpacity>
-          <View style={{ width: 48 }} />
-          <TouchableOpacity style={styles.bottomBarItem} onPress={handleAnnouncements}>
-            <Ionicons name="megaphone-outline" size={22} color="#64748B" />
-            <Text style={styles.bottomBarLabel} numberOfLines={1}>Announcements</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.bottomBarItem} onPress={handleProfile}>
-            <Ionicons name="person-outline" size={22} color="#64748B" />
-            <Text style={styles.bottomBarLabel} numberOfLines={1}>Profile</Text>
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-
-      {/* MAP MODAL */}
-      <Modal
-        visible={mapExpanded}
-        animationType="slide"
-        onRequestClose={() => setMapExpanded(false)}
-      >
-        <View style={styles.modalContainer}>
-          <MapView
-            style={styles.fullMap}
-            mapType="none"
-            mapStyle={mapStyle}
-            initialRegion={{
-              latitude: effectiveLocation?.latitude ?? 12.066,
-              longitude: effectiveLocation?.longitude ?? 124.6,
-              latitudeDelta: 0.005,
-              longitudeDelta: 0.005,
-            }}
-            onMarkerPress={(e: any) => {
-              const coord = e?.coordinate || e?.nativeEvent?.coordinate;
-              if (!coord) return;
-              const post = policePosts.find(
-                (p: any) =>
-                  Math.abs(p.latitude - coord.latitude) < 0.001 &&
-                  Math.abs(p.longitude - coord.longitude) < 0.001,
-              );
-              if (post) {
-                const officers = post.officers?.length
-                  ? post.officers.join("\n")
-                  : "No officers assigned";
-Alert.alert(post.name, `Patrol Officers:\n${officers}`);
-                }
-              }}
-            >
-            <UrlTile urlTemplate={tileUrl} />
-            {effectiveLocation?.latitude && (
-              <Marker
-                coordinate={{
-                  latitude: effectiveLocation.latitude,
-                  longitude: effectiveLocation.longitude,
-                }}
-                animated={isLiveLocationActive}
-              >
-                <View style={styles.markerWrapper}>
-                  <View style={styles.customMarker}>
-                    {profilePhoto ? (
-                      <Image
-                        source={{ uri: profilePhoto }}
-                        style={styles.markerPhoto}
-                      />
-                    ) : (
-                      <Ionicons name="person" size={18} color="#F4B51A" />
-                    )}
-                  </View>
-                </View>
-              </Marker>
-            )}
-              {contacts.filter((c: any) => c.hasLocation && c.location?.latitude).map((c: any) => {
-                const isActive = c.location?.updated_at
-                  ? Date.now() - new Date(c.location.updated_at).getTime() < 3600000
-                  : false;
-                const colors = ["#1D4ED8", "#DC2626", "#D97706", "#059669", "#7C3AED", "#DB2777", "#0891B2"];
-                const colorIdx = c.id ? c.id.toString().length % colors.length : 0;
-                return (
-                  <Marker
-                    key={c.id}
-                    coordinate={{
-                      latitude: c.location.latitude,
-                      longitude: c.location.longitude,
-                    }}
-                  >
-                    <View style={styles.contactMapMarkerWrap}>
-                        <View style={[styles.contactMapMarker, {
-                          borderColor: isActive ? "#22C55E" : "#CBD5E1",
-                        }]}>
-                          {c.photoUrl ? (
-                            <Image source={{ uri: c.photoUrl }} style={styles.contactMapMarkerPhoto} />
-                          ) : (
-                            <Text style={styles.contactMapMarkerText}>{c.name?.[0]?.toUpperCase() || "?"}</Text>
-                          )}
-                        </View>
-                        {isActive && <View style={styles.activeDotMap} />}
-                      </View>
-                  </Marker>
-                );
-              })}
-              {policePosts.map((post) => {
-                const officerText = post.officers?.length
-                  ? `\n\nPatrol Officers:\n• ${post.officers.join("\n• ")}`
-                  : "\n\nNo officers assigned";
-                return (
-                  <Marker
-                    key={`modal-post-${post.id}`}
-                    coordinate={{ latitude: post.latitude, longitude: post.longitude }}
-                    iconName="post-pin"
-                    title={`${post.name}${officerText}`}
-                  />
-                );
-              })}
-          </MapView>
-
-          <View style={styles.modalBtnsRow}>
-            <TouchableOpacity
-              style={styles.closeBtn}
-              onPress={() => setMapExpanded(false)}
-            >
-              <Ionicons name="close" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalStyleBtn}
-              onPress={cycleMapStyle}
-            >
-              <Ionicons
-                name={getMapStyleIcon()}
-                size={22}
-                color="#fff"
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

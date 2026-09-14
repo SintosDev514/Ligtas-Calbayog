@@ -1,4 +1,46 @@
-
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" />
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;background:#F1F5F9}
+#map{width:100%;height:100%}
+.maplibregl-map{font-family:sans-serif}
+.maplibregl-ctrl-attrib{font-size:9px !important;background:rgba(255,255,255,0.7) !important}
+.maplibregl-ctrl-group{display:none !important}
+.mb-credit{position:absolute;right:2px;bottom:2px;font-size:9px;color:rgba(30,41,59,0.6);background:rgba(255,255,255,0.75);padding:1px 6px;border-radius:6px;pointer-events:none;z-index:2;font-family:sans-serif}
+.marker{width:26px;height:26px;border-radius:50%;border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);cursor:pointer;display:flex;align-items:center;justify-content:center;overflow:visible}
+.img-marker{position:relative;width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;line-height:0}
+.marker-img-wrap{width:30px;height:30px;border-radius:50%;overflow:hidden;border:2px solid #fff;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.35);position:relative;z-index:1}
+.marker-img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+.img-pulse{position:absolute;top:50%;left:50%;width:30px;height:30px;border-radius:50%;background:rgba(239,68,68,0.45);transform:translate(-50%,-50%);animation:img-pulse-r 2s ease-out infinite;z-index:0}
+@keyframes img-pulse-r{0%{opacity:0.7;transform:translate(-50%,-50%) scale(0.5)}100%{opacity:0;transform:translate(-50%,-50%) scale(1.9)}}
+.marker svg{display:block}
+.pin{position:relative;width:34px;height:34px;line-height:0;filter:drop-shadow(0 2px 5px rgba(0,0,0,0.4))}
+.pin-head{position:absolute;top:0;left:50%;transform:translateX(-50%);width:26px;height:26px;border-radius:50%;background:currentColor;border:2px solid #fff;display:flex;align-items:center;justify-content:center}
+.pin-head svg{display:block}
+.pin-point{position:absolute;bottom:-1px;left:50%;transform:translateX(-50%);width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid currentColor}
+@keyframes pin-pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.5)}100%{box-shadow:0 0 0 14px rgba(239,68,68,0)}}
+.pin-animate{animation:pin-pulse 1.4s ease-out infinite}
+@keyframes emergency-pulse-1{0%{box-shadow:0 0 0 0 rgba(239,68,68,0.5)}100%{box-shadow:0 0 0 16px rgba(239,68,68,0)}}
+@keyframes emergency-glow{0%,100%{filter:drop-shadow(0 0 4px rgba(239,68,68,0.4))}50%{filter:drop-shadow(0 0 10px rgba(239,68,68,0.7))}}
+@keyframes user-pulse{0%{box-shadow:0 0 0 0 rgba(59,130,246,0.5)}70%{box-shadow:0 0 0 12px rgba(59,130,246,0)}100%{box-shadow:0 0 0 0 rgba(59,130,246,0)}}
+@keyframes user-ring{0%{transform:scale(0.4);opacity:0.6}100%{transform:scale(1.6);opacity:0}}
+.marker-animate{animation:emergency-pulse-1 1.4s ease-out infinite,emergency-glow 2s ease-in-out infinite}
+.user-location-wrap{position:relative;width:24px;height:24px;display:flex;align-items:center;justify-content:center;animation:user-pulse 2.5s infinite}
+.location-ring{position:absolute;width:100%;height:100%;border-radius:50%;background:rgba(59,130,246,0.28);animation:user-ring 2s ease-out infinite}
+.user-dot{position:relative;width:16px;height:16px;border-radius:50%;background:#1E6BFF;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.3)}
+.maplibregl-popup-content{font-size:12px;padding:8px 10px;border-radius:8px;font-family:sans-serif;max-width:220px}
+.maplibregl-popup-close-button{font-size:16px;padding:2px 6px}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="mb-status" style="position:absolute;left:0;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:16px;font:600 13px/1.5 sans-serif;color:#475569;background:#F1F5F9;z-index:10;pointer-events:none;box-sizing:border-box">Loading map, please wait...</div>
+<script>
 window.onerror = function(m, src, line, col) {
   try { var el = document.getElementById('mb-status'); if (el) el.textContent = 'SCRIPT ERROR: ' + m + ' (line ' + line + ')'; } catch(e) {}
 };
@@ -859,3 +901,6 @@ document.addEventListener('message', onRCMessage);
 startMap();
 });
 })();
+</script>
+</body>
+</html>

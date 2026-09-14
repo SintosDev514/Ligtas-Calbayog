@@ -7,10 +7,10 @@ import {
   Animated,
   Platform,
 } from "react-native";
-import { useRouter, usePathname } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { supabase } from "../../../shared/supabase/supabaseClient";
+import { useNotifications } from "../context/NotificationsContext";
 
 const TYPE_META: Record<string, { icon: string; color: string }> = {
   contact_request: { icon: "person-add", color: "#3B82F6" },
@@ -26,9 +26,8 @@ const TYPE_META: Record<string, { icon: string; color: string }> = {
 const DISPLAY_MS = 5000;
 
 export default function NotificationPopup() {
-  const router = useRouter();
-  const pathname = usePathname();
   const insets = useSafeAreaInsets();
+  const { visible: sheetVisible, open: openNotifications } = useNotifications();
 
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [notification, setNotification] = useState<any>(null);
@@ -115,10 +114,10 @@ let mounted = true;
   }, [currentUserId, showPopup]);
 
   useEffect(() => {
-    if (notification && pathname === "/(tabs)/notifications") {
+    if (sheetVisible && notification) {
       hidePopup();
     }
-  }, [pathname, notification, hidePopup]);
+  }, [sheetVisible, notification, hidePopup]);
 
   useEffect(() => {
     return () => {
@@ -133,7 +132,7 @@ let mounted = true;
 
   const handlePress = () => {
     hidePopup();
-    router.push("/(tabs)/notifications" as any);
+    openNotifications();
   };
 
   return (

@@ -17,6 +17,7 @@ import {
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useBottomBarScroll } from "../../context/BottomBarContext";
 import MapView, { Marker, UrlTile } from "@/components/MapView";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
 import {
@@ -31,6 +32,7 @@ import { useMapStyle } from "../../context/MapStyleContext";
 
 export default function ChatScreen() {
   const router = useRouter();
+  const { onScroll } = useBottomBarScroll();
   const { id: contactId, name: contactName, phone: contactPhone, contact_user_id: contactUserId } = useLocalSearchParams<{
     id: string;
     name: string;
@@ -434,8 +436,8 @@ export default function ChatScreen() {
 
       <SafeAreaView edges={["top"]} style={styles.header}>
         <View style={styles.headerRow}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <Ionicons name="arrow-back" size={22} color="#0F204B" />
+          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+            <Ionicons name="chevron-back" size={22} color="#0F204B" />
           </TouchableOpacity>
           <View style={styles.headerInfo}>
             <Text style={styles.headerName} numberOfLines={1}>
@@ -467,6 +469,8 @@ export default function ChatScreen() {
             renderItem={renderMessage}
             contentContainerStyle={styles.messagesList}
             showsVerticalScrollIndicator={false}
+            onScroll={onScroll}
+            scrollEventThrottle={16}
           />
         )}
 

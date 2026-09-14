@@ -13,13 +13,14 @@ interface LocationData {
   longitude: number;
   address: string;
   timestamp?: number;
+  accuracy?: number;
 }
 
 interface LocationContextType {
   location: LocationData | null;
   isLocating: boolean;
   isLiveLocationActive: boolean;
-  getLocation: () => Promise<void>;
+  getLocation: () => Promise<{ latitude: number; longitude: number } | null>;
   setLocation: (location: LocationData | null) => void;
   toggleLiveLocation: () => void;
   clearLocation: () => void;
@@ -29,9 +30,16 @@ const LocationContext = createContext<LocationContextType | undefined>(
   undefined,
 );
 
+function distanceMeters(aLat: number, aLng: number, bLat: number, bLng: number): number {
+  const lat = 111320;
+  const lng = 111320 * Math.cos((aLat * Math.PI) / 180);
+  return Math.sqrt(Math.pow((aLat - bLat) * lat, 2) + Math.pow((aLng - bLng) * lng, 2));
+}
+
 function getAccuratePosition(): Promise<Location.LocationObject> {
   return new Promise<Location.LocationObject>((resolve, reject) => {
-    let best: Location.LocationObject | null = null;
+    let best: { obj: Location.LocationObject; acc: number } | null = null;
+    const fixes: { obj: Location.LocationObject; acc: number }[] = [];
     let watchSub: { remove: () => void } | null = null;
     let settled = false;
 
@@ -44,18 +52,45 @@ function getAccuratePosition(): Promise<Location.LocationObject> {
       else reject(err ?? new Error("no location fix"));
     };
 
-    const timer = setTimeout(() => finish(best, null), 8000);
+    const timer = setTimeout(() => {
+      if (best) {
+        const cluster = fixes.filter((f) => distanceMeters(f.obj.coords.latitude, f.obj.coords.longitude, best!.obj.coords.latitude, best!.obj.coords.longitude) <= 15);
+        if (cluster.length >= 2) {
+          let lat = 0, lng = 0, total = 0;
+          cluster.forEach((f) => {
+            const w = 1 / Math.pow(f.acc || 10, 2);
+            lat += f.obj.coords.latitude * w;
+            lng += f.obj.coords.longitude * w;
+            total += w;
+          });
+          const loc = cluster[0].obj;
+          finish(
+            {
+              ...loc,
+              coords: { ...loc.coords, latitude: lat / total, longitude: lng / total },
+            },
+            null,
+          );
+        } else {
+          finish(best.obj, null);
+        }
+      } else {
+        finish(null, null);
+      }
+    }, 10000);
 
     const takeBest = (obj: Location.LocationObject) => {
       const acc = obj.coords.accuracy ?? Infinity;
-      const bestAcc = best?.coords.accuracy ?? Infinity;
-      if (!best || acc < bestAcc) best = obj;
-      if (acc <= 10) finish(best, null);
+      fixes.push({ obj, acc });
+      if (!best || acc < best.acc) {
+        best = { obj, acc };
+      }
+      if (acc <= 5) finish(best.obj, null);
     };
 
     try {
       Location.watchPositionAsync(
-        { accuracy: Location.Accuracy.Highest, timeInterval: 1000, distanceInterval: 0 },
+        { accuracy: Location.Accuracy.BestForNavigation, timeInterval: 1000, distanceInterval: 0 },
         takeBest,
       )
         .then((sub) => {
@@ -80,7 +115,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
   const liveLocationIntervalRef = useRef<number | null>(null);
 
   // Get location once
-  const getLocation = useCallback(async () => {
+  const getLocation = useCallback(async (): Promise<{ latitude: number; longitude: number } | null> => {
     try {
       setIsLocating(true);
 
@@ -88,7 +123,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
 
       if (status !== "granted") {
         console.log("Location permission denied");
-        return;
+        return null;
       }
 
       let loc: Location.LocationObject | null = null;
@@ -122,9 +157,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
         longitude,
         address,
         timestamp: Date.now(),
+        accuracy: loc.coords.accuracy ?? undefined,
       });
+
+      return { latitude, longitude };
     } catch (err) {
       console.log("Error getting location:", err);
+      return null;
     } finally {
       setIsLocating(false);
     }

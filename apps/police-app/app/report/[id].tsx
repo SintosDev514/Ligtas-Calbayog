@@ -110,6 +110,7 @@ export default function ReportDetailScreen() {
   const [resolving, setResolving] = useState(false);
   const [saving, setSaving] = useState(false);
   const [requestingBackup, setRequestingBackup] = useState(false);
+  const [acceptingBackup, setAcceptingBackup] = useState(false);
   const [actionType, setActionType] = useState("arrived");
   const [notes, setNotes] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -384,6 +385,38 @@ export default function ReportDetailScreen() {
     }
   };
 
+  const handleAcceptBackup = async () => {
+    if (!report || acceptingBackup) return;
+    setAcceptingBackup(true);
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("crime_reports")
+        .update({
+          status: "in-progress",
+          assigned_officer_id: profile?.id,
+          updated_at: now,
+        })
+        .eq("id", report.id);
+      if (error) throw error;
+
+      await supabase.from("action_updates").insert({
+        report_id: report.id,
+        action_type: "accepted",
+        officer_id: profile?.id,
+        description: `${profile?.full_name || "Officer"} accepted the backup request for this incident`,
+        created_at: now,
+      });
+
+      setReport((prev: any) => ({ ...prev, status: "in-progress", assigned_officer_id: profile?.id }));
+      Alert.alert("Backup Accepted", "You are now responding to this incident.");
+    } catch (err: any) {
+      Alert.alert("Error", err.message || "Failed to accept backup");
+    } finally {
+      setAcceptingBackup(false);
+    }
+  };
+
   const evidenceUrls: string[] = report?.photo_url
     ? report.photo_url.split(",").map((u: string) => u.trim()).filter(Boolean)
     : [];
@@ -419,11 +452,11 @@ export default function ReportDetailScreen() {
       : report.longitude
     : 0;
   const latDelta = showMap && userLocation
-    ? Math.max(Math.abs(userLocation.latitude - report.latitude) * 1.8, 0.015)
-    : 0.015;
+    ? Math.max(Math.abs(userLocation.latitude - report.latitude) * 2.5, 0.02)
+    : 0.02;
   const lngDelta = showMap && userLocation
-    ? Math.max(Math.abs(userLocation.longitude - report.longitude) * 1.8, 0.015)
-    : 0.015;
+    ? Math.max(Math.abs(userLocation.longitude - report.longitude) * 2.5, 0.03)
+    : 0.03;
 
   if (loading) {
     return (
@@ -928,6 +961,35 @@ export default function ReportDetailScreen() {
             )}
             <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
               {accepting ? "Accepting..." : "Accept & Respond"}
+            </Text>
+          </TouchableOpacity>
+        ) : status === "needs-backup" && report.assigned_officer_id !== profile?.id ? (
+          <TouchableOpacity
+            style={{
+              backgroundColor: "#2563EB",
+              borderRadius: 14,
+              paddingVertical: 16,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 10,
+              shadowColor: "#2563EB",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.3,
+              shadowRadius: 12,
+              elevation: 6,
+            }}
+            onPress={handleAcceptBackup}
+            disabled={acceptingBackup}
+            activeOpacity={0.8}
+          >
+            {acceptingBackup ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="megaphone" size={20} color="#fff" />
+            )}
+            <Text style={{ color: "#fff", fontSize: 16, fontWeight: "700" }}>
+              {acceptingBackup ? "Accepting..." : "Accept Backup"}
             </Text>
           </TouchableOpacity>
         ) : status === "in-progress" || status === "needs-backup" ? (

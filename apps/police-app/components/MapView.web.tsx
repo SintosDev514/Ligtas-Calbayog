@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useMemo, useState } from "react";
-import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
+import React, { useEffect, useRef, useMemo } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 const TILES: Record<string, string> = {
   light: "https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png",
@@ -14,12 +14,7 @@ const TILE_ATTR: Record<string, string> = {
   street: "© OpenStreetMap contributors",
 };
 
-const MAP_STYLE_NAMES = Object.keys(TILES);
-
-const MAPILLARY_TOKEN = "MLY|27240407492254490|a5c94f86b7fb9a1e9728f1eddcb49110";
-const MAPILLARY_TILE_URL = `https://tiles.mapillary.com/maps/vtp/mly1_public/2/{z}/{x}/{y}?access_token=${encodeURIComponent(MAPILLARY_TOKEN)}`;
-
-type MapStyle = "light" | "dark" | "satellite";
+type MapStyle = "light" | "dark" | "street";
 
 interface Region {
   latitude: number;
@@ -61,6 +56,8 @@ interface MarkerProps {
   markerHtml?: string;
   animate?: boolean;
   heading?: number;
+  clusterGroup?: string;
+  id?: string;
   children?: React.ReactNode;
 }
 
@@ -74,207 +71,7 @@ const toMapStyle = (s: any): React.CSSProperties => {
   return result;
 };
 
-const makeBaseStyle = (active: MapStyle): maplibregl.StyleSpecification => ({
-  version: 8,
-  sources: Object.fromEntries(
-    MAP_STYLE_NAMES.map((k) => [
-      `tiles-${k}`,
-      { type: "raster", tiles: [TILES[k]], tileSize: 256, attribution: TILE_ATTR[k] } as maplibregl.RasterTileSource,
-    ]),
-  ) as any,
-  layers: MAP_STYLE_NAMES.map((k) => ({
-    id: `tiles-${k}`,
-    type: "raster" as const,
-    source: `tiles-${k}`,
-    layout: { visibility: k === active ? "visible" as const : "none" as const },
-  })),
-});
-
-const MapView: React.FC<MapViewProps> = ({
-  style,
-  region,
-  initialRegion,
-  children,
-  scrollEnabled = true,
-  showsUserLocation,
-  mapStyle = "light",
-  routeData,
-  pitch,
-  bearing,
-  userHeading,
-  onPress,
-  onMarkerPress,
-  onRegionChangeComplete,
-}) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
-  const markersRef = useRef<maplibregl.Marker[]>([]);
-  const userMarkerRef = useRef<maplibregl.Marker | null>(null);
-  const arrowElRef = useRef<HTMLDivElement | null>(null);
-  const initializedRef = useRef(false);
-
-  const activeRegion = region || initialRegion;
-
-  const markerData = useMemo(() => {
-    const markers: MarkerProps[] = [];
-    React.Children.forEach(children, (child) => {
-      if (
-        React.isValidElement(child) &&
-        (child as any).type?.displayName === "Marker"
-      ) {
-        markers.push(child.props as MarkerProps);
-      }
-    });
-    return markers;
-  }, [children]);
-
-  useEffect(() => {
-    if (!containerRef.current || !activeRegion || initializedRef.current)
-      return;
-    initializedRef.current = true;
-
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: makeBaseStyle(mapStyle),
-      center: [activeRegion.longitude, activeRegion.latitude],
-      zoom: Math.round(
-        Math.log2(360 / Math.max(activeRegion.latitudeDelta, 0.001)),
-      ),
-      minZoom: 1,
-      maxZoom: 19,
-      pitch: pitch ?? 0,
-      bearing: bearing ?? 0,
-      maxPitch: 85,
-      scrollZoom: scrollEnabled,
-      dragPan: scrollEnabled,
-      dragRotate: bearing != null,
-      touchZoomRotate: scrollEnabled,
-      doubleClickZoom: scrollEnabled,
-      keyboard: scrollEnabled,
-      attributionControl: {},
-      fadeDuration: 0,
-      renderWorldCopies: false,
-    });
-
-    const addMapillary = () => {
-      if (map.getSource("mapillary")) return;
-      map.addSource("mapillary", {
-        type: "vector",
-        tiles: [MAPILLARY_TILE_URL],
-        minzoom: 0,
-        maxzoom: 14,
-      });
-      map.addLayer({
-        id: "mly-overview",
-        type: "circle",
-        source: "mapillary",
-        "source-layer": "overview",
-        minzoom: 0,
-        maxzoom: 6,
-        paint: {
-          "circle-color": "#05CB63",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 0, 1.5, 5, 4],
-          "circle-opacity": 0.75,
-        },
-      });
-      map.addLayer({
-        id: "mly-sequences",
-        type: "line",
-        source: "mapillary",
-        "source-layer": "sequence",
-        minzoom: 6,
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: {
-          "line-color": "#05CB63",
-          "line-width": ["interpolate", ["linear"], ["zoom"], 6, 1.5, 12, 3, 14, 2, 18, 3],
-          "line-opacity": 0.8,
-        },
-      });
-      map.addLayer({
-        id: "mly-images",
-        type: "circle",
-        source: "mapillary",
-        "source-layer": "image",
-        minzoom: 14,
-        paint: {
-          "circle-color": "#05CB63",
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 4, 18, 9],
-          "circle-opacity": 0.95,
-          "circle-stroke-color": "#fff",
-          "circle-stroke-width": 1.5,
-          "circle-stroke-opacity": 0.7,
-        },
-      });
-    };
-
-    map.on("load", () => {
-      map.resize();
-      addMapillary();
-    });
-
-    if (onPress) {
-      map.on("click", (e) => {
-        onPress({
-          nativeEvent: {
-            coordinate: { latitude: e.lngLat.lat, longitude: e.lngLat.lng },
-          },
-        });
-      });
-    }
-
-    if (onRegionChangeComplete) {
-      map.on("moveend", () => {
-        const center = map.getCenter();
-        const bounds = map.getBounds();
-        onRegionChangeComplete({
-          latitude: center.lat,
-          longitude: center.lng,
-          latitudeDelta: bounds.getNorthEast().lat - bounds.getSouthWest().lat,
-          longitudeDelta: bounds.getNorthEast().lng - bounds.getSouthWest().lng,
-        });
-      });
-    }
-
-    map.on("load", () => map.resize());
-    mapRef.current = map;
-
-    return () => {
-      map.remove();
-      mapRef.current = null;
-      initializedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!mapRef.current) return;
-    if (region) {
-      mapRef.current.flyTo({
-        center: [region.longitude, region.latitude],
-        duration: 300,
-      });
-    }
-  }, [region]);
-
-  useEffect(() => {
-    if (!mapRef.current) return;
-    MAP_STYLE_NAMES.forEach((k) => {
-      mapRef.current!.setLayoutProperty(
-        `tiles-${k}`,
-        "visibility",
-        k === mapStyle ? "visible" : "none",
-      );
-    });
-  }, [mapStyle]);
-
-  useEffect(() => {
-    if (!mapRef.current) return;
-    markersRef.current.forEach((m) => m.remove());
-    markersRef.current = [];
-
-    const style = document.createElement("style");
-    if (!document.getElementById("marker-anim")) {
-      style.id = "marker-anim";
-      style.textContent = `
+const ANIMATION_CSS = `
 @keyframes emergency-pulse-1 {
   0% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
   100% { box-shadow: 0 0 0 16px rgba(239,68,68,0); }
@@ -306,106 +103,330 @@ const MapView: React.FC<MapViewProps> = ({
 .user-location-animate {
   animation: user-pulse 2.5s infinite;
 }
+.report-dot{width:15px;height:15px;border-radius:50%;background:var(--pc);border:2px solid #fff;cursor:pointer;position:relative;overflow:visible;animation:report-pulse 1.6s ease-out infinite}
+@keyframes report-pulse{0%{box-shadow:0 0 0 0 var(--pulse-1)}70%{box-shadow:0 0 0 15px var(--pulse-2)}100%{box-shadow:0 0 0 0 var(--pulse-2)}}
+.leaflet-popup-content-wrapper {
+  border-radius: 8px;
+  font-size: 12px;
+}
+.leaflet-popup-content {
+  margin: 8px 10px;
+  font-family: sans-serif;
+  max-width: 220px;
+}
 `;
+
+const hexToRgba = (hex: string, alpha: number) => {
+  const h = hex.replace("#", "");
+  const rgb = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const n = parseInt(rgb, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+};
+
+const MapView: React.FC<MapViewProps> = ({
+  style,
+  region,
+  initialRegion,
+  children,
+  scrollEnabled = true,
+  showsUserLocation,
+  mapStyle = "street",
+  routeData,
+  pitch,
+  bearing,
+  userHeading,
+  onPress,
+  onMarkerPress,
+  onRegionChangeComplete,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const tileLayerRef = useRef<L.TileLayer | null>(null);
+  const markersLayerRef = useRef<L.LayerGroup>(L.layerGroup());
+  const routeLayerRef = useRef<L.Layer | null>(null);
+  const clusterLayerRef = useRef<L.LayerGroup>(L.layerGroup());
+  const userMarkerRef = useRef<L.Marker | null>(null);
+  const arrowMarkerRef = useRef<L.Marker | null>(null);
+  const initializedRef = useRef(false);
+  const onMarkerPressRef = useRef(onMarkerPress);
+  onMarkerPressRef.current = onMarkerPress;
+
+  const activeRegion = region || initialRegion;
+
+  const markerData = useMemo(() => {
+    const markers: MarkerProps[] = [];
+    let sig = "empty";
+    React.Children.forEach(children, (child) => {
+      if (
+        React.isValidElement(child) &&
+        (child as any).type?.displayName === "Marker"
+      ) {
+        const p = child.props as MarkerProps;
+        markers.push(p);
+        sig +=
+          `${p.id ?? ""}|${p.title ?? ""}|${p.pinColor ?? ""}|` +
+          `${p.coordinate?.latitude ?? ""},${p.coordinate?.longitude ?? ""}|` +
+          `${p.animate ? 1 : 0}|${p.clusterGroup ?? ""}|` +
+          `${typeof p.heading}|${p.markerHtml ? 1 : 0}|${p.popupHtml ? 1 : 0};`;
+      }
+    });
+    return { markers, sig };
+  }, [children]);
+
+  const makeIcon = (m: MarkerProps, isArrow: boolean, isCustom: boolean, isUserLoc: boolean) => {
+    const el = document.createElement("div");
+
+    if (isArrow) {
+      el.style.width = "30px";
+      el.style.height = "30px";
+      el.style.borderRadius = "50%";
+      el.style.display = "flex";
+      el.style.alignItems = "center";
+      el.style.justifyContent = "center";
+      el.style.cursor = "pointer";
+      el.innerHTML = `
+        <svg width="30" height="30" viewBox="0 0 30 30" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.4));">
+          <circle cx="15" cy="15" r="13" fill="rgba(59,130,246,0.25)" stroke="#3B82F6" stroke-width="2.5"/>
+          <g transform="rotate(${m.heading}, 15, 15)">
+            <polygon points="15,3 21,22 15,17 9,22" fill="#3B82F6" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/>
+          </g>
+        </svg>`;
+      el.classList.add("user-location-animate");
+    } else if (isCustom) {
+      el.style.position = "relative";
+      el.style.display = "flex";
+      el.style.flexDirection = "column";
+      el.style.alignItems = "center";
+      el.style.cursor = "pointer";
+      el.style.overflow = "visible";
+      el.innerHTML = m.markerHtml!;
+    } else {
+      el.style.position = "relative";
+      el.style.width = isUserLoc ? "18px" : "26px";
+      el.style.height = isUserLoc ? "18px" : "26px";
+      el.style.borderRadius = "50%";
+      el.style.display = "flex";
+      el.style.alignItems = "center";
+      el.style.justifyContent = "center";
+      el.style.cursor = "pointer";
+      el.style.overflow = "visible";
+      el.style.background = m.pinColor || "#3B82F6";
+      el.style.border = "2px solid #fff";
+      el.style.boxShadow = isUserLoc
+        ? "0 1px 4px rgba(0,0,0,0.25), 0 0 0 1.5px rgba(59,130,246,0.3)"
+        : "0 2px 8px rgba(0,0,0,0.35)";
+      if (m.animate) el.classList.add("marker-animate");
+      if (isUserLoc) el.classList.add("user-location-animate");
+    }
+
+    if (!isArrow && !isCustom && m.children) {
+      if (React.isValidElement(m.children)) {
+        const props = (m.children as any).props;
+        const src = props?.src || props?.source?.uri;
+        if (src) {
+          const img = document.createElement("img");
+          img.src = src;
+          img.style.width = "100%";
+          img.style.height = "100%";
+          img.style.borderRadius = "50%";
+          img.style.objectFit = "cover";
+          el.appendChild(img);
+        }
+      }
+    }
+
+    return L.divIcon({
+      html: el.outerHTML,
+      className: "",
+      iconSize: isArrow ? [30, 30] : [isCustom ? 30 : (isUserLoc ? 18 : 26), isCustom ? 30 : (isUserLoc ? 18 : 26)],
+      iconAnchor: isArrow ? [15, 15] : [isCustom ? 15 : (isUserLoc ? 9 : 13), isCustom ? 15 : (isUserLoc ? 9 : 13)],
+    });
+  };
+
+  const syncReportClusters = () => {
+    clusterLayerRef.current.clearLayers();
+    markerData.markers
+      .filter(
+        (m) =>
+          m.clusterGroup &&
+          m.coordinate &&
+          typeof m.coordinate.latitude === "number" &&
+          typeof m.coordinate.longitude === "number",
+      )
+      .forEach((m) => {
+        const color = m.pinColor || "#f59e0b";
+        const el = document.createElement("div");
+        el.className = "report-dot";
+        el.style.background = color;
+        el.style.setProperty("--pc", color);
+        el.style.setProperty("--pulse-1", hexToRgba(color, 0.5));
+        el.style.setProperty("--pulse-2", hexToRgba(color, 0));
+        const marker = L.marker([m.coordinate.latitude, m.coordinate.longitude], {
+          icon: L.divIcon({
+            html: el.outerHTML,
+            className: "",
+            iconSize: [15, 15],
+            iconAnchor: [7.5, 7.5],
+          }),
+        });
+        marker.on("click", () => {
+          if (onMarkerPressRef.current) {
+            onMarkerPressRef.current({
+              coordinate: { latitude: m.coordinate.latitude, longitude: m.coordinate.longitude },
+              id: m.id || undefined,
+              title: m.title || undefined,
+            });
+          }
+        });
+        if (m.title) marker.bindPopup(m.title, { offset: [0, -8] });
+        clusterLayerRef.current.addLayer(marker);
+      });
+  };
+
+  useEffect(() => {
+    if (!containerRef.current || !activeRegion || initializedRef.current) return;
+    initializedRef.current = true;
+
+    // Inject animation CSS
+    if (!document.getElementById("leaflet-marker-anim")) {
+      const style = document.createElement("style");
+      style.id = "leaflet-marker-anim";
+      style.textContent = ANIMATION_CSS;
       document.head.appendChild(style);
     }
 
-    markerData.forEach((m) => {
+    const zoom = Math.round(
+      Math.log2(360 / Math.max(activeRegion.latitudeDelta, 0.001)),
+    );
+
+    const map = L.map(containerRef.current, {
+      center: [activeRegion.latitude, activeRegion.longitude],
+      zoom,
+      minZoom: 1,
+      maxZoom: 19,
+      zoomControl: false,
+      attributionControl: true,
+      scrollWheelZoom: scrollEnabled,
+      dragging: scrollEnabled,
+      touchZoom: scrollEnabled,
+      doubleClickZoom: scrollEnabled,
+      keyboard: scrollEnabled,
+    });
+
+    const tile = L.tileLayer(TILES[mapStyle] || TILES.light, {
+      attribution: TILE_ATTR[mapStyle] || TILE_ATTR.light,
+      maxZoom: 19,
+    }).addTo(map);
+
+    tileLayerRef.current = tile;
+    markersLayerRef.current.addTo(map);
+    clusterLayerRef.current.addTo(map);
+
+    if (onPress) {
+      map.on("click", (e: L.LeafletMouseEvent) => {
+        onPress({
+          nativeEvent: {
+            coordinate: { latitude: e.latlng.lat, longitude: e.latlng.lng },
+          },
+        });
+      });
+    }
+
+    if (onRegionChangeComplete) {
+      map.on("moveend", () => {
+        const center = map.getCenter();
+        const bounds = map.getBounds();
+        onRegionChangeComplete({
+          latitude: center.lat,
+          longitude: center.lng,
+          latitudeDelta: bounds.getNorthEast().lat - bounds.getSouthWest().lat,
+          longitudeDelta: bounds.getNorthEast().lng - bounds.getSouthWest().lng,
+        });
+      });
+    }
+
+    setTimeout(() => {
+      try { map.invalidateSize(); } catch (e) {}
+    }, 300);
+    setTimeout(() => {
+      try { map.invalidateSize(); } catch (e) {}
+    }, 1200);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined" && containerRef.current) {
+      resizeObserver = new ResizeObserver(() => {
+        try { map.invalidateSize(); } catch (e) {}
+      });
+      resizeObserver.observe(containerRef.current);
+    }
+
+    mapRef.current = map;
+
+    return () => {
+      if (resizeObserver) resizeObserver.disconnect();
+      map.remove();
+      mapRef.current = null;
+      initializedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    if (!region) return;
+    const c = mapRef.current.getCenter();
+    const dist = Math.abs(c.lng - region.longitude) + Math.abs(c.lat - region.latitude);
+    if (dist > 0.0001) {
+      mapRef.current.flyTo([region.latitude, region.longitude], undefined, {
+        duration: 0.3,
+      });
+    }
+  }, [region]);
+
+  useEffect(() => {
+    if (!mapRef.current || !tileLayerRef.current) return;
+    mapRef.current.removeLayer(tileLayerRef.current);
+    tileLayerRef.current = L.tileLayer(TILES[mapStyle] || TILES.light, {
+      attribution: TILE_ATTR[mapStyle] || TILE_ATTR.light,
+      maxZoom: 19,
+    }).addTo(mapRef.current);
+  }, [mapStyle]);
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+    markersLayerRef.current.clearLayers();
+
+    markerData.markers.forEach((m) => {
+      if (m.clusterGroup) return;
       const isUserLoc = m.pinColor === "#3B82F6" && !m.animate;
       const isCustom = !!m.markerHtml;
       const hasHeading = typeof m.heading === "number" && !isNaN(m.heading);
       const isArrow = isUserLoc && hasHeading;
-      const el = document.createElement("div");
 
-      if (isArrow) {
-        arrowElRef.current = el;
-        el.style.width = "30px";
-        el.style.height = "30px";
-        el.style.borderRadius = "50%";
-        el.style.display = "flex";
-        el.style.alignItems = "center";
-        el.style.justifyContent = "center";
-        el.style.cursor = "pointer";
-        el.innerHTML = `
-          <svg width="30" height="30" viewBox="0 0 30 30" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.4));">
-            <circle cx="15" cy="15" r="13" fill="rgba(59,130,246,0.25)" stroke="#3B82F6" stroke-width="2.5"/>
-            <g transform="rotate(${m.heading}, 15, 15)">
-              <polygon points="15,3 21,22 15,17 9,22" fill="#3B82F6" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/>
-            </g>
-          </svg>`;
-        el.classList.add("user-location-animate");
-      } else if (isCustom) {
-        el.style.width = "26px";
-        el.style.height = "26px";
-        el.style.borderRadius = "50%";
-        el.style.display = "flex";
-        el.style.alignItems = "center";
-        el.style.justifyContent = "center";
-        el.style.cursor = "pointer";
-        el.style.overflow = "hidden";
-        el.style.background = "rgba(0,0,0,0.6)";
-        el.style.border = "2px solid rgba(251,191,36,0.6)";
-        el.style.boxShadow = "0 2px 8px rgba(0,0,0,0.4)";
-        el.innerHTML = m.markerHtml!;
-      } else {
-        el.style.position = "relative";
-        el.style.width = isUserLoc ? "18px" : "26px";
-        el.style.height = isUserLoc ? "18px" : "26px";
-        el.style.borderRadius = "50%";
-        el.style.display = "flex";
-        el.style.alignItems = "center";
-        el.style.justifyContent = "center";
-        el.style.cursor = "pointer";
-        el.style.overflow = "visible";
-        el.style.background = m.animate ? "#EF4444" : (m.pinColor || "#3B82F6");
-        el.style.border = `2px solid ${m.animate ? '#FCA5A5' : isUserLoc ? '#fff' : '#22C55E'}`;
-        el.style.boxShadow = isUserLoc
-          ? "0 1px 4px rgba(0,0,0,0.25), 0 0 0 1.5px rgba(59,130,246,0.3)"
-          : "0 2px 8px rgba(0,0,0,0.35)";
-        if (m.animate) el.classList.add("marker-animate");
-        if (isUserLoc) el.classList.add("user-location-animate");
-      }
+      const icon = makeIcon(m, isArrow, isCustom, isUserLoc);
+      const marker = L.marker([m.coordinate.latitude, m.coordinate.longitude], { icon })
+        .addTo(markersLayerRef.current);
 
-      if (!isArrow && !isCustom && m.children) {
-        if (React.isValidElement(m.children)) {
-          const props = (m.children as any).props;
-          const src = props?.src || props?.source?.uri;
-          if (src) {
-            const img = document.createElement("img");
-            img.src = src;
-            img.style.width = "100%";
-            img.style.height = "100%";
-            img.style.borderRadius = "50%";
-            img.style.objectFit = "cover";
-            el.appendChild(img);
-          }
-        }
-      }
-
-      const marker = new maplibregl.Marker({ element: el })
-        .setLngLat([m.coordinate.longitude, m.coordinate.latitude])
-        .addTo(mapRef.current!);
+      if (isArrow) arrowMarkerRef.current = marker;
 
       if (m.popupHtml) {
-        const popup = new maplibregl.Popup({
-          offset: 25,
-          maxWidth: "300px",
+        marker.bindPopup(m.popupHtml, {
+          offset: [0, -13],
+          maxWidth: 300,
           closeButton: true,
+          autoClose: false,
           closeOnClick: false,
-        }).setHTML(m.popupHtml);
-        marker.setPopup(popup);
+        });
       } else if (m.title) {
-        const popup = new maplibregl.Popup({ offset: 25 }).setText(m.title);
-        marker.setPopup(popup);
+        marker.bindPopup(m.title, { offset: [0, -13] });
       }
 
-      el.addEventListener("click", () => {
-        if (onMarkerPress) onMarkerPress(m);
+      marker.on("click", () => {
+        if (onMarkerPressRef.current) onMarkerPressRef.current(m);
       });
-
-      markersRef.current.push(marker);
     });
-  }, [markerData, onMarkerPress]);
+
+    syncReportClusters();
+  }, [markerData.sig]);
 
   useEffect(() => {
     if (!mapRef.current || !showsUserLocation) return;
@@ -423,11 +444,18 @@ const MapView: React.FC<MapViewProps> = ({
           el.style.border = "2px solid #fff";
           el.style.boxShadow = "0 1px 4px rgba(0,0,0,0.25), 0 0 0 1.5px rgba(59,130,246,0.3)";
           el.classList.add("user-location-animate");
-          userMarkerRef.current = new maplibregl.Marker({ element: el })
-            .setLngLat([longitude, latitude])
+
+          const icon = L.divIcon({
+            html: el.outerHTML,
+            className: "",
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+          });
+
+          userMarkerRef.current = L.marker([latitude, longitude], { icon })
             .addTo(mapRef.current!);
         } else {
-          userMarkerRef.current.setLngLat([longitude, latitude]);
+          userMarkerRef.current.setLatLng([latitude, longitude]);
         }
       },
       (err) => console.warn("Geolocation error:", err.message),
@@ -446,60 +474,42 @@ const MapView: React.FC<MapViewProps> = ({
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    const clearRoute = () => {
-      try {
-        if (map.getSource("route")) {
-          map.removeLayer("route-line");
-          map.removeSource("route");
-        }
-      } catch (e) {}
-    };
-    if (!routeData || !routeData.geometry) {
-      clearRoute();
-      return;
+
+    if (routeLayerRef.current) {
+      map.removeLayer(routeLayerRef.current);
+      routeLayerRef.current = null;
     }
-    clearRoute();
-    map.addSource("route", {
-      type: "geojson",
-      data: { type: "Feature", properties: {}, geometry: routeData.geometry },
-    });
-    map.addLayer({
-      id: "route-line",
-      type: "line",
-      source: "route",
-      layout: { "line-join": "round", "line-cap": "round" },
-      paint: {
-        "line-color": "#EF4444",
-        "line-width": 5,
-        "line-opacity": 0.85,
-      },
-    });
-    const coords = routeData.geometry.coordinates;
-    if (coords && coords.length > 0) {
-      const bounds = coords.reduce(
-        (b, c) => b.extend(c),
-        new maplibregl.LngLatBounds(coords[0], coords[0]),
-      );
-      map.fitBounds(bounds, { padding: 80, maxZoom: 16, duration: 1000 });
-    }
+
+    if (!routeData || !routeData.geometry) return;
+
+    const latlngs: L.LatLngExpression[] = routeData.geometry.coordinates.map(
+      (c) => [c[1], c[0]] as [number, number],
+    );
+
+    const line = L.polyline(latlngs, {
+      color: "#EF4444",
+      weight: 5,
+      opacity: 0.85,
+      lineJoin: "round",
+      lineCap: "round",
+    }).addTo(map);
+
+    routeLayerRef.current = line;
   }, [routeData]);
 
   useEffect(() => {
-    if (!arrowElRef.current) return;
     if (typeof userHeading !== "number") return;
-    arrowElRef.current.innerHTML = `
-      <svg width="30" height="30" viewBox="0 0 30 30" style="filter:drop-shadow(0 2px 6px rgba(0,0,0,0.4));">
-        <circle cx="15" cy="15" r="13" fill="rgba(59,130,246,0.25)" stroke="#3B82F6" stroke-width="2.5"/>
-        <g transform="rotate(${userHeading}, 15, 15)">
-          <polygon points="15,3 21,22 15,17 9,22" fill="#3B82F6" stroke="#fff" stroke-width="1.2" stroke-linejoin="round"/>
-        </g>
-      </svg>`;
+    const el = arrowMarkerRef.current?.getElement?.();
+    if (!el) return;
+    const svg = el.querySelector("svg");
+    const g = svg?.querySelector("g");
+    if (g) g.setAttribute("transform", `rotate(${userHeading}, 15, 15)`);
   }, [userHeading]);
 
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    map.resize();
+    try { map.invalidateSize(); } catch (e) {}
   }, [routeData]);
 
   return (

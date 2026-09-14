@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import { supabase } from "../supabase";
 import { Map, AlertTriangle, MapPin, Search, ChevronLeft, ChevronRight, TrendingUp, CheckCircle, Clock, BarChart3 } from "lucide-react";
 
@@ -36,10 +38,62 @@ const getBarangay = (addr: string): string => {
   return "Calbayog City";
 };
 
+const getStatusColor = (status: string): string => {
+  switch (status) {
+    case "pending": return "#f4b51a";
+    case "in-progress": return "#2563eb";
+    case "needs-backup": return "#ef4444";
+    case "resolved": return "#10b981";
+    default: return "#94a3b8";
+  }
+};
+
+const CLUSTER_RADIUS_PX = 50;
+const MAX_CLUSTER_ZOOM = 14;
+
+const computeClusters = (reports: any[], zoom: number) => {
+  const points = reports.filter((r) => r.latitude && r.longitude);
+  const latRad = (12.07 * Math.PI) / 180;
+  const metersPerPixel = (40075016.686 * Math.cos(latRad)) / (256 * Math.pow(2, zoom));
+  const radiusMeters = CLUSTER_RADIUS_PX * metersPerPixel;
+
+  const clusters: { lat: number; lng: number; points: any[] }[] = [];
+  const used: boolean[] = [];
+
+  for (let i = 0; i < points.length; i++) {
+    if (used[i]) continue;
+    const anchor = points[i];
+    used[i] = true;
+    const members = [anchor];
+
+    const distMeters = (a: any, b: any) => {
+      const dLat = ((b.latitude - a.latitude) * Math.PI) / 180;
+      const dLng = ((b.longitude - a.longitude) * Math.PI) / 180;
+      const x = dLng * Math.cos(((a.latitude + b.latitude) * Math.PI) / 360);
+      return Math.sqrt(dLat * dLat + x * x) * 6371000;
+    };
+
+    for (let j = i + 1; j < points.length; j++) {
+      if (used[j]) continue;
+      if (distMeters(anchor, points[j]) <= radiusMeters) {
+        used[j] = true;
+        members.push(points[j]);
+      }
+    }
+
+    const lat = members.reduce((s, p) => s + p.latitude, 0) / members.length;
+    const lng = members.reduce((s, p) => s + p.longitude, 0) / members.length;
+    clusters.push({ lat, lng, points: members });
+  }
+
+  return clusters;
+};
+
 export default function CrimeHeatmap() {
   const navigate = useNavigate();
   const mapContainer = useRef<HTMLDivElement>(null);
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const clusterLayerRef = useRef<L.LayerGroup | null>(null);
   const reportsRef = useRef<any[]>([]);
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,27 +123,57 @@ export default function CrimeHeatmap() {
   }, []);
 
   useEffect(() => {
-    if (!mapRef.current) return;
-    const map = mapRef.current;
-    if (!map.isStyleLoaded()) return;
-    const source = map.getSource("crimes") as any;
-    if (!source) return;
-
-    const features = reports
-      .filter((r) => r.latitude && r.longitude)
-      .map((r) => ({
-        type: "Feature" as const,
-        properties: {
-          id: r.id,
-          crime_type: r.crime_type,
-          status: r.status,
-          time: new Date(r.created_at).toLocaleDateString(),
-        },
-        geometry: { type: "Point" as const, coordinates: [r.longitude, r.latitude] },
-      }));
-
-    source.setData({ type: "FeatureCollection", features });
+    if (!mapRef.current || !clusterLayerRef.current) return;
+    rebuildClusters(mapRef.current, clusterLayerRef.current);
   }, [reports]);
+
+  const rebuildClusters = (map: L.Map, layer: L.LayerGroup) => {
+    layer.clearLayers();
+    const clusters = computeClusters(reportsRef.current, map.getZoom());
+
+    clusters.forEach((c) => {
+      if (c.points.length === 1) {
+        const p = c.points[0];
+        const circle = L.circleMarker([p.latitude, p.longitude], {
+          radius: 8,
+          fillColor: getStatusColor(p.status),
+          color: "#fff",
+          weight: 2,
+          fillOpacity: 1,
+        });
+        circle.bindTooltip(
+          `${p.crime_type || "Crime report"} - ${p.status || "unknown"}`,
+          { direction: "top", className: "crime-point-tooltip" },
+        );
+        circle.on("click", () => {
+          navigate(`/dashboard/reports/${p.id}`);
+        });
+        layer.addLayer(circle);
+        return;
+      }
+
+      const count = c.points.length;
+      const color = count >= 10 ? "#ef4444" : count >= 5 ? "#f59e0b" : "#f4b51a";
+      const r = count >= 10 ? 40 : count >= 5 ? 30 : 20;
+
+      const icon = L.divIcon({
+        className: "crime-cluster",
+        html: `<div style="width:${r}px;height:${r}px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:${color};opacity:0.75;color:#fff;font-weight:700;font-size:${count >= 100 ? 10 : 12}px;font-family:system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,0.35),0 0 0 2px rgba(255,255,255,0.35);cursor:pointer">${count}</div>`,
+        iconSize: [r, r],
+        iconAnchor: [r / 2, r / 2],
+      });
+
+      const marker = L.marker([c.lat, c.lng], { icon });
+      marker.bindTooltip(`${count} crime report${count > 1 ? "s" : ""}`, { direction: "top" });
+      marker.on("click", () => {
+        const bounds = L.latLngBounds(
+          c.points.map((p) => L.latLng(p.latitude, p.longitude)),
+        );
+        map.fitBounds(bounds, { padding: [20, 20], maxZoom: MAX_CLUSTER_ZOOM });
+      });
+      layer.addLayer(marker);
+    });
+  };
 
   const load = async () => {
     const { data } = await supabase
@@ -127,112 +211,33 @@ export default function CrimeHeatmap() {
     );
   };
 
-  const getMapStyle = () => {
+  const initMap = () => {
     try {
-      const t = localStorage.getItem("admin-theme");
-      return t === "light"
-        ? "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json"
-        : "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
-    } catch {
-      return "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
-    }
-  };
-
-  const initMap = async () => {
-    try {
-      const maplibre = await import("maplibre-gl");
-      const map = new maplibre.Map({
-        container: mapContainer.current!,
-        style: getMapStyle(),
-        center: [124.6, 12.07],
+      const map = L.map(mapContainer.current!, {
+        center: [12.07, 124.6],
         zoom: 11,
+        minZoom: 2,
+        maxZoom: 19,
+        zoomControl: true,
       });
+
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution:
+          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        maxZoom: 19,
+      }).addTo(map);
+
       mapRef.current = map;
+      clusterLayerRef.current = L.layerGroup().addTo(map);
 
-      map.on("load", () => {
-        const current = reportsRef.current;
-        const features = current
-          .filter((r) => r.latitude && r.longitude)
-          .map((r) => ({
-            type: "Feature" as const,
-            properties: {
-              id: r.id,
-              crime_type: r.crime_type,
-              status: r.status,
-              time: new Date(r.created_at).toLocaleDateString(),
-            },
-            geometry: { type: "Point" as const, coordinates: [r.longitude, r.latitude] },
-          }));
-
-        map.addSource("crimes", {
-          type: "geojson",
-          data: { type: "FeatureCollection", features },
-          cluster: true,
-          clusterMaxZoom: 14,
-          clusterRadius: 50,
-        });
-
-        map.addLayer({
-          id: "clusters",
-          type: "circle",
-          source: "crimes",
-          filter: ["has", "point_count"],
-          paint: {
-            "circle-color": ["step", ["get", "point_count"], "#f4b51a", 5, "#f59e0b", 10, "#ef4444"],
-            "circle-radius": ["step", ["get", "point_count"], 20, 5, 30, 10, 40],
-            "circle-opacity": 0.7,
-          },
-        });
-
-        map.addLayer({
-          id: "cluster-count",
-          type: "symbol",
-          source: "crimes",
-          filter: ["has", "point_count"],
-          layout: {
-            "text-field": "{point_count_abbreviated}",
-            "text-font": ["DIN Offc Pro Medium", "Arial Unicode MS Bold"],
-            "text-size": 12,
-          },
-          paint: { "text-color": "#fff" },
-        });
-
-        map.addLayer({
-          id: "points",
-          type: "circle",
-          source: "crimes",
-          filter: ["!", ["has", "point_count"]],
-          paint: {
-            "circle-color": [
-              "case",
-              ["==", ["get", "status"], "pending"], "#f4b51a",
-              ["==", ["get", "status"], "in-progress"], "#2563eb",
-              ["==", ["get", "status"], "needs-backup"], "#ef4444",
-              ["==", ["get", "status"], "resolved"], "#10b981",
-              "#94a3b8"
-            ],
-            "circle-radius": 8,
-            "circle-stroke-width": 2,
-            "circle-stroke-color": "#fff",
-          },
-        });
-
-        map.on("click", "clusters", (e: any) => {
-          const feature = e.features[0];
-          const clusterId = feature.properties.cluster_id;
-          const source = map.getSource("crimes") as any;
-          source.getClusterExpansionZoom(clusterId, (err: any, zoom: number) => {
-            if (!err) map.flyTo({ center: feature.geometry.coordinates, zoom });
-          });
-        });
-
-        map.on("click", "points", (e: any) => {
-          const feature = e.features[0];
-          navigate(`/dashboard/reports/${feature.properties.id}`);
-        });
+      map.on("tileerror", () => setMapError(true));
+      map.on("zoomend", () => {
+        if (clusterLayerRef.current) {
+          rebuildClusters(map, clusterLayerRef.current);
+        }
       });
 
-      map.on("error", () => setMapError(true));
+      rebuildClusters(map, clusterLayerRef.current);
     } catch {
       setMapError(true);
     }

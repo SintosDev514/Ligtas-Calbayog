@@ -3,7 +3,9 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import MapView, { Marker, UrlTile } from "@/components/MapView";
 import { useMapStyle } from "@/context/MapStyleContext";
+import { useLocation } from "../context/LocationContext";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useEffect, useState } from "react";
 
 export default function FullscreenMapScreen() {
   const router = useRouter();
@@ -13,17 +15,37 @@ export default function FullscreenMapScreen() {
     title: string;
   }>();
   const { tileUrl, mapStyle } = useMapStyle();
+  const { location, getLocation } = useLocation();
+  const [focusLocation, setFocusLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
   const lat = parseFloat(latitude || "0");
   const lng = parseFloat(longitude || "0");
+
+  useEffect(() => {
+    getLocation();
+  }, []);
+
+  const handleLocateMe = async () => {
+    const pos = await getLocation();
+    if (pos) {
+      setFocusLocation({ latitude: pos.latitude, longitude: pos.longitude });
+    }
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.topBar}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Ionicons name="arrow-back" size={22} color="#fff" />
+          <TouchableOpacity
+            style={[styles.backBtn, { zIndex: 20 }]}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace("/(tabs)/home"))}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="arrow-back" size={20} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.title} numberOfLines={1}>{title || "Location"}</Text>
           <View style={styles.placeholder} />
@@ -38,6 +60,8 @@ export default function FullscreenMapScreen() {
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         }}
+        focus={focusLocation}
+        userLocation={location?.latitude != null && location?.longitude != null ? { latitude: location.latitude, longitude: location.longitude } : undefined}
       >
         <UrlTile urlTemplate={tileUrl} />
         <Marker
@@ -48,6 +72,14 @@ export default function FullscreenMapScreen() {
           title={title || "Location"}
         />
       </MapView>
+
+      <TouchableOpacity
+        style={styles.locateBtn}
+        onPress={handleLocateMe}
+        activeOpacity={0.85}
+      >
+        <Ionicons name="locate" size={22} color="#1E6BFF" />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -73,4 +105,20 @@ const styles = StyleSheet.create({
   title: { fontSize: 16, fontWeight: "600", color: "#fff", flex: 1, textAlign: "center", marginHorizontal: 8 },
   placeholder: { width: 40 },
   map: { flex: 1 },
+  locateBtn: {
+    position: "absolute",
+    right: 16,
+    bottom: 40,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 6,
+  },
 });

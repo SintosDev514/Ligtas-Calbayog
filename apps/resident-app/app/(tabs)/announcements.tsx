@@ -21,6 +21,7 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useBottomBarScroll } from "../../context/BottomBarContext";
 import {
   fetchAnnouncements,
   toggleAnnouncementLike,
@@ -508,6 +509,7 @@ const cardStyles = StyleSheet.create({
 
 export default function AnnouncementsScreen() {
   const router = useRouter();
+  const { onScroll } = useBottomBarScroll();
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -760,9 +762,6 @@ export default function AnnouncementsScreen() {
       <SafeAreaView edges={["top"]} style={styles.headerSafe}>
         <View style={styles.header}>
           <View style={styles.headerRow}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}>
-              <Ionicons name="chevron-back" size={20} color="#fff" />
-            </TouchableOpacity>
             <View style={styles.headerCenter}>
               <Text style={styles.headerTitle}>Announcements</Text>
               <Text style={styles.headerSub}>{stationName} Police Station</Text>
@@ -781,6 +780,8 @@ export default function AnnouncementsScreen() {
           renderItem={renderItem}
           contentContainerStyle={announcements.length === 0 ? styles.emptyList : styles.listContent}
           showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           refreshControl={
             <RefreshControl
               refreshing={isRefreshing}

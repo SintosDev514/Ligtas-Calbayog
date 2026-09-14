@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -35,6 +35,7 @@ import {
 } from "../../../../shared/services/reportService";
 import { useLocation } from "../../context/LocationContext";
 import { useMapStyle } from "../../context/MapStyleContext";
+import { useBottomBarScroll } from "../../context/BottomBarContext";
 
 const CRIME_META: Record<
   string,
@@ -191,6 +192,7 @@ const CRIME_META: Record<
 
 export default function ReportScreen() {
   const router = useRouter();
+  const { onScroll } = useBottomBarScroll();
   const params = useLocalSearchParams();
   const { location: sharedLocation, isLiveLocationActive } = useLocation();
   const { tileUrl, mapStyle } = useMapStyle();
@@ -219,7 +221,7 @@ export default function ReportScreen() {
   const [cameraFacing, setCameraFacing] = useState<"back" | "front">("back");
   const [showSuccess, setShowSuccess] = useState(false);
   const [submittedReportId, setSubmittedReportId] = useState<string>("");
-  const [nearestPost, setNearestPost] = useState<string | null>(null);
+  const [nearestPost, setNearestPost] = useState<{ name: string; latitude: number; longitude: number } | null>(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -404,7 +406,7 @@ export default function ReportScreen() {
       const d = haversine(lat, lng, p.latitude, p.longitude);
       if (d < minDist) { minDist = d; nearest = p; }
     }
-    setNearestPost(nearest.name);
+    setNearestPost(nearest);
   };
 
   const handleSubmit = async () => {
@@ -491,7 +493,7 @@ export default function ReportScreen() {
               nearest = p;
             }
           }
-          setNearestPost(nearest.name);
+          setNearestPost(nearest);
         }
       }
 
@@ -508,6 +510,34 @@ export default function ReportScreen() {
     }
   };
 
+  const fittedRegionRef = useRef<any>(null);
+
+  const mapRegion = useMemo(() => {
+    if (!location) return undefined;
+    if (fittedRegionRef.current) return fittedRegionRef.current;
+    const base = {
+      latitude: location.latitude,
+      longitude: location.longitude,
+      latitudeDelta: 0.005,
+      longitudeDelta: 0.005,
+    };
+    if (
+      nearestPost &&
+      nearestPost.latitude != null &&
+      nearestPost.longitude != null
+    ) {
+      const latDelta = Math.abs(base.latitude - nearestPost.latitude);
+      const lngDelta = Math.abs(base.longitude - nearestPost.longitude);
+      fittedRegionRef.current = {
+        latitude: (base.latitude + nearestPost.latitude) / 2,
+        longitude: (base.longitude + nearestPost.longitude) / 2,
+        latitudeDelta: Math.max(latDelta * 1.5, 0.012),
+        longitudeDelta: Math.max(lngDelta * 1.5, 0.012),
+      };
+      return fittedRegionRef.current;
+    }
+    return base;
+  }, [location, nearestPost]);
 
   return (
     <View style={styles.container}>
@@ -515,13 +545,9 @@ export default function ReportScreen() {
 
       <SafeAreaView edges={["top"]} style={styles.header}>
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => router.back()}
-          >
+          <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
             <Ionicons name="chevron-back" size={22} color="#fff" />
           </TouchableOpacity>
-
           <View style={styles.titleContainer}>
             <View style={styles.headerIconCircle}>
               <Ionicons name={meta.icon as any} size={16} color="#fff" />
@@ -549,6 +575,8 @@ export default function ReportScreen() {
             paddingBottom: 40,
           }}
           showsVerticalScrollIndicator={false}
+          onScroll={onScroll}
+          scrollEventThrottle={16}
         >
           <Animated.View
             style={{
@@ -607,12 +635,7 @@ export default function ReportScreen() {
                       userLocation={location?.latitude != null ? location : undefined}
                       showsCompass
                       loadingEnabled
-                      initialRegion={{
-                        latitude: location.latitude,
-                        longitude: location.longitude,
-                        latitudeDelta: 0.005,
-                        longitudeDelta: 0.005,
-                      }}
+                      region={mapRegion}
                     >
                       <UrlTile urlTemplate={tileUrl} />
                       <Marker
@@ -653,6 +676,18 @@ export default function ReportScreen() {
                           <Ionicons name="shield" size={18} color="#fff" />
                         </View>
                       </Marker>
+
+                      {nearestPost && nearestPost.latitude != null && nearestPost.longitude != null && (
+                        <Marker
+                          coordinate={{
+                            latitude: nearestPost.latitude,
+                            longitude: nearestPost.longitude,
+                          }}
+                          pinColor="#0F204B"
+                          iconName="shield"
+                          title={nearestPost.name}
+                        />
+                      )}
                     </MapView>
 
                     <View style={styles.mapOverlay} />
@@ -694,8 +729,13 @@ export default function ReportScreen() {
 
             {nearestPost && (
               <View style={styles.nearestPostCard}>
-                <Ionicons name="location" size={16} color="#F59E0B" />
-                <Text style={styles.nearestPostText}>Nearest post: {nearestPost}</Text>
+                <View style={styles.nearestPostIcon}>
+                  <Ionicons name="shield-checkmark" size={20} color="#F4B51A" />
+                </View>
+                <View style={styles.nearestPostInfo}>
+                  <Text style={styles.nearestPostLabel}>Nearest Checkpoint</Text>
+                  <Text style={styles.nearestPostName}>{nearestPost.name}</Text>
+                </View>
               </View>
             )}
 
@@ -898,7 +938,7 @@ export default function ReportScreen() {
               <View style={styles.nearestPostBox}>
                 <Ionicons name="location" size={14} color="#F59E0B" />
                 <Text style={styles.nearestPostText}>
-                  Nearest police post: {nearestPost}
+                  Nearest police post: {nearestPost.name}
                 </Text>
               </View>
             )}
@@ -1619,6 +1659,52 @@ const styles = StyleSheet.create({
     color: "#17202b",
     fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
     letterSpacing: 1,
+  },
+
+  nearestPostCard: {
+    width: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#0F204B",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(244,181,26,0.35)",
+    marginBottom: 18,
+    shadowColor: "#0F204B",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+
+  nearestPostIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(244,181,26,0.18)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+
+  nearestPostInfo: {
+    flex: 1,
+  },
+
+  nearestPostLabel: {
+    color: "#F4B51A",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 2,
+  },
+
+  nearestPostName: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
   },
 
   nearestPostBox: {
