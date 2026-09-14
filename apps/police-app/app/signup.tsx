@@ -79,7 +79,7 @@ export default function SignUpScreen() {
       await signUp(data);
       Alert.alert(
         "Registration Submitted",
-        "Your account has been created. You may now sign in.",
+        "Your account is pending approval from the PNP admin. You will be able to sign in once your registration is approved.",
       );
       router.replace("/");
     } catch (err: any) {

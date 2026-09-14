@@ -10,6 +10,7 @@ interface PoliceProfile {
   phone_number: string | null;
   police_id_photo_url: string | null;
   photo_url: string | null;
+  is_approved: boolean;
 }
 
 interface AuthContextType {
@@ -60,7 +61,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .select("*")
       .eq("id", userId)
       .single();
-    setProfile(data);
+    setProfile(data || null);
+    // Any session that is not yet approved is dropped so the officer must
+    // sign in again once the admin approves the account.
+    if (data && data.is_approved === false) {
+      await supabase.auth.signOut();
+      setProfile(null);
+    }
   };
 
   const refreshProfile = async () => {
@@ -69,8 +76,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
+    if (!data.user) throw new Error("Sign in failed");
+
+    const { data: profile } = await supabase
+      .from("police_profiles")
+      .select("is_approved")
+      .eq("id", data.user.id)
+      .maybeSingle();
+
+    if (!profile || profile.is_approved !== true) {
+      await supabase.auth.signOut();
+      throw new Error("Your account is still pending admin approval.");
+    }
   };
 
   const signUp = async (data: SignUpData) => {
@@ -105,8 +124,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       station: data.station,
       phone_number: data.phoneNumber,
       police_id_photo_url: policeIdPhotoUrl,
+      is_approved: false,
     });
     if (profileError) throw profileError;
+
+    // Always end on the sign-in screen: the officer must wait for admin
+    // approval, so no active session should be left behind after signup.
+    await supabase.auth.signOut();
   };
 
   const signOut = async () => {

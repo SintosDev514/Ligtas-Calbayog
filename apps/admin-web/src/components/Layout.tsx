@@ -9,7 +9,7 @@ import {
   Megaphone, MessageSquare,
   FolderOpen, Bell,
   UserCog, ShieldCheck, ClipboardList as AuditIcon, Settings,
-  LogOut, X, ClipboardCheck
+  LogOut, X, ClipboardCheck, BadgeCheck
 } from "lucide-react";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../supabase";
@@ -46,6 +46,7 @@ const navGroups = [
       { path: "/dashboard/police-officers", label: "Police Officers", icon: Users },
       { path: "/dashboard/duty-assignment", label: "Duty Assignment", icon: ClipboardList },
       { path: "/dashboard/performance", label: "Performance", icon: TrendingUp },
+      { path: "/dashboard/police-approvals", label: "Police Approvals", icon: BadgeCheck },
     ],
   },
   {

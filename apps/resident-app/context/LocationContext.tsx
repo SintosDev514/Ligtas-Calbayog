@@ -7,6 +7,7 @@ import React, {
   useEffect,
 } from "react";
 import * as Location from "expo-location";
+import { supabase } from "../../../shared/supabase/supabaseClient";
 
 interface LocationData {
   latitude: number;
@@ -169,20 +170,60 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
+  // Persist the live-status flag (and optional coords) so contacts can see it
+  const syncLiveStatus = useCallback(
+    async (active: boolean, coords?: { latitude: number; longitude: number }) => {
+      try {
+        const { data } = await supabase.auth.getSession();
+        const uid = data?.session?.user?.id;
+        if (!uid) return;
+        const payload: Record<string, any> = {
+          share_live_location: active,
+          updated_at: new Date().toISOString(),
+        };
+        if (coords) {
+          payload.latitude = coords.latitude;
+          payload.longitude = coords.longitude;
+        }
+        await supabase.from("resident_profiles").update(payload).eq("id", uid);
+      } catch (err) {
+        console.log("Failed to sync live status:", err);
+      }
+    },
+    [],
+  );
+
+  const getLiveCoords = useCallback(
+    async (): Promise<{ latitude: number; longitude: number } | null> => {
+      const coords = await getLocation();
+      if (coords) {
+        syncLiveStatus(true, coords);
+      }
+      return coords;
+    },
+    [getLocation, syncLiveStatus],
+  );
+
   // Toggle live location tracking
   const toggleLiveLocation = useCallback(() => {
-    setIsLiveLocationActive((prev) => !prev);
-  }, []);
+    const next = !isLiveLocationActive;
+    setIsLiveLocationActive(next);
+    if (next) {
+      syncLiveStatus(true);
+    } else {
+      syncLiveStatus(false);
+    }
+  }, [isLiveLocationActive, syncLiveStatus]);
 
   // Start/stop live location tracking
   useEffect(() => {
     if (isLiveLocationActive) {
       // Get initial location
-      getLocation();
+      getLiveCoords();
 
       // Update location every 5 seconds
       liveLocationIntervalRef.current = setInterval(() => {
-        getLocation();
+        getLiveCoords();
       }, 5000);
     } else {
       // Clear interval when live location is turned off
@@ -197,14 +238,30 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({
         clearInterval(liveLocationIntervalRef.current);
       }
     };
-  }, [isLiveLocationActive, getLocation]);
+  }, [isLiveLocationActive, getLiveCoords]);
 
   const clearLocation = useCallback(() => {
     setLocation(null);
     setIsLiveLocationActive(false);
+    syncLiveStatus(false);
     if (liveLocationIntervalRef.current) {
       clearInterval(liveLocationIntervalRef.current);
     }
+  }, [syncLiveStatus]);
+
+  // Clear any stale "live" flag left from a previous session
+  useEffect(() => {
+    const clearStaleLive = async () => {
+      const { data } = await supabase.auth.getSession();
+      const uid = data?.session?.user?.id;
+      if (!uid) return;
+      supabase
+        .from("resident_profiles")
+        .update({ share_live_location: false, updated_at: new Date().toISOString() })
+        .eq("id", uid)
+        .then(() => {});
+    };
+    clearStaleLive();
   }, []);
 
   const value: LocationContextType = {

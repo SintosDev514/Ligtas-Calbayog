@@ -204,6 +204,60 @@ export default function HomeScreen() {
     };
   }, []);
 
+  const refreshContactsPresence = React.useCallback(async () => {
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const uid = session?.session?.user?.id;
+      if (!uid) return;
+      const locations = await fetchContactLocations(uid);
+      const locatedIds = new Set(locations.map((l: any) => l.id));
+      setContacts((prev) =>
+        prev.map((c: any) => {
+          const loc = locations.find((l: any) => l.id === c.id);
+          return {
+            ...c,
+            hasLocation: loc ? true : locatedIds.has(c.id),
+            location: loc || c.location,
+            isLive: loc?.isLive === true,
+          };
+        }),
+      );
+    } catch {}
+  }, []);
+
+  const contactSig = contacts
+    .map((c: any) => c.contact_user_id)
+    .filter(Boolean)
+    .sort()
+    .join(",");
+
+  useEffect(() => {
+    let liveCh: any = null;
+    const setupLiveChannel = async () => {
+      const { data: session } = await supabase.auth.getSession();
+      const uid = session?.session?.user?.id;
+      const ids = contacts
+        .map((c: any) => c.contact_user_id)
+        .filter((x: any) => Boolean(x) && x !== uid);
+      if (!uid || ids.length === 0) return;
+      const filter = `id=in.(${[uid, ...ids].join(",")})`;
+      liveCh = supabase
+        .channel("rlive-" + Date.now() + "_" + Math.random().toString(36).slice(2, 8))
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "resident_profiles", filter },
+          () => {
+            refreshContactsPresence();
+          },
+        )
+        .subscribe();
+    };
+    setupLiveChannel();
+    return () => {
+      if (liveCh) supabase.removeChannel(liveCh);
+    };
+  }, [contactSig, refreshContactsPresence]);
+
   useEffect(() => {
     if (!isLiveLocationActive) {
       pulseAnim.setValue(1);
@@ -484,6 +538,7 @@ export default function HomeScreen() {
       hasLocation: locatedIds.has(c.id),
       location: locations.find((l: any) => l.id === c.id),
       photoUrl: photoMap[c.contact_user_id] || null,
+      isLive: locations.find((l: any) => l.id === c.id)?.isLive === true,
     }));
     setContacts(allContacts);
 
@@ -851,9 +906,11 @@ export default function HomeScreen() {
                       .slice(0, 2) || "?";
                     const colors = ["#1D4ED8", "#DC2626", "#D97706", "#059669", "#7C3AED", "#DB2777", "#0891B2"];
                     const colorIdx = c.id ? c.id.toString().length % colors.length : 0;
-                    const isActive = c.hasLocation && c.location?.updated_at
-                      ? Date.now() - new Date(c.location.updated_at).getTime() < 3600000
-                      : false;
+                    const isActive =
+                      c.isLive === true ||
+                      (c.hasLocation && c.location?.updated_at
+                        ? Date.now() - new Date(c.location.updated_at).getTime() < 3600000
+                        : false);
                     return (
                       <TouchableOpacity
                         key={c.contact_user_id || c.id}

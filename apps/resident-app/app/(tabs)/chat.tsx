@@ -16,7 +16,7 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useBottomBarScroll } from "../../context/BottomBarContext";
 import MapView, { Marker, UrlTile } from "@/components/MapView";
 import { supabase } from "../../../../shared/supabase/supabaseClient";
@@ -42,6 +42,7 @@ export default function ChatScreen() {
   }>();
   const { location, getLocation } = useLocation();
   const { tileUrl, mapStyle } = useMapStyle();
+  const insets = useSafeAreaInsets();
 
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState("");
@@ -474,7 +475,7 @@ export default function ChatScreen() {
           />
         )}
 
-        <View style={styles.inputBar}>
+        <View style={[styles.inputBar, { paddingBottom: 8 + insets.bottom }]}>
           {contactPhone ? (
             <TouchableOpacity
               style={styles.phoneBtn}
@@ -529,7 +530,7 @@ export default function ChatScreen() {
           activeOpacity={1}
           onPress={() => setShowContext(false)}
         >
-          <View style={styles.contextMenu}>
+          <View style={[styles.contextMenu, { paddingBottom: 34 + insets.bottom }]}>
             <TouchableOpacity style={styles.contextItem} onPress={handleReply}>
               <Ionicons name="arrow-undo" size={20} color="#17202b" />
               <Text style={styles.contextItemText}>Reply</Text>
@@ -570,7 +571,7 @@ export default function ChatScreen() {
             activeOpacity={1}
             onPress={() => { setShowEmojiPicker(false); setContextMsg(null); }}
           />
-          <View style={styles.emojiPicker}>
+          <View style={[styles.emojiPicker, { paddingBottom: 34 + insets.bottom }]}>
             <Text style={styles.emojiPickerTitle}>React with emoji</Text>
             <View style={styles.emojiRow}>
               {EMOJIS.map((emoji) => (

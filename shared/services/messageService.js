@@ -164,6 +164,23 @@ export const fetchContactLocations = async (userId) => {
 
   if (contactUserIds.length === 0) return [];
 
+  // Live-presence flags + current coords from resident_profiles
+  const liveMap = {};
+  {
+    const { data: profiles } = await supabase
+      .from("resident_profiles")
+      .select("id, share_live_location, latitude, longitude, updated_at")
+      .in("id", contactUserIds);
+    for (const p of profiles ?? []) {
+      liveMap[p.id] = {
+        isLive: !!p.share_live_location,
+        latitude: p.latitude,
+        longitude: p.longitude,
+        updated_at: p.updated_at,
+      };
+    }
+  }
+
   const { data: messages } = await supabase
     .from("messages")
     .select("*")
@@ -180,14 +197,29 @@ export const fetchContactLocations = async (userId) => {
   }
 
   return contacts
-    .filter((c) => c.contact_user_id && latestPerContact[c.contact_user_id])
+    .filter(
+      (c) =>
+        c.contact_user_id &&
+        (latestPerContact[c.contact_user_id] || liveMap[c.contact_user_id]?.isLive),
+    )
     .map((c) => ({
       id: c.id,
       name: c.name,
       relationship: c.relationship,
-      latitude: latestPerContact[c.contact_user_id].latitude,
-      longitude: latestPerContact[c.contact_user_id].longitude,
-      updated_at: latestPerContact[c.contact_user_id].created_at,
+      latitude:
+        latestPerContact[c.contact_user_id]?.latitude ??
+        liveMap[c.contact_user_id]?.latitude ??
+        null,
+      longitude:
+        latestPerContact[c.contact_user_id]?.longitude ??
+        liveMap[c.contact_user_id]?.longitude ??
+        null,
+      updated_at:
+        latestPerContact[c.contact_user_id]?.created_at ||
+        liveMap[c.contact_user_id]?.updated_at ||
+        null,
+      isLive: liveMap[c.contact_user_id]?.isLive || false,
+      live_updated_at: liveMap[c.contact_user_id]?.updated_at || null,
     }));
 };
 
