@@ -211,7 +211,12 @@ export default function CrimeHeatmap() {
     );
   };
 
-  const initMap = () => {
+  const MAPBOX_TOKEN = (import.meta.env.VITE_MAPBOX_ACCESS_TOKEN as string) || "";
+const TILE_URL = MAPBOX_TOKEN
+  ? `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/256/{z}/{x}/{y}?access_token=${MAPBOX_TOKEN}`
+  : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png";
+
+const initMap = () => {
     try {
       const map = L.map(mapContainer.current!, {
         center: [12.07, 124.6],
@@ -221,10 +226,11 @@ export default function CrimeHeatmap() {
         zoomControl: true,
       });
 
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      L.tileLayer(TILE_URL, {
         attribution:
           '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         maxZoom: 19,
+        subdomains: "abc",
       }).addTo(map);
 
       mapRef.current = map;
